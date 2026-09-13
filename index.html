@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a2433" />
+  <meta name="description" content="Controle financeiro de obras — simples, mobile-first, sem login." />
+  <title>Controle de Obras</title>
+  <!-- LOGO: quando estiver pronta, salve como "logo.png" nesta pasta.
+       Ela aparece no cabeçalho, na aba do navegador e servirá de ícone PWA. -->
+  <link rel="icon" type="image/png" href="logo.png" />
+  <link rel="apple-touch-icon" href="logo.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== TOPO ===== -->
+  <header class="topo">
+    <div class="topo-inner">
+      <!-- Espaço da logo: mostra logo.png se existir, senão o emoji.
+           A imagem nunca é distorcida (object-fit: contain). -->
+      <div class="logo-slot" id="logo-slot">
+        <img src="logo.png" alt="Logo da empresa" id="logo-img" />
+        <span class="logo-fallback" aria-hidden="true">🏗️</span>
+      </div>
+      <div>
+        <h1>Controle de Obras</h1>
+        <p class="subtitulo">Financeiro simples para chefe de obra</p>
+      </div>
+    </div>
+    <!-- Navegação desktop (no celular aparece a barra inferior) -->
+    <nav class="nav-desktop">
+      <button class="nav-btn ativo" data-ir="dashboard">Início</button>
+      <button class="nav-btn" data-ir="obras">Obras</button>
+      <button class="nav-btn" data-ir="financeiro">Financeiro</button>
+      <button class="nav-btn destaque" data-ir="nova-obra">+ Nova obra</button>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- ===== TELA: DASHBOARD ===== -->
+    <section id="tela-dashboard" class="tela ativa">
+      <!-- Boas-vindas -->
+      <div class="hero">
+        <p class="saudacao" id="saudacao">👋 Resumo das suas obras</p>
+        <p class="hero-data"><span id="saudacao-data"></span> · <span id="dash-mes-titulo">Financeiro do mês</span></p>
+      </div>
+
+      <!-- Indicadores principais: só o essencial -->
+      <div class="grid-resumo hero-kpis">
+        <div class="mini-card">
+          <span class="mini-label">🏗️ Obras ativas</span>
+          <strong id="res-ativas">0</strong>
+        </div>
+        <div class="mini-card verde">
+          <span class="mini-label">💰 Entradas do mês</span>
+          <strong id="dash-mes-entradas">R$ 0,00</strong>
+        </div>
+        <div class="mini-card vermelho">
+          <span class="mini-label">💸 Gastos do mês</span>
+          <strong id="dash-mes-gastos">R$ 0,00</strong>
+        </div>
+        <div class="mini-card azul destaque-lucro">
+          <span class="mini-label">📈 Resultado do mês</span>
+          <strong id="dash-mes-resultado">R$ 0,00</strong>
+        </div>
+      </div>
+      <button class="btn btn-texto" data-ir="financeiro">Ver financeiro →</button>
+
+      <!-- Totais gerais (compacto) -->
+      <div class="faixa-totais" aria-label="Resumo geral">
+        <span>Obras encerradas: <strong id="res-encerradas">0</strong></span>
+        <span>Valor total: <strong id="res-valor-total">R$ 0,00</strong></span>
+        <span>Recebido: <strong id="res-recebido">R$ 0,00</strong></span>
+        <span>Gasto: <strong id="res-gasto">R$ 0,00</strong></span>
+        <span>Lucro: <strong id="res-lucro">R$ 0,00</strong></span>
+      </div>
+
+      <!-- Lista de obras -->
+      <div class="linha-secao" id="ancora-obras">
+        <h2 class="titulo-secao">Minhas obras</h2>
+        <span class="contador" id="contador-obras"></span>
+      </div>
+      <!-- Filtros: em andamento / encerradas / todas -->
+      <div class="filtros" role="tablist" aria-label="Filtrar obras">
+        <button class="filtro ativo" data-filtro="ativas">Em andamento</button>
+        <button class="filtro" data-filtro="encerradas">Encerradas</button>
+        <button class="filtro" data-filtro="todas">Todas</button>
+      </div>
+      <button class="btn btn-texto" id="btn-ver-encerradas" hidden>Ver obras encerradas →</button>
+      <div id="lista-obras" class="lista-obras"></div>
+
+      <!-- Estado vazio -->
+      <div id="estado-vazio" class="estado-vazio" hidden>
+        <div class="estado-icone">🏠</div>
+        <p><strong>Nenhuma obra cadastrada</strong></p>
+        <p class="texto-suave">Toque em <strong>+ Nova obra</strong> para começar.</p>
+        <button class="btn btn-primario btn-grande" data-ir="nova-obra">+ Nova obra</button>
+      </div>
+    </section>
+
+    <!-- ===== TELA: NOVA OBRA / EDITAR OBRA ===== -->
+    <section id="tela-nova-obra" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao" id="titulo-form-obra">Nova obra</h2>
+
+      <form id="form-obra" class="card form" novalidate>
+        <label class="campo">
+          <span>Nome da obra *</span>
+          <input type="text" id="obra-nome" placeholder="Ex: Casa João" required maxlength="60" />
+        </label>
+        <label class="campo">
+          <span>Cliente *</span>
+          <input type="text" id="obra-cliente" placeholder="Ex: João Silva" required maxlength="60" />
+        </label>
+        <label class="campo">
+          <span>Endereço</span>
+          <input type="text" id="obra-endereco" placeholder="Ex: Registro - SP" maxlength="120" />
+        </label>
+        <label class="campo">
+          <span>Valor contratado (R$) *</span>
+          <input type="number" id="obra-valor" placeholder="Ex: 150000" min="0" step="0.01" inputmode="decimal" required />
+        </label>
+        <div class="linha-2">
+          <label class="campo">
+            <span>Início</span>
+            <input type="date" id="obra-inicio" />
+          </label>
+          <label class="campo">
+            <span>Previsão término</span>
+            <input type="date" id="obra-fim" />
+          </label>
+        </div>
+        <label class="campo">
+          <span>Status</span>
+          <select id="obra-status">
+            <option value="Em andamento">Em andamento</option>
+            <option value="Pausada">Pausada</option>
+            <option value="Concluída">Concluída</option>
+            <option value="Encerrada">Encerrada</option>
+          </select>
+        </label>
+        <label class="campo">
+          <span>Observações</span>
+          <textarea id="obra-obs" rows="3" placeholder="Ex: Pagamento em 4 etapas..." maxlength="500"></textarea>
+        </label>
+        <button type="submit" class="btn btn-primario btn-grande" id="btn-salvar-obra">Criar obra</button>
+        <button type="button" class="btn btn-texto" data-ir="dashboard">Cancelar</button>
+      </form>
+    </section>
+
+    <!-- ===== TELA: DETALHE DA OBRA ===== -->
+    <section id="tela-obra" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <div class="obra-cabecalho">
+        <div class="obra-avatar" id="obra-avatar" aria-hidden="true">?</div>
+        <div>
+          <h2 id="obra-titulo">—</h2>
+          <p class="texto-suave" id="obra-cliente-linha">—</p>
+        </div>
+      </div>
+      <div class="obra-acoes-topo">
+        <span class="badge-status" id="obra-status-badge">—</span>
+        <div class="acoes-icones">
+          <button class="btn-pequeno" id="btn-editar-obra" title="Editar obra">✏️ Editar</button>
+          <button class="btn-pequeno perigo" id="btn-excluir-obra" title="Excluir obra">🗑️ Excluir</button>
+        </div>
+      </div>
+
+      <!-- Números principais -->
+      <div class="grid-numeros">
+        <div class="numero-card"><span>Valor da obra</span><strong id="d-valor">R$ 0,00</strong></div>
+        <div class="numero-card verde"><span>Recebido</span><strong id="d-recebido">R$ 0,00</strong></div>
+        <div class="numero-card vermelho"><span>Total gasto</span><strong id="d-gasto">R$ 0,00</strong></div>
+        <div class="numero-card azul"><span>Lucro atual</span><strong id="d-lucro">R$ 0,00</strong></div>
+        <div class="numero-card amarelo"><span>A receber</span><strong id="d-areceber">R$ 0,00</strong></div>
+        <div class="numero-card"><span>Margem</span><strong id="d-margem">—</strong></div>
+      </div>
+
+      <!-- Ações rápidas: o mais fácil de alcançar com uma mão -->
+      <div class="acoes-rapidas">
+        <button class="acao-rapida destaque" id="qa-gasto">＋<span>Gasto</span></button>
+        <button class="acao-rapida" id="qa-recebimento">＋<span>Receber</span></button>
+        <button class="acao-rapida" id="qa-equipe">👷<span>Mão de obra</span></button>
+      </div>
+
+      <!-- Resultado final (aparece só em obra encerrada) -->
+      <div class="card resultado-final" id="obra-resultado-final" hidden></div>
+
+      <!-- Aviso de somente-leitura (aparece só em obra encerrada) -->
+      <div class="card aviso-encerrada" id="obra-aviso-encerrada" hidden>
+        🔒 Obra encerrada em <strong id="obra-data-encerramento">—</strong>.
+        Os dados estão aqui só para consulta. Para lançar algo novo, reabra a obra.
+      </div>
+
+      <!-- Abas internas da obra -->
+      <nav class="abas" role="tablist">
+        <button class="aba ativa" data-aba="resumo">Resumo</button>
+        <button class="aba" data-aba="recebimentos">Receb.</button>
+        <button class="aba" data-aba="gastos">Gastos</button>
+        <button class="aba" data-aba="equipe">Mão de obra</button>
+      </nav>
+
+      <!-- Aba: Resumo -->
+      <div class="painel-aba ativo" id="aba-resumo">
+        <h3 class="titulo-secao">Resumo dos gastos</h3>
+        <div id="resumo-categorias"></div>
+        <div class="card dica">
+          <p>💡 <strong>Dica:</strong> valores da aba <strong>Mão de obra</strong> entram sozinhos no total. Não lance de novo em Gastos.</p>
+        </div>
+        <div class="card" id="obra-info-extra"></div>
+      </div>
+
+      <!-- Aba: Recebimentos -->
+      <div class="painel-aba" id="aba-recebimentos">
+        <button class="btn btn-primario btn-grande" id="btn-novo-recebimento">+ Adicionar recebimento</button>
+        <div id="lista-recebimentos" class="lista"></div>
+      </div>
+
+      <!-- Aba: Gastos -->
+      <div class="painel-aba" id="aba-gastos">
+        <button class="btn btn-primario btn-grande" id="btn-novo-gasto">+ Adicionar gasto</button>
+        <div id="lista-gastos" class="lista"></div>
+      </div>
+
+      <!-- Aba: Mão de obra -->
+      <div class="painel-aba" id="aba-equipe">
+        <button class="btn btn-primario btn-grande" id="btn-novo-trabalhador">+ Adicionar trabalhador</button>
+        <div id="lista-equipe" class="lista"></div>
+      </div>
+
+      <!-- Ações da obra: encerrar / reabrir -->
+      <div class="card acoes-obra">
+        <button class="btn btn-perigo" id="btn-encerrar-obra">🔒 Encerrar obra</button>
+        <button class="btn btn-primario" id="btn-reabrir-obra" hidden>🔓 Reabrir obra</button>
+      </div>
+    </section>
+
+    <!-- ===== TELA: FINANCEIRO MENSAL ===== -->
+    <section id="tela-financeiro" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Financeiro</h2>
+      <p class="texto-suave">Entradas e gastos do mês, somando todas as obras.</p>
+
+      <!-- Seletor de mês -->
+      <div class="card seletor-mes">
+        <button class="mes-seta" id="mes-anterior" aria-label="Mês anterior">‹</button>
+        <div class="mes-atual">
+          <strong id="fin-mes-titulo">—</strong>
+          <span class="texto-suave">toque nas setas para trocar de mês</span>
+        </div>
+        <button class="mes-seta" id="mes-proximo" aria-label="Próximo mês">›</button>
+      </div>
+
+      <!-- Resumo do mês selecionado -->
+      <div class="grid-resumo">
+        <div class="mini-card verde">
+          <span class="mini-label">💰 Entradas</span>
+          <strong id="fin-entradas">R$ 0,00</strong>
+        </div>
+        <div class="mini-card vermelho">
+          <span class="mini-label">💸 Gastos</span>
+          <strong id="fin-gastos">R$ 0,00</strong>
+        </div>
+        <div class="mini-card azul destaque-lucro">
+          <span class="mini-label">📈 Resultado do mês</span>
+          <strong id="fin-resultado">R$ 0,00</strong>
+        </div>
+      </div>
+
+      <!-- Gráfico simples (CSS puro) -->
+      <h3 class="titulo-secao">Últimos meses</h3>
+      <div class="card">
+        <div class="grafico" id="fin-grafico"></div>
+        <div class="legenda">
+          <span class="leg-item"><i class="cor cor-entradas"></i>Entradas</span>
+          <span class="leg-item"><i class="cor cor-gastos"></i>Gastos</span>
+          <span class="leg-item"><i class="cor cor-resultado"></i>Resultado</span>
+        </div>
+      </div>
+
+      <!-- Detalhe do mês selecionado -->
+      <h3 class="titulo-secao">Detalhe do mês</h3>
+      <div id="fin-detalhe" class="lista"></div>
+
+      <!-- Histórico mensal -->
+      <h3 class="titulo-secao">Histórico mensal</h3>
+      <div id="fin-historico" class="lista"></div>
+    </section>
+  </main>
+
+  <!-- ===== MODAL GENÉRICO (bottom-sheet no celular) ===== -->
+  <div class="modal-fundo" id="modal-fundo" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-topo">
+        <h3 id="modal-titulo">Adicionar</h3>
+        <button class="modal-fechar" id="modal-fechar" aria-label="Fechar">✕</button>
+      </div>
+
+      <!-- Form recebimento -->
+      <form id="form-recebimento" class="form" hidden novalidate>
+        <label class="campo"><span>Valor (R$) *</span>
+          <input type="number" id="rec-valor" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 20000" required />
+        </label>
+        <label class="campo"><span>Data *</span><input type="date" id="rec-data" required /></label>
+        <label class="campo"><span>Descrição *</span>
+          <input type="text" id="rec-desc" placeholder="Ex: Pagamento da segunda etapa" required maxlength="80" />
+        </label>
+        <label class="campo"><span>Forma de pagamento</span>
+          <select id="rec-forma">
+            <option>PIX</option><option>Dinheiro</option><option>Transferência</option>
+            <option>Boleto</option><option>Cartão</option><option>Outro</option>
+          </select>
+        </label>
+        <label class="campo"><span>Observação</span><textarea id="rec-obs" rows="2" maxlength="300"></textarea></label>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
+        </div>
+      </form>
+
+      <!-- Form gasto -->
+      <form id="form-gasto" class="form" hidden novalidate>
+        <label class="campo"><span>Categoria *</span>
+          <select id="gasto-categoria">
+            <option>Materiais</option><option>Mão de obra</option><option>Frete/Transporte</option>
+            <option>Ferramentas</option><option>Alimentação</option><option>Equipamentos</option><option>Outros</option>
+          </select>
+        </label>
+        <label class="campo"><span>Descrição *</span>
+          <input type="text" id="gasto-desc" placeholder="Ex: Cimento (10 sacos)" required maxlength="80" />
+        </label>
+        <label class="campo"><span>Valor (R$) *</span>
+          <input type="number" id="gasto-valor" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 250" required />
+        </label>
+        <label class="campo"><span>Data *</span><input type="date" id="gasto-data" required /></label>
+        <label class="campo"><span>Observação</span><textarea id="gasto-obs" rows="2" maxlength="300"></textarea></label>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
+        </div>
+      </form>
+
+      <!-- Form trabalhador -->
+      <form id="form-equipe" class="form" hidden novalidate>
+        <label class="campo"><span>Nome do trabalhador *</span>
+          <input type="text" id="eq-nome" placeholder="Ex: João" required maxlength="60" />
+        </label>
+        <label class="campo"><span>Função *</span>
+          <input type="text" id="eq-funcao" placeholder="Ex: Pedreiro" required maxlength="40" />
+        </label>
+        <div class="linha-2">
+          <label class="campo"><span>Diária (R$) *</span>
+            <input type="number" id="eq-diaria" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 180" required />
+          </label>
+          <label class="campo"><span>Dias *</span>
+            <input type="number" id="eq-dias" min="0" step="1" inputmode="numeric" placeholder="Ex: 20" required />
+          </label>
+        </div>
+        <p class="total-previa">Total: <strong id="eq-total-previa">R$ 0,00</strong></p>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast de confirmação -->
+  <div class="toast" id="toast" hidden></div>
+
+  <!-- Modal de confirmação (ex: encerrar obra) -->
+  <div class="modal-fundo" id="modal-confirm" hidden>
+    <div class="modal modal-confirm" role="alertdialog" aria-modal="true">
+      <h3 id="confirm-titulo">Confirmar</h3>
+      <p id="confirm-texto"></p>
+      <div class="confirm-botoes">
+        <button class="btn btn-texto" id="confirm-cancelar">Cancelar</button>
+        <button class="btn btn-perigo" id="confirm-ok">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navegação inferior (mobile) -->
+  <nav class="nav-inferior">
+    <button class="nav-item" data-ir="dashboard">🏠<span>Início</span></button>
+    <button class="nav-item" data-ir="obras">🏗️<span>Obras</span></button>
+    <button class="nav-item" data-ir="financeiro">💰<span>Financeiro</span></button>
+    <button class="nav-item acao" data-ir="nova-obra"><span class="nav-mais">＋</span><span>Nova obra</span></button>
+  </nav>
+
+  <script src="script.js"></script>
+</body>
+</html>
