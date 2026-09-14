@@ -337,6 +337,10 @@ function salvarObra(event) {
     return;
   }
 
+  // Se o status atual da obra não existe mais nas opções (ex: "Pausada",
+  // removida do formulário), mantém o status antigo em vez de salvar vazio.
+  const statusSel = document.getElementById("obra-status").value;
+  const statusAntigo = editandoObraId && pegarObra(editandoObraId) ? pegarObra(editandoObraId).status : "";
   const dados = {
     nome,
     cliente,
@@ -344,7 +348,7 @@ function salvarObra(event) {
     valorContratado: valor,
     dataInicio: document.getElementById("obra-inicio").value,
     previsaoTermino: document.getElementById("obra-fim").value,
-    status: document.getElementById("obra-status").value,
+    status: statusSel || statusAntigo || "Em andamento",
     observacoes: document.getElementById("obra-obs").value.trim(),
   };
 
