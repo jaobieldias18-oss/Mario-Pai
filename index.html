@@ -18,6 +18,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="MARIO" />
+  <!-- Tema salvo (claro/escuro) aplicado antes do CSS: evita flash branco -->
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("mario-tema")==="escuro"?"escuro":"claro"}catch(e){}</script>
   <!-- Acelera o carregamento: conecta antes nos servidores externos -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="preconnect" href="https://wmcrbjlzsqveekwifded.supabase.co" crossorigin />
@@ -38,6 +40,7 @@
         <h1>Controle de Obras</h1>
         <p class="subtitulo">Financeiro simples para chefe de obra</p>
       </div>
+      <button class="btn-engrenagem" data-ir="opcoes" aria-label="Opções" title="Opções">⚙️</button>
     </div>
     <!-- Navegação desktop (no celular aparece a barra inferior) -->
     <nav class="nav-desktop">
@@ -45,6 +48,7 @@
       <button class="nav-btn" data-ir="obras">Obras</button>
       <button class="nav-btn" data-ir="financeiro">Financeiro</button>
       <button class="nav-btn" data-ir="visao-geral">Visão Geral</button>
+      <button class="nav-btn" data-ir="opcoes">Opções</button>
       <button class="nav-btn destaque" data-ir="nova-obra">+ Nova obra</button>
     </nav>
   </header>
@@ -365,6 +369,26 @@
       <!-- Meses do período (toque p/ detalhar) -->
       <h3 class="titulo-secao">Meses</h3>
       <div id="vg-lista" class="lista"></div>
+    </section>
+
+    <!-- ===== TELA: OPÇÕES ===== -->
+    <section id="tela-opcoes" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Opções</h2>
+
+      <div class="card">
+        <h3 class="opcoes-titulo">Aparência</h3>
+        <p class="texto-suave">Escolha como o MARIO aparece na tela.</p>
+        <div class="opcoes-tema">
+          <button class="tema-opcao" data-tema="claro">☀️<span>Claro</span></button>
+          <button class="tema-opcao" data-tema="escuro">🌙<span>Escuro</span></button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="opcoes-titulo">Sobre</h3>
+        <p class="texto-suave">MARIO · Controle financeiro de obras.<br />Seus dados ficam salvos e sincronizados.</p>
+      </div>
     </section>
   </main>
 

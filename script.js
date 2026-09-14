@@ -250,7 +250,7 @@ function listarMesesComMovimento() {
 }
 
 // ---------- 6. NAVEGAÇÃO ----------
-const telas = ["dashboard", "nova-obra", "obra", "financeiro", "visao-geral"];
+const telas = ["dashboard", "nova-obra", "obra", "financeiro", "visao-geral", "opcoes"];
 
 function mostrarTela(nome) {
   // Mostra só a tela pedida
@@ -260,6 +260,7 @@ function mostrarTela(nome) {
     obra: "tela-obra",
     financeiro: "tela-financeiro",
     "visao-geral": "tela-visao-geral",
+    opcoes: "tela-opcoes",
   };
   document.querySelectorAll(".tela").forEach((el) => el.classList.remove("ativa"));
   document.getElementById(mapa[nome]).classList.add("ativa");
@@ -285,6 +286,7 @@ function irPara(destino) {
   if (destino === "dashboard") mostrarTela("dashboard");
   else if (destino === "financeiro") mostrarTela("financeiro");
   else if (destino === "visao-geral") mostrarTela("visao-geral");
+  else if (destino === "opcoes") mostrarTela("opcoes");
   else if (destino === "obras") {
     mostrarTela("dashboard");
     setTimeout(() => document.getElementById("ancora-obras").scrollIntoView({ behavior: "smooth" }), 50);
@@ -1432,7 +1434,31 @@ function aoMudar(id, evento, fn) {
   if (el) el.addEventListener(evento, fn);
 }
 
+// ---------- TEMA (claro / escuro) ----------
+// Só aparência: salva a preferência no navegador, sem mexer nos dados.
+function temaSalvo() {
+  try {
+    return localStorage.getItem("mario-tema") === "escuro" ? "escuro" : "claro";
+  } catch (e) {
+    return "claro";
+  }
+}
+
+function aplicarTema(tema) {
+  const escuro = tema === "escuro";
+  document.documentElement.dataset.theme = escuro ? "escuro" : "claro";
+  try {
+    localStorage.setItem("mario-tema", escuro ? "escuro" : "claro");
+  } catch (e) { /* sem armazenamento, mantém só na sessão */ }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = escuro ? "#0f141b" : "#1a2433";
+  document.querySelectorAll(".tema-opcao").forEach((b) =>
+    b.classList.toggle("ativo", (b.dataset.tema === "escuro") === escuro)
+  );
+}
+
 async function iniciar() {
+  aplicarTema(temaSalvo()); // tema antes de desenhar (sem flash)
   mesSelecionado = mesAtual();
 
   // 1. Carrega tudo do Supabase (com tela de "Carregando...")
@@ -1457,6 +1483,11 @@ async function iniciar() {
   // Abas da obra
   document.querySelectorAll(".aba").forEach((b) =>
     b.addEventListener("click", () => trocarAba(b.dataset.aba))
+  );
+
+  // Opções: escolha do tema (claro / escuro)
+  document.querySelectorAll(".tema-opcao").forEach((b) =>
+    b.addEventListener("click", () => aplicarTema(b.dataset.tema))
   );
 
   // Obra: criar / editar / excluir / encerrar / reabrir

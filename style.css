@@ -50,6 +50,93 @@
   --altura-nav: 70px;
 }
 
+/* ===== MODO ESCURO (data-theme="escuro" no <html>) ===== */
+[data-theme="escuro"] {
+  color-scheme: dark;
+  --fundo: #0f141b;
+  --card: #1b2432;
+  --texto: #edf1f7;
+  --texto-sec: #9fadc0;
+  --borda: #2c3a4f;
+  --sucesso: #4caf7d;
+  --sucesso-fundo: #123626;
+  --alerta: #e8b64c;
+  --alerta-fundo: #3a2c10;
+  --erro: #e07a72;
+  --erro-fundo: #3d1a17;
+  --info-fundo: #17293f;
+  --cor-secundaria: #5b93e6;
+  --sombra: 0 2px 12px rgba(0, 0, 0, 0.4);
+  --sombra-forte: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+
+/* Superfícies claras no tema claro viram escuras (variantes coloridas
+   continuam valendo, pois estão depois no arquivo) */
+[data-theme="escuro"] .card,
+[data-theme="escuro"] .mini-card,
+[data-theme="escuro"] .numero-card,
+[data-theme="escuro"] .obra-card,
+[data-theme="escuro"] .item,
+[data-theme="escuro"] .abas,
+[data-theme="escuro"] .filtros,
+[data-theme="escuro"] .cat-linha,
+[data-theme="escuro"] .hist-item,
+[data-theme="escuro"] .vg-linha,
+[data-theme="escuro"] .modal,
+[data-theme="escuro"] .nav-inferior,
+[data-theme="escuro"] .carregando-caixa,
+[data-theme="escuro"] .lista-vazia,
+[data-theme="escuro"] .estado-vazio,
+[data-theme="escuro"] .total-aba,
+[data-theme="escuro"] .faixa-totais,
+[data-theme="escuro"] .btn-voltar {
+  background: var(--card);
+  color: var(--texto);
+}
+/* Detalhes com cinza-claro fixo */
+[data-theme="escuro"] .obra-numeros div,
+[data-theme="escuro"] .numero-card.custos,
+[data-theme="escuro"] .item-acoes button,
+[data-theme="escuro"] .btn-pequeno,
+[data-theme="escuro"] .modal-fechar,
+[data-theme="escuro"] .item-icone,
+[data-theme="escuro"] .obra-card.encerrada {
+  background: #222d3f;
+  color: var(--texto);
+}
+[data-theme="escuro"] .campo input,
+[data-theme="escuro"] .campo select,
+[data-theme="escuro"] .campo textarea {
+  background: #222d3f;
+  color: var(--texto);
+  border-color: var(--borda);
+}
+[data-theme="escuro"] .barra { background: #2b3a4f; }
+[data-theme="escuro"] .badge-status.concluida { background: #2b3a4f; color: #c7d0db; }
+[data-theme="escuro"] .hist-item.selecionado,
+[data-theme="escuro"] .vg-linha.selecionada { background: #1b2c47; }
+[data-theme="escuro"] .saudacao strong { color: #f4c14f; }
+
+/* ===== Botão de Opções no cabeçalho ===== */
+.btn-engrenagem {
+  margin-left: auto;
+  border: none; background: rgba(255, 255, 255, 0.12);
+  width: 46px; height: 46px; border-radius: 12px;
+  font-size: 22px; cursor: pointer; flex-shrink: 0;
+}
+
+/* ===== Tela Opções ===== */
+.opcoes-titulo { font-size: 16px; margin-bottom: 4px; }
+.opcoes-tema { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.tema-opcao {
+  border: 2px solid var(--borda); background: var(--fundo);
+  border-radius: var(--raio-p); padding: 16px 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font-size: 26px; cursor: pointer; color: var(--texto); min-height: 88px;
+}
+.tema-opcao span { font-size: 14px; font-weight: 800; }
+.tema-opcao.ativo { border-color: var(--cor-destaque); background: var(--alerta-fundo); }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* REGRA DE OURO: hidden sempre esconde, mesmo com display do componente.
