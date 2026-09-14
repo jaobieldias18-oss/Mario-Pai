@@ -86,6 +86,7 @@
         <span>Valor total: <strong id="res-valor-total">R$ 0,00</strong></span>
         <span>Recebido: <strong id="res-recebido">R$ 0,00</strong></span>
         <span>Gasto: <strong id="res-gasto">R$ 0,00</strong></span>
+        <span>Mão de obra: <strong id="res-mo">R$ 0,00</strong></span>
         <span>Lucro: <strong id="res-lucro">R$ 0,00</strong></span>
       </div>
 
@@ -188,6 +189,7 @@
         <div class="numero-card azul"><span>Lucro atual</span><strong id="d-lucro">R$ 0,00</strong></div>
         <div class="numero-card amarelo"><span>A receber</span><strong id="d-areceber">R$ 0,00</strong></div>
         <div class="numero-card"><span>Margem</span><strong id="d-margem">—</strong></div>
+        <div class="numero-card mo"><span>👷 Mão de obra</span><strong id="d-mo">R$ 0,00</strong></div>
       </div>
 
       <!-- Ações da obra: encerrar / reabrir (logo após os números) -->
@@ -398,7 +400,7 @@
       <form id="form-gasto" class="form" hidden novalidate>
         <label class="campo"><span>Categoria *</span>
           <select id="gasto-categoria">
-            <option>Materiais</option><option>Mão de obra</option><option>Frete/Transporte</option>
+            <option>Materiais</option><option>Frete/Transporte</option>
             <option>Ferramentas</option><option>Alimentação</option><option>Equipamentos</option><option>Outros</option>
           </select>
         </label>
@@ -432,6 +434,7 @@
             <input type="number" id="eq-dias" min="0" step="1" inputmode="numeric" placeholder="Ex: 20" required />
           </label>
         </div>
+        <label class="campo"><span>Data (entra no financeiro do mês) *</span><input type="date" id="eq-data" required /></label>
         <p class="total-previa">Total: <strong id="eq-total-previa">R$ 0,00</strong></p>
         <div class="modal-botoes">
           <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>

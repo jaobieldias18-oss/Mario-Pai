@@ -130,24 +130,37 @@ function mostrarToast(mensagem, sucesso = true) {
 }
 
 // ---------- 4. CÁLCULOS ----------
-// Regras (conforme pedido):
+// Regras (gastos e mão de obra SEPARADOS, sem conta dupla):
 // totalRecebido = soma dos recebimentos
-// totalGasto    = soma dos gastos (mão de obra já está dentro dos gastos!)
+// totalGasto    = soma SÓ dos gastos sem elo de mão de obra (despesas puras)
+// totalMO       = soma dos trabalhadores (diaria × dias)
+// totalCusto    = totalGasto + totalMO (tudo que a obra custou)
 // aReceber      = valorContratado - totalRecebido
-// lucro         = totalRecebido - totalGasto
+// lucro         = totalRecebido - totalCusto
 // margem        = lucro / totalRecebido * 100 (se recebido = 0, margem = 0)
+function totalMaoObra(obra) {
+  // Custo de mão de obra = soma dos trabalhadores (fonte única da verdade).
+  // Gastos automáticos antigos (maoObraId) NÃO entram aqui: o trabalhador
+  // já representa esse custo — somar os dois seria contar duas vezes.
+  return (obra.equipe || []).reduce(
+    (s, x) => s + (Number(x.total) || (numeroOuZero(x.valorDiaria) * numeroOuZero(x.dias))), 0);
+}
+
 function calcularTotais(obra) {
   const totalRecebido = (obra.recebimentos || []).reduce((s, r) => s + numeroOuZero(r.valor), 0);
-  const totalGasto = (obra.gastos || []).reduce((s, g) => s + numeroOuZero(g.valor), 0);
+  const totalGasto = (obra.gastos || [])
+    .filter((g) => !g.maoObraId) // ignora gastos automáticos legados de mão de obra
+    .reduce((s, g) => s + numeroOuZero(g.valor), 0);
+  const totalMO = totalMaoObra(obra);
   const valorContratado = numeroOuZero(obra.valorContratado);
   const aReceber = valorContratado - totalRecebido;
-  const lucro = totalRecebido - totalGasto;
+  const lucro = totalRecebido - (totalGasto + totalMO);
   const margem = totalRecebido > 0 ? (lucro / totalRecebido) * 100 : 0; // evita divisão por zero
-  return { totalRecebido, totalGasto, aReceber, lucro, margem, valorContratado };
+  return { totalRecebido, totalGasto, totalMO, aReceber, lucro, margem, valorContratado };
 }
 
 function calcularResumoGeral() {
-  let ativas = 0, encerradas = 0, valorTotal = 0, recebido = 0, gasto = 0, lucro = 0;
+  let ativas = 0, encerradas = 0, valorTotal = 0, recebido = 0, gasto = 0, mo = 0, lucro = 0;
   for (const obra of obras) {
     if (ehEncerrada(obra)) encerradas++;
     else ativas++;
@@ -155,17 +168,22 @@ function calcularResumoGeral() {
     valorTotal += t.valorContratado;
     recebido += t.totalRecebido;
     gasto += t.totalGasto;
+    mo += t.totalMO;
   }
-  lucro = recebido - gasto;
-  return { ativas, encerradas, valorTotal, recebido, gasto, lucro };
+  lucro = recebido - gasto - mo;
+  return { ativas, encerradas, valorTotal, recebido, gasto, mo, lucro };
 }
 
 // ---------- 5. CÁLCULOS MENSAIS (FINANCEIRO) ----------
 // IMPORTANTE: resultado mensal NÃO é lucro de obra.
 // Resultado mensal = tudo que entrou (recebimentos com data no mês)
-//                  - tudo que saiu (gastos com data no mês),
-// somando TODAS as obras. Calculado na hora, a partir das datas
-// já registradas — não existe lista separada, então nunca fica inconsistente.
+//                  - tudo que saiu no mês, sendo:
+//                    + gastos (despesas) com data no mês, e
+//                    + mão de obra do mês (cada trabalhador conta UMA vez,
+//                      na data do seu gasto automático legado OU na sua
+//                      própria data — nunca nas duas).
+// Somando TODAS as obras (inclusive encerradas: vale a DATA).
+// Calculado na hora — não existe lista separada, nunca fica inconsistente.
 function dataValida(texto) {
   return typeof texto === "string" && /^\d{4}-\d{2}-\d{2}$/.test(texto);
 }
@@ -182,10 +200,27 @@ function calcularMes(chaveMes) {
         listaEntradas.push({ obra: obra.nome, descricao: r.descricao, data: r.data, valor: numeroOuZero(r.valor) });
       }
     }
+    // Datas dos gastos automáticos legados (preserva o histórico original)
+    const dataAutoMO = {};
     for (const g of obra.gastos || []) {
-      if (dataValida(g.data) && g.data.slice(0, 7) === chaveMes) {
+      if (g.maoObraId) {
+        if (dataValida(g.data)) dataAutoMO[g.maoObraId] = g.data;
+      } else if (dataValida(g.data) && g.data.slice(0, 7) === chaveMes) {
         gastos += numeroOuZero(g.valor);
         listaSaidas.push({ obra: obra.nome, descricao: g.descricao, data: g.data, valor: numeroOuZero(g.valor), categoria: g.categoria });
+      }
+    }
+    // Mão de obra do mês (uma vez por trabalhador, sem duplicar)
+    for (const t of obra.equipe || []) {
+      const total = numeroOuZero(t.valorDiaria) * numeroOuZero(t.dias);
+      const dataMO = dataAutoMO[t.id] || t.data || "";
+      if (dataValida(dataMO) && dataMO.slice(0, 7) === chaveMes) {
+        gastos += total;
+        listaSaidas.push({
+          obra: obra.nome,
+          descricao: `${t.nome} — ${t.funcao} (${t.dias} dia${t.dias > 1 ? "s" : ""})`,
+          data: dataMO, valor: total, categoria: "Mão de obra",
+        });
       }
     }
   }
@@ -195,11 +230,20 @@ function calcularMes(chaveMes) {
 }
 
 // Lista todos os meses que têm algum lançamento, do mais novo ao mais antigo
+// (recebimentos, gastos E mão de obra — pela data de cada um)
 function listarMesesComMovimento() {
   const meses = new Set();
   for (const obra of obras) {
     for (const r of obra.recebimentos || []) if (dataValida(r.data)) meses.add(r.data.slice(0, 7));
-    for (const g of obra.gastos || []) if (dataValida(g.data)) meses.add(g.data.slice(0, 7));
+    for (const g of obra.gastos || []) {
+      if (g.maoObraId || !dataValida(g.data)) continue; // automático legado não conta aqui
+      meses.add(g.data.slice(0, 7));
+    }
+    for (const t of obra.equipe || []) {
+      const auto = (obra.gastos || []).find((g) => g.maoObraId === t.id);
+      const dataMO = (auto && dataValida(auto.data) && auto.data) || t.data || "";
+      if (dataValida(dataMO)) meses.add(dataMO.slice(0, 7));
+    }
   }
   return [...meses].sort().reverse();
 }
@@ -559,11 +603,14 @@ async function excluirGasto(id) {
   mostrarToast("Gasto excluído.");
 }
 
-// ---------- 10. MÃO DE OBRA ----------
-// COMO EVITAMOS CONTA DUPLA (igual ao original):
-// Cada trabalhador gera UM gasto automático (categoria "Mão de obra",
-// ligado por maoObraId). O total gasto soma SÓ a lista de gastos.
-// Então: editar/excluir o trabalhador atualiza/apaga o gasto junto.
+// ---------- 10. MÃO DE OBRA (módulo separado dos gastos) ----------
+// SEPARAÇÃO TOTAL: trabalhador NÃO cria mais gasto automático.
+// - Total de mão de obra = soma dos trabalhadores (diaria × dias).
+// - Total de gastos = soma SÓ dos gastos sem elo (despesas puras).
+// - O custo da obra considera os dois, cada um uma única vez.
+// Gastos automáticos antigos (maoObraId) são ignorados nas listas e
+// totais de gastos; ao editar/excluir o trabalhador, o legado ligado
+// a ele é atualizado/apagado junto para manter tudo consistente.
 async function salvarTrabalhador(event) {
   event.preventDefault();
   const obra = pegarObra(obraAbertaId);
@@ -573,28 +620,29 @@ async function salvarTrabalhador(event) {
   const funcao = document.getElementById("eq-funcao").value.trim();
   const diaria = numeroOuZero(document.getElementById("eq-diaria").value);
   const dias = numeroOuZero(document.getElementById("eq-dias").value);
+  const data = document.getElementById("eq-data").value || hojeISO();
   if (!nome || !funcao || !diaria || !dias) {
     mostrarToast("Preencha nome, função, diária e dias.", false);
     return;
   }
   const total = diaria * dias;
-  const descricaoGasto = `${nome} — ${funcao} (${dias} diária${dias > 1 ? "s" : ""})`;
 
   if (editandoEqId) {
     const trab = obra.equipe.find((t) => t.id === editandoEqId);
     if (!trab) { editandoEqId = null; fecharModal(); return; }
-    // Atualiza o gasto ligado (mantém o elo maoObraId)
+    // Legado: se existe gasto automático antigo ligado, atualiza junto
     const gasto = obra.gastos.find((g) => g.maoObraId === editandoEqId);
     try {
-      await DB.atualizarTrabalhador(editandoEqId, { nome, funcao, valorDiaria: diaria, dias });
+      await DB.atualizarTrabalhador(editandoEqId, { nome, funcao, valorDiaria: diaria, dias, data });
       if (gasto) {
         await DB.atualizarGasto(gasto.id, {
-          categoria: gasto.categoria, descricao: descricaoGasto, valor: total,
-          data: gasto.data, observacao: gasto.observacao, maoObraId: editandoEqId,
+          categoria: gasto.categoria,
+          descricao: `${nome} — ${funcao} (${dias} diária${dias > 1 ? "s" : ""})`,
+          valor: total, data: gasto.data, observacao: gasto.observacao, maoObraId: editandoEqId,
         });
       }
-      Object.assign(trab, { nome, funcao, valorDiaria: diaria, dias, total });
-      if (gasto) Object.assign(gasto, { descricao: descricaoGasto, valor: total });
+      Object.assign(trab, { nome, funcao, valorDiaria: diaria, dias, total, data });
+      if (gasto) Object.assign(gasto, { valor: total });
     } catch (e) {
       editandoEqId = null;
       fecharModal();
@@ -603,20 +651,11 @@ async function salvarTrabalhador(event) {
     }
     mostrarToast("Trabalhador atualizado!");
   } else {
-    let novoT = null, novoG = null;
+    let novoT = null;
     try {
-      novoT = await DB.inserirTrabalhador(obra.id, { nome, funcao, valorDiaria: diaria, dias });
-      // Cria o gasto automático (é assim que entra no total, sem duplicar)
-      novoG = await DB.inserirGasto(obra.id, {
-        categoria: "Mão de obra", descricao: descricaoGasto,
-        valor: total, data: hojeISO(), observacao: "Gerado automaticamente (aba Mão de obra).",
-        maoObraId: novoT.id,
-      });
+      novoT = await DB.inserirTrabalhador(obra.id, { nome, funcao, valorDiaria: diaria, dias, data });
       obra.equipe.push(novoT);
-      obra.gastos.push(novoG);
     } catch (e) {
-      // Se o gasto falhar após criar o trabalhador, desfaz para não quebrar o elo
-      if (novoT && !novoG) { try { await DB.excluirTrabalhador(novoT.id); } catch (e2) { /* recarregar resolve */ } }
       editandoEqId = null;
       fecharModal();
       await erroBanco("adicionar o trabalhador", e);
@@ -632,8 +671,8 @@ async function salvarTrabalhador(event) {
 async function excluirTrabalhador(id) {
   const obra = pegarObra(obraAbertaId);
   if (!obra || obraSomenteLeitura(obra)) return;
-  if (!confirm("Remover trabalhador (e o gasto ligado a ele)?")) return;
-  const gasto = obra.gastos.find((g) => g.maoObraId === id); // gasto automático junto
+  if (!confirm("Remover trabalhador?")) return;
+  const gasto = obra.gastos.find((g) => g.maoObraId === id); // legado automático junto
   try {
     if (gasto) await DB.excluirGasto(gasto.id);
     await DB.excluirTrabalhador(id);
@@ -665,6 +704,7 @@ function renderDashboard() {
   document.getElementById("res-valor-total").textContent = formatarMoeda(r.valorTotal);
   document.getElementById("res-recebido").textContent = formatarMoeda(r.recebido);
   document.getElementById("res-gasto").textContent = formatarMoeda(r.gasto);
+  document.getElementById("res-mo").textContent = formatarMoeda(r.mo);
   const lucroEl = document.getElementById("res-lucro");
   lucroEl.textContent = formatarMoeda(r.lucro);
   lucroEl.style.color = r.lucro < 0 ? "#ff9d97" : "#fff";
@@ -726,7 +766,7 @@ function renderDashboard() {
         <div><small>Gastos</small><b class="texto-vermelho">${formatarMoeda(t.totalGasto)}</b></div>
         <div><small>${encerrada ? "Lucro final" : "Lucro atual"}</small><b class="texto-azul">${formatarMoeda(t.lucro)}</b></div>
       </div>
-      <p class="obra-status-linha"><span class="status-dot ${dotClasse}"></span>${proteger(obra.status || "Em andamento")}${encerrada && obra.dataEncerramento ? ` · ${formatarData(obra.dataEncerramento)}` : ""}</p>
+      <p class="obra-status-linha"><span class="status-dot ${dotClasse}"></span>${proteger(obra.status || "Em andamento")}${encerrada && obra.dataEncerramento ? ` · ${formatarData(obra.dataEncerramento)}` : ""} · 👷 ${formatarMoeda(t.totalMO)}</p>
       <button class="btn btn-primario" style="margin-top:10px">Ver obra →</button>`;
     card.querySelector("button").addEventListener("click", () => abrirObra(obra.id));
     lista.appendChild(card);
@@ -770,8 +810,8 @@ function renderObra() {
     t.totalRecebido > 0 ? t.margem.toFixed(2).replace(".", ",") + "%" : "—";
 
   // Totais por aba + custo de mão de obra no Resumo (só exibição).
-  // Custo MO = soma dos trabalhadores (o que a aba Mão de obra lista).
-  const custoMO = (obra.equipe || []).reduce((s, x) => s + (Number(x.total) || 0), 0);
+  const custoMO = t.totalMO; // soma dos trabalhadores (o que a aba Mão de obra lista)
+  document.getElementById("d-mo").textContent = formatarMoeda(custoMO);
   document.getElementById("resumo-mo-valor").textContent = formatarMoeda(custoMO);
   document.getElementById("resumo-mo-qtd").textContent =
     obra.equipe.length === 0 ? "· nenhum trabalhador"
@@ -803,6 +843,7 @@ function renderEncerramento(obra) {
       <div class="rf-linha"><span>Valor da obra</span><strong>${formatarMoeda(t.valorContratado)}</strong></div>
       <div class="rf-linha"><span>Total recebido</span><strong>${formatarMoeda(t.totalRecebido)}</strong></div>
       <div class="rf-linha"><span>Total gasto</span><strong>${formatarMoeda(t.totalGasto)}</strong></div>
+      <div class="rf-linha"><span>Mão de obra</span><strong>${formatarMoeda(t.totalMO)}</strong></div>
       <div class="rf-linha"><span>Lucro final</span><strong class="texto-verde">${formatarMoeda(t.lucro)}</strong></div>
       <div class="rf-linha"><span>Margem de lucro</span><strong>${t.totalRecebido > 0 ? t.margem.toFixed(2).replace(".", ",") + "%" : "—"}</strong></div>
       <div class="rf-linha"><span>Data de encerramento</span><strong>${formatarData(obra.dataEncerramento)}</strong></div>`;
@@ -852,13 +893,14 @@ function renderRecebimentos(obra) {
 function renderGastos(obra) {
   const lista = document.getElementById("lista-gastos");
   lista.innerHTML = "";
-  if (!obra.gastos.length) {
+  // SOMENTE despesas: ignora gastos automáticos legados de mão de obra
+  const soDespesas = (obra.gastos || []).filter((g) => !g.maoObraId);
+  if (!soDespesas.length) {
     lista.innerHTML = `<div class="lista-vazia">Nenhum gasto ainda.<br>Toque em <strong>+ Adicionar gasto</strong>.</div>`;
     return;
   }
-  const ordenados = [...obra.gastos].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
+  const ordenados = [...soDespesas].sort((a, b) => (b.data || "").localeCompare(a.data || ""));
   for (const g of ordenados) {
-    const automatico = !!g.maoObraId;
     const div = document.createElement("div");
     div.className = "item gasto";
     div.innerHTML = `
@@ -866,16 +908,13 @@ function renderGastos(obra) {
         <span class="item-icone" aria-hidden="true">${iconeCategoria(g.categoria)}</span>
         <div class="item-conteudo">
           <strong>${proteger(g.descricao)}</strong>
-          <span class="item-meta">${proteger(g.categoria)} • ${formatarData(g.data)}${automatico ? ' <span class="tag-auto">auto</span>' : ""}</span>
+          <span class="item-meta">${proteger(g.categoria)} • ${formatarData(g.data)}</span>
         </div>
         <span class="item-valor texto-vermelho">${formatarMoeda(g.valor)}</span>
       </div>
       ${g.observacao ? `<p class="item-meta" style="margin-top:6px">${proteger(g.observacao)}</p>` : ""}
       <div class="item-acoes"><button data-a="editar">✏️ Editar</button><button data-a="excluir" class="excluir">🗑️ Excluir</button></div>`;
-    div.querySelector('[data-a="editar"]').addEventListener("click", () => {
-      if (automatico) { mostrarToast("Edite pela aba Mão de obra.", false); trocarAba("equipe"); }
-      else abrirModal("gasto", g.id);
-    });
+    div.querySelector('[data-a="editar"]').addEventListener("click", () => abrirModal("gasto", g.id));
     div.querySelector('[data-a="excluir"]').addEventListener("click", () => excluirGasto(g.id));
     lista.appendChild(div);
   }
@@ -913,6 +952,7 @@ function renderResumoCategorias(obra) {
   const porCategoria = {};
   CATEGORIAS.forEach((c) => (porCategoria[c] = 0));
   for (const g of obra.gastos || []) {
+    if (g.maoObraId) continue; // legado de mão de obra não entra no resumo de gastos
     const cat = CATEGORIAS.includes(g.categoria) ? g.categoria : "Outros";
     porCategoria[cat] += numeroOuZero(g.valor);
   }
@@ -1278,6 +1318,7 @@ function abrirModal(tipo, idEditar = null) {
     document.getElementById("modal-titulo").textContent = idEditar ? "Editar trabalhador" : "Novo trabalhador";
     const form = document.getElementById("form-equipe");
     form.reset();
+    document.getElementById("eq-data").value = hojeISO();
     atualizarPreviaEquipe();
     if (idEditar) {
       const t = pegarObra(obraAbertaId).equipe.find((x) => x.id === idEditar);
@@ -1285,6 +1326,7 @@ function abrirModal(tipo, idEditar = null) {
       document.getElementById("eq-funcao").value = t.funcao;
       document.getElementById("eq-diaria").value = t.valorDiaria;
       document.getElementById("eq-dias").value = t.dias;
+      document.getElementById("eq-data").value = t.data || hojeISO();
       atualizarPreviaEquipe();
     }
   }

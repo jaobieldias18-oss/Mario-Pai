@@ -60,10 +60,10 @@ create table if not exists public.recebimentos (
   created_at timestamptz not null default now()
 );
 
--- 4. GASTOS (um por linha, ligado à obra)
--- mao_obra_id = elo com o trabalhador (sem FK: a exclusão
--- é feita pelo app, junto com o trabalhador — igual ao
--- comportamento atual do campo maoObraId no localStorage)
+-- 4. GASTOS (um por linha, ligado à obra — SOMENTE despesas)
+-- mao_obra_id = elo LEGADO com o trabalhador (dados antigos criavam um
+-- gasto automático; o app atual não cria mais e ignora esses registros
+-- nas listas/totais de gastos — o trabalhador é a fonte da verdade)
 create table if not exists public.gastos (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users (id) on delete cascade,
@@ -77,7 +77,8 @@ create table if not exists public.gastos (
   created_at timestamptz not null default now()
 );
 
--- 5. TRABALHADORES (mão de obra, ligada à obra)
+-- 5. TRABALHADORES (mão de obra, ligada à obra — separada dos gastos)
+-- data = mês em que o custo entra no financeiro mensal
 create table if not exists public.trabalhadores (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users (id) on delete cascade,
@@ -86,8 +87,12 @@ create table if not exists public.trabalhadores (
   funcao text not null,
   diaria numeric(14, 2) not null default 0,
   dias_trabalhados integer not null default 0,
+  data date,
   created_at timestamptz not null default now()
 );
+
+-- Coluna data em bancos criados antes dela existir
+alter table public.trabalhadores add column if not exists data date;
 
 -- 6. Índices (listas por obra e filtro por data do financeiro)
 create index if not exists idx_obras_owner on public.obras (owner_id);
@@ -96,6 +101,7 @@ create index if not exists idx_gastos_obra on public.gastos (obra_id);
 create index if not exists idx_trabalhadores_obra on public.trabalhadores (obra_id);
 create index if not exists idx_recebimentos_data on public.recebimentos (data);
 create index if not exists idx_gastos_data on public.gastos (data);
+create index if not exists idx_trabalhadores_data on public.trabalhadores (data);
 
 -- 7. RLS: cada usuário autenticado só toca nos PRÓPRIOS dados
 alter table public.obras enable row level security;

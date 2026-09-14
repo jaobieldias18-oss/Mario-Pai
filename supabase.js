@@ -67,6 +67,8 @@ function linhaParaObra(l) {
         valorDiaria: diaria,
         dias: dias,
         total: diaria * dias, // calculado, igual ao app original
+        // data p/ o financeiro mensal (prioriza a informada; senão, a de cadastro)
+        data: t.data || (t.created_at || "").slice(0, 10) || "",
       };
     }),
   };
@@ -117,6 +119,7 @@ function trabalhadorParaLinha(obraId, d) {
     funcao: d.funcao,
     diaria: d.valorDiaria || 0,
     dias_trabalhados: d.dias || 0,
+    data: dataOuNulo(d.data),
   };
 }
 
@@ -131,7 +134,7 @@ const DB = {
       .select("id,nome,cliente,endereco,valor_contratado,data_inicio,previsao_termino,status,data_encerramento,observacoes,created_at," +
         "recebimentos(id,valor,data,descricao,forma_pagamento,observacao)," +
         "gastos(id,categoria,descricao,valor,data,observacao,mao_obra_id)," +
-        "trabalhadores(id,nome,funcao,diaria,dias_trabalhados)")
+        "trabalhadores(id,nome,funcao,diaria,dias_trabalhados,data,created_at)")
       .order("created_at", { ascending: true });
     if (error) throw error;
     return (data || []).map(linhaParaObra);

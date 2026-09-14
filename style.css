@@ -277,6 +277,8 @@ strong, b { font-variant-numeric: tabular-nums; }
 .numero-card.azul { background: linear-gradient(135deg, var(--cor-principal), var(--cor-principal-2)); color: #fff; border: none; }
 .numero-card.azul span { color: #ffd98a; }
 .numero-card.amarelo { background: var(--alerta-fundo); border-color: #ecd9a8; }
+/* Mão de obra: faixa própria (separada dos gastos), largura total */
+.numero-card.mo { grid-column: span 2; background: var(--info-fundo); border-color: #bcd3f5; }
 
 /* Abas da obra (navegação única, compacta; rola discreto se não couber) */
 .abas {
@@ -519,6 +521,7 @@ strong, b { font-variant-numeric: tabular-nums; }
   .mini-card.destaque-lucro { grid-column: auto; }
   .lista-obras { grid-template-columns: repeat(2, 1fr); }
   .grid-numeros { grid-template-columns: repeat(3, 1fr); }
+  .numero-card.mo { grid-column: span 3; }
   .modal-fundo { align-items: center; padding: 20px; }
   .modal { border-radius: 20px; border-top: none; border: 1px solid var(--borda); }
   .btn { max-width: 420px; }
