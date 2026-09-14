@@ -191,6 +191,7 @@
         <div class="numero-card amarelo"><span>A receber</span><strong id="d-areceber">R$ 0,00</strong></div>
         <div class="numero-card"><span>Margem</span><strong id="d-margem">—</strong></div>
         <div class="numero-card mo"><span>👷 Mão de obra</span><strong id="d-mo">R$ 0,00</strong></div>
+        <div class="numero-card custos"><span>🧾 Custos totais</span><strong id="d-custos">R$ 0,00</strong></div>
       </div>
 
       <!-- Ações da obra: encerrar / reabrir (logo após os números) -->
@@ -247,7 +248,7 @@
       <!-- Aba: Mão de obra -->
       <div class="painel-aba" id="aba-equipe">
         <p class="total-aba">Total de mão de obra: <strong id="total-equipe">R$ 0,00</strong></p>
-        <button class="btn btn-primario btn-grande" id="btn-novo-trabalhador">+ Adicionar mão de obra</button>
+        <button class="btn btn-primario btn-grande" id="btn-novo-trabalhador">+ Adicionar trabalhador</button>
         <div id="lista-equipe" class="lista"></div>
       </div>
     </section>
@@ -412,6 +413,12 @@
           <input type="number" id="gasto-valor" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 250" required />
         </label>
         <label class="campo"><span>Data *</span><input type="date" id="gasto-data" required /></label>
+        <label class="campo"><span>Forma de pagamento</span>
+          <select id="gasto-forma">
+            <option>PIX</option><option>Dinheiro</option><option>Transferência</option>
+            <option>Boleto</option><option>Cartão</option><option>Outro</option>
+          </select>
+        </label>
         <label class="campo"><span>Observação</span><textarea id="gasto-obs" rows="2" maxlength="300"></textarea></label>
         <div class="modal-botoes">
           <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>

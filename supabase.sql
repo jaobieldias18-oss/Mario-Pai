@@ -72,6 +72,7 @@ create table if not exists public.gastos (
   descricao text not null,
   valor numeric(14, 2) not null default 0,
   data date not null,
+  forma_pagamento text,
   observacao text,
   mao_obra_id uuid,
   created_at timestamptz not null default now()
@@ -93,6 +94,9 @@ create table if not exists public.trabalhadores (
 
 -- Coluna data em bancos criados antes dela existir
 alter table public.trabalhadores add column if not exists data date;
+
+-- Coluna forma de pagamento dos gastos em bancos criados antes dela existir
+alter table public.gastos add column if not exists forma_pagamento text;
 
 -- 6. Índices (listas por obra e filtro por data do financeiro)
 create index if not exists idx_obras_owner on public.obras (owner_id);

@@ -152,11 +152,12 @@ function calcularTotais(obra) {
     .filter((g) => !g.maoObraId) // ignora gastos automáticos legados de mão de obra
     .reduce((s, g) => s + numeroOuZero(g.valor), 0);
   const totalMO = totalMaoObra(obra);
+  const totalCusto = totalGasto + totalMO; // tudo que a obra custou
   const valorContratado = numeroOuZero(obra.valorContratado);
   const aReceber = valorContratado - totalRecebido;
-  const lucro = totalRecebido - (totalGasto + totalMO);
+  const lucro = totalRecebido - totalCusto;
   const margem = totalRecebido > 0 ? (lucro / totalRecebido) * 100 : 0; // evita divisão por zero
-  return { totalRecebido, totalGasto, totalMO, aReceber, lucro, margem, valorContratado };
+  return { totalRecebido, totalGasto, totalMO, totalCusto, aReceber, lucro, margem, valorContratado };
 }
 
 function calcularResumoGeral() {
@@ -207,7 +208,7 @@ function calcularMes(chaveMes) {
         if (dataValida(g.data)) dataAutoMO[g.maoObraId] = g.data;
       } else if (dataValida(g.data) && g.data.slice(0, 7) === chaveMes) {
         gastos += numeroOuZero(g.valor);
-        listaSaidas.push({ obra: obra.nome, descricao: g.descricao, data: g.data, valor: numeroOuZero(g.valor), categoria: g.categoria });
+        listaSaidas.push({ obra: obra.nome, descricao: g.descricao, data: g.data, valor: numeroOuZero(g.valor), categoria: g.categoria, formaPagamento: g.formaPagamento || "" });
       }
     }
     // Mão de obra do mês (uma vez por trabalhador, sem duplicar)
@@ -545,6 +546,7 @@ async function salvarGasto(event) {
   const dados = {
     categoria: document.getElementById("gasto-categoria").value,
     descricao, valor, data,
+    formaPagamento: document.getElementById("gasto-forma").value,
     observacao: document.getElementById("gasto-obs").value.trim(),
   };
 
@@ -812,6 +814,7 @@ function renderObra() {
   // Totais por aba + custo de mão de obra no Resumo (só exibição).
   const custoMO = t.totalMO; // soma dos trabalhadores (o que a aba Mão de obra lista)
   document.getElementById("d-mo").textContent = formatarMoeda(custoMO);
+  document.getElementById("d-custos").textContent = formatarMoeda(t.totalCusto);
   document.getElementById("resumo-mo-valor").textContent = formatarMoeda(custoMO);
   document.getElementById("resumo-mo-qtd").textContent =
     obra.equipe.length === 0 ? "· nenhum trabalhador"
@@ -844,6 +847,7 @@ function renderEncerramento(obra) {
       <div class="rf-linha"><span>Total recebido</span><strong>${formatarMoeda(t.totalRecebido)}</strong></div>
       <div class="rf-linha"><span>Total gasto</span><strong>${formatarMoeda(t.totalGasto)}</strong></div>
       <div class="rf-linha"><span>Mão de obra</span><strong>${formatarMoeda(t.totalMO)}</strong></div>
+      <div class="rf-linha"><span>Custos totais</span><strong>${formatarMoeda(t.totalCusto)}</strong></div>
       <div class="rf-linha"><span>Lucro final</span><strong class="texto-verde">${formatarMoeda(t.lucro)}</strong></div>
       <div class="rf-linha"><span>Margem de lucro</span><strong>${t.totalRecebido > 0 ? t.margem.toFixed(2).replace(".", ",") + "%" : "—"}</strong></div>
       <div class="rf-linha"><span>Data de encerramento</span><strong>${formatarData(obra.dataEncerramento)}</strong></div>`;
@@ -908,7 +912,7 @@ function renderGastos(obra) {
         <span class="item-icone" aria-hidden="true">${iconeCategoria(g.categoria)}</span>
         <div class="item-conteudo">
           <strong>${proteger(g.descricao)}</strong>
-          <span class="item-meta">${proteger(g.categoria)} • ${formatarData(g.data)}</span>
+          <span class="item-meta">${proteger(g.categoria)} • ${formatarData(g.data)}${g.formaPagamento ? " • " + proteger(g.formaPagamento) : ""}</span>
         </div>
         <span class="item-valor texto-vermelho">${formatarMoeda(g.valor)}</span>
       </div>
@@ -1062,7 +1066,7 @@ function renderDetalheMes(rm) {
         <span class="item-icone" aria-hidden="true">${iconeCategoria(s.categoria)}</span>
         <div class="item-conteudo">
           <strong>${proteger(s.descricao)}</strong>
-          <span class="item-meta">🏗️ ${proteger(s.obra)} • ${formatarData(s.data)}</span>
+          <span class="item-meta">🏗️ ${proteger(s.obra)} • ${formatarData(s.data)}${s.formaPagamento ? " • " + proteger(s.formaPagamento) : ""}</span>
         </div>
         <span class="item-valor texto-vermelho">− ${formatarMoeda(s.valor)}</span>
       </div>`;
@@ -1310,6 +1314,7 @@ function abrirModal(tipo, idEditar = null) {
       document.getElementById("gasto-desc").value = g.descricao;
       document.getElementById("gasto-valor").value = g.valor;
       document.getElementById("gasto-data").value = g.data;
+      document.getElementById("gasto-forma").value = g.formaPagamento || "PIX";
       document.getElementById("gasto-obs").value = g.observacao || "";
     }
   }

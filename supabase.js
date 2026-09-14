@@ -54,8 +54,9 @@ function linhaParaObra(l) {
       descricao: g.descricao,
       valor: Number(g.valor) || 0,
       data: g.data,
+      formaPagamento: g.forma_pagamento || "",
       observacao: g.observacao || "",
-      maoObraId: g.mao_obra_id || null, // elo com o trabalhador (sem conta dupla)
+      maoObraId: g.mao_obra_id || null, // elo LEGADO (ignorado nas listas/totais)
     })),
     equipe: (l.trabalhadores || []).map((t) => {
       const diaria = Number(t.diaria) || 0;
@@ -107,6 +108,7 @@ function gastoParaLinha(obraId, d) {
     descricao: d.descricao,
     valor: d.valor || 0,
     data: d.data,
+    forma_pagamento: d.formaPagamento || null,
     observacao: d.observacao || null,
     mao_obra_id: d.maoObraId || null,
   };
@@ -133,7 +135,7 @@ const DB = {
       .from("obras")
       .select("id,nome,cliente,endereco,valor_contratado,data_inicio,previsao_termino,status,data_encerramento,observacoes,created_at," +
         "recebimentos(id,valor,data,descricao,forma_pagamento,observacao)," +
-        "gastos(id,categoria,descricao,valor,data,observacao,mao_obra_id)," +
+        "gastos(id,categoria,descricao,valor,data,forma_pagamento,observacao,mao_obra_id)," +
         "trabalhadores(id,nome,funcao,diaria,dias_trabalhados,data,created_at)")
       .order("created_at", { ascending: true });
     if (error) throw error;
