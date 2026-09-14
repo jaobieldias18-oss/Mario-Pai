@@ -10,7 +10,7 @@
       e atualiza em segundo plano (rápido + sempre novo).
    ===================================================== */
 
-const VERSAO_CACHE = "mario-v1";
+const VERSAO_CACHE = "mario-v2";
 
 // Arquivos do "esqueleto" do app (nada de dados financeiros aqui)
 const ESTATICOS = [

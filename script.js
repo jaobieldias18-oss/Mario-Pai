@@ -690,12 +690,23 @@ async function excluirTrabalhador(id) {
 
 // ---------- 10. RENDERIZAÇÃO (desenhar a tela) ----------
 function renderTudo() {
-  renderDashboard();
-  renderObra();
+  // Cada tela é desenhada de forma isolada: se uma falhar (ex: versão
+  // antiga do HTML em cache), as outras continuam funcionando e o erro
+  // aparece no console em vez de travar a tela em silêncio.
+  try {
+    renderDashboard();
+  } catch (e) { console.error("Erro ao desenhar dashboard:", e); }
+  try {
+    renderObra();
+  } catch (e) { console.error("Erro ao desenhar obra:", e); }
   // Se o Financeiro estiver aberto, atualiza ele também
-  if (document.getElementById("tela-financeiro").classList.contains("ativa")) renderFinanceiro();
+  try {
+    if (document.getElementById("tela-financeiro").classList.contains("ativa")) renderFinanceiro();
+  } catch (e) { console.error("Erro ao desenhar financeiro:", e); }
   // Idem para a Visão Geral (usa os mesmos dados, sem nova consulta)
-  if (document.getElementById("tela-visao-geral").classList.contains("ativa")) renderVisaoGeral();
+  try {
+    if (document.getElementById("tela-visao-geral").classList.contains("ativa")) renderVisaoGeral();
+  } catch (e) { console.error("Erro ao desenhar visão geral:", e); }
 }
 
 function renderDashboard() {
