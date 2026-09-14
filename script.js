@@ -1290,7 +1290,11 @@ function proteger(texto) {
 // ---------- 11. MODAL + CONFIRMAÇÃO + EVENTOS ----------
 function abrirModal(tipo, idEditar = null) {
   const obra = pegarObra(obraAbertaId);
-  if (!obra || obraSomenteLeitura(obra)) return; // obra encerrada: somente leitura
+  if (!obra) {
+    mostrarToast("Obra não encontrada. Volte e abra a obra novamente.", false);
+    return;
+  }
+  if (obraSomenteLeitura(obra)) return; // obra encerrada: somente leitura (já avisa)
   const fundo = document.getElementById("modal-fundo");
   fundo.hidden = false;
   // Esconde os 3 formulários, mostra só o pedido
@@ -1398,6 +1402,30 @@ function mostrarCarregando(visivel) {
 }
 
 // ---------- 12. EVENTOS (inicialização) ----------
+// Fiação segura: se um elemento não existir (ex: HTML desatualizado),
+// registra o erro e segue ligando o resto — um botão nunca mais
+// impede os outros de funcionar.
+function elementoSeguro(id) {
+  const el = document.getElementById(id);
+  if (!el) console.error("Elemento ausente no HTML: " + id);
+  return el;
+}
+
+function aoClicar(id, fn) {
+  const el = elementoSeguro(id);
+  if (el) el.addEventListener("click", fn);
+}
+
+function aoEnviar(id, fn) {
+  const el = elementoSeguro(id);
+  if (el) el.addEventListener("submit", fn);
+}
+
+function aoMudar(id, evento, fn) {
+  const el = elementoSeguro(id);
+  if (el) el.addEventListener(evento, fn);
+}
+
 async function iniciar() {
   mesSelecionado = mesAtual();
 
@@ -1426,36 +1454,36 @@ async function iniciar() {
   );
 
   // Obra: criar / editar / excluir / encerrar / reabrir
-  document.getElementById("form-obra").addEventListener("submit", salvarObra);
-  document.getElementById("btn-editar-obra").addEventListener("click", () => abrirFormObra(obraAbertaId));
-  document.getElementById("btn-excluir-obra").addEventListener("click", excluirObra);
-  document.getElementById("btn-encerrar-obra").addEventListener("click", encerrarObra);
-  document.getElementById("btn-reabrir-obra").addEventListener("click", reabrirObra);
+  aoEnviar("form-obra", salvarObra);
+  aoClicar("btn-editar-obra", () => abrirFormObra(obraAbertaId));
+  aoClicar("btn-excluir-obra", excluirObra);
+  aoClicar("btn-encerrar-obra", encerrarObra);
+  aoClicar("btn-reabrir-obra", reabrirObra);
 
   // Filtros da lista de obras
   document.querySelectorAll(".filtro").forEach((b) =>
     b.addEventListener("click", () => { filtroObras = b.dataset.filtro; renderDashboard(); })
   );
-  document.getElementById("btn-ver-encerradas").addEventListener("click", () => {
+  aoClicar("btn-ver-encerradas", () => {
     filtroObras = "encerradas";
     renderDashboard();
     document.getElementById("ancora-obras").scrollIntoView({ behavior: "smooth" });
   });
 
   // Financeiro: trocar de mês
-  document.getElementById("mes-anterior").addEventListener("click", () => {
+  aoClicar("mes-anterior", () => {
     mesSelecionado = mudarMesChave(mesSelecionado || mesAtual(), -1);
     renderFinanceiro();
   });
-  document.getElementById("mes-proximo").addEventListener("click", () => {
+  aoClicar("mes-proximo", () => {
     mesSelecionado = mudarMesChave(mesSelecionado || mesAtual(), 1);
     renderFinanceiro();
   });
 
   // Modal de confirmação
-  document.getElementById("confirm-cancelar").addEventListener("click", () => fecharConfirm(false));
-  document.getElementById("confirm-ok").addEventListener("click", () => fecharConfirm(true));
-  document.getElementById("modal-confirm").addEventListener("click", (e) => {
+  aoClicar("confirm-cancelar", () => fecharConfirm(false));
+  aoClicar("confirm-ok", () => fecharConfirm(true));
+  aoClicar("modal-confirm", (e) => {
     if (e.target.id === "modal-confirm") fecharConfirm(false);
   });
 
@@ -1475,25 +1503,25 @@ async function iniciar() {
   );
 
   // Visão Geral: troca de ano
-  document.getElementById("vg-ano").addEventListener("change", (e) => {
+  aoMudar("vg-ano", "change", (e) => {
     vgAno = e.target.value;
     vgMesDetalhe = null;
     renderVisaoGeral();
   });
 
   // Botões que abrem o modal (cada um chama sua função separada)
-  document.getElementById("btn-novo-recebimento").addEventListener("click", abrirFormRecebimento);
-  document.getElementById("btn-novo-gasto").addEventListener("click", abrirFormGasto);
-  document.getElementById("btn-novo-trabalhador").addEventListener("click", abrirFormEquipe);
+  aoClicar("btn-novo-recebimento", abrirFormRecebimento);
+  aoClicar("btn-novo-gasto", abrirFormGasto);
+  aoClicar("btn-novo-trabalhador", abrirFormEquipe);
 
   // Formulários do modal
-  document.getElementById("form-recebimento").addEventListener("submit", salvarRecebimento);
-  document.getElementById("form-gasto").addEventListener("submit", salvarGasto);
-  document.getElementById("form-equipe").addEventListener("submit", salvarTrabalhador);
+  aoEnviar("form-recebimento", salvarRecebimento);
+  aoEnviar("form-gasto", salvarGasto);
+  aoEnviar("form-equipe", salvarTrabalhador);
 
   // Fechar modal
-  document.getElementById("modal-fechar").addEventListener("click", fecharModal);
-  document.getElementById("modal-fundo").addEventListener("click", (e) => {
+  aoClicar("modal-fechar", fecharModal);
+  aoClicar("modal-fundo", (e) => {
     if (e.target.id === "modal-fundo") fecharModal();
   });
   document.addEventListener("keydown", (e) => {
@@ -1501,8 +1529,8 @@ async function iniciar() {
   });
 
   // Prévia do total da mão de obra enquanto digita
-  document.getElementById("eq-diaria").addEventListener("input", atualizarPreviaEquipe);
-  document.getElementById("eq-dias").addEventListener("input", atualizarPreviaEquipe);
+  aoMudar("eq-diaria", "input", atualizarPreviaEquipe);
+  aoMudar("eq-dias", "input", atualizarPreviaEquipe);
 }
 
 // Roda quando a página carrega
