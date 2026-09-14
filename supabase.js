@@ -106,7 +106,7 @@ function recebimentoParaLinha(obraId, d) {
     valor: d.valor || 0,
     data: d.data,
     descricao: d.descricao,
-    forma_pagamento: d.formaPagamento || "PIX",
+    forma_pagamento: d.formaPagamento || null,
     observacao: d.observacao || null,
   };
 }

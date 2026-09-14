@@ -488,11 +488,13 @@ async function salvarRecebimento(event) {
 
   const dados = {
     valor, data, descricao,
-    formaPagamento: document.getElementById("rec-forma").value,
     observacao: document.getElementById("rec-obs").value.trim(),
   };
 
   if (editandoRecId) {
+    const rec = obra.recebimentos.find((r) => r.id === editandoRecId);
+    if (!rec) { editandoRecId = null; fecharModal(); return; }
+    dados.formaPagamento = rec.formaPagamento || ""; // mantém o valor antigo
     try {
       await DB.atualizarRecebimento(editandoRecId, dados); // UPDATE em recebimentos
       Object.assign(obra.recebimentos.find((r) => r.id === editandoRecId), dados);
@@ -553,7 +555,6 @@ async function salvarGasto(event) {
   const dados = {
     categoria: document.getElementById("gasto-categoria").value,
     descricao, valor, data,
-    formaPagamento: document.getElementById("gasto-forma").value,
     observacao: document.getElementById("gasto-obs").value.trim(),
   };
 
@@ -563,6 +564,7 @@ async function salvarGasto(event) {
       mostrarToast("Edite pela aba Mão de obra.", false);
       return;
     }
+    dados.formaPagamento = gasto.formaPagamento || ""; // mantém o valor antigo
     try {
       await DB.atualizarGasto(editandoGastoId, dados); // UPDATE em gastos
       Object.assign(gasto, dados);
@@ -1127,7 +1129,7 @@ function renderRecebimentos(obra) {
         <span class="item-icone" aria-hidden="true">💰</span>
         <div class="item-conteudo">
           <strong>${proteger(r.descricao)}</strong>
-          <span class="item-meta">${formatarData(r.data)} • ${proteger(r.formaPagamento || "")}</span>
+          <span class="item-meta">${formatarData(r.data)}</span>
         </div>
         <span class="item-valor texto-verde">${formatarMoeda(r.valor)}</span>
       </div>
@@ -1157,7 +1159,7 @@ function renderGastos(obra) {
         <span class="item-icone" aria-hidden="true">${iconeCategoria(g.categoria)}</span>
         <div class="item-conteudo">
           <strong>${proteger(g.descricao)}</strong>
-          <span class="item-meta">${proteger(g.categoria)} • ${formatarData(g.data)}${g.formaPagamento ? " • " + proteger(g.formaPagamento) : ""}</span>
+          <span class="item-meta">${proteger(g.categoria)} • ${formatarData(g.data)}</span>
         </div>
         <span class="item-valor texto-vermelho">${formatarMoeda(g.valor)}</span>
       </div>
@@ -1368,7 +1370,7 @@ function renderDetalheMes(rm) {
         <span class="item-icone" aria-hidden="true">${iconeCategoria(s.categoria)}</span>
         <div class="item-conteudo">
           <strong>${proteger(s.descricao)}</strong>
-          <span class="item-meta">🏗️ ${proteger(s.obra)} • ${formatarData(s.data)}${s.formaPagamento ? " • " + proteger(s.formaPagamento) : ""}</span>
+          <span class="item-meta">🏗️ ${proteger(s.obra)} • ${formatarData(s.data)}</span>
         </div>
         <span class="item-valor texto-vermelho">− ${formatarMoeda(s.valor)}</span>
       </div>`;
@@ -1605,7 +1607,6 @@ function abrirModal(tipo, idEditar = null) {
       document.getElementById("rec-valor").value = r.valor;
       document.getElementById("rec-data").value = r.data;
       document.getElementById("rec-desc").value = r.descricao;
-      document.getElementById("rec-forma").value = r.formaPagamento || "PIX";
       document.getElementById("rec-obs").value = r.observacao || "";
     }
   }
@@ -1621,7 +1622,6 @@ function abrirModal(tipo, idEditar = null) {
       document.getElementById("gasto-desc").value = g.descricao;
       document.getElementById("gasto-valor").value = g.valor;
       document.getElementById("gasto-data").value = g.data;
-      document.getElementById("gasto-forma").value = g.formaPagamento || "PIX";
       document.getElementById("gasto-obs").value = g.observacao || "";
     }
   }
