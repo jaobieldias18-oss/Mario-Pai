@@ -22,6 +22,7 @@ let editandoObraId = null; // se estamos editando obra (null = criando nova)
 let editandoRecId = null;  // recebimento sendo editado
 let editandoGastoId = null;// gasto sendo editado
 let editandoEqId = null;   // trabalhador sendo editado
+let editandoParcelaId = null; // parcela sendo editada
 let filtroObras = "ativas"; // "ativas" | "encerradas" | "concluidas" | "todas"
 let mesSelecionado = null;  // mês aberto no Financeiro, formato "AAAA-MM"
 let vgAno = null;           // ano do filtro da Visão Geral ("2026" ou "todos")
@@ -694,6 +695,213 @@ async function excluirTrabalhador(id) {
   mostrarToast("Trabalhador removido.");
 }
 
+// ---------- PARCELAS (plano de pagamento do cliente) ----------
+// Uma parcela marcada como recebida gera UM recebimento ligado
+// (recebimentoId). O botão some depois de recebida, então nunca duplica.
+async function salvarParcela(event) {
+  event.preventDefault();
+  const obra = pegarObra(obraAbertaId);
+  if (!obra || obraSomenteLeitura(obra)) return;
+
+  const descricao = document.getElementById("par-desc").value.trim();
+  const valor = numeroOuZero(document.getElementById("par-valor").value);
+  const vencimento = document.getElementById("par-venc").value || "";
+  const observacao = document.getElementById("par-obs").value.trim();
+  if (!descricao || !valor) {
+    mostrarToast("Preencha descrição e valor.", false);
+    return;
+  }
+
+  if (editandoParcelaId) {
+    const p = (obra.parcelas || []).find((x) => x.id === editandoParcelaId);
+    if (!p) { editandoParcelaId = null; fecharModal(); return; }
+    if (p.status === "Recebida") {
+      mostrarToast("Parcela recebida não pode ser editada.", false);
+      return;
+    }
+    const dados = { descricao, valor, vencimento, observacao };
+    try {
+      await DB.atualizarParcela(editandoParcelaId, dados);
+      Object.assign(p, dados);
+    } catch (e) {
+      editandoParcelaId = null;
+      fecharModal();
+      await erroBanco("atualizar a parcela", e);
+      return;
+    }
+    mostrarToast("Parcela atualizada!");
+  } else {
+    let nova;
+    try {
+      nova = await DB.inserirParcela(obra.id, {
+        descricao, valor, vencimento, observacao,
+        status: "Pendente", dataRecebimento: null, recebimentoId: null,
+      });
+    } catch (e) {
+      editandoParcelaId = null;
+      fecharModal();
+      await erroBanco("adicionar a parcela", e);
+      return;
+    }
+    obra.parcelas = obra.parcelas || [];
+    obra.parcelas.push(nova);
+    mostrarToast("Parcela adicionada!");
+  }
+  editandoParcelaId = null;
+  fecharModal();
+  renderTudo();
+}
+
+// Marca como recebida: cria o recebimento, liga na parcela e atualiza tudo.
+// Se já tem recebimento ligado (ou status Recebida), não faz nada — sem duplicar.
+async function marcarParcelaRecebida(id) {
+  const obra = pegarObra(obraAbertaId);
+  if (!obra || obraSomenteLeitura(obra)) return;
+  const p = (obra.parcelas || []).find((x) => x.id === id);
+  if (!p || p.status === "Recebida" || p.recebimentoId) return;
+  if (!confirm(`Marcar "${p.descricao}" (${formatarMoeda(p.valor)}) como recebida?`)) return;
+  const dataRec = hojeISO();
+  try {
+    const rec = await DB.inserirRecebimento(obra.id, {
+      valor: p.valor, data: dataRec,
+      descricao: p.descricao,
+      formaPagamento: "", observacao: "Baixa de parcela",
+    });
+    await DB.atualizarParcela(id, {
+      descricao: p.descricao, valor: p.valor, vencimento: p.vencimento,
+      observacao: p.observacao, status: "Recebida",
+      dataRecebimento: dataRec, recebimentoId: rec.id,
+    });
+    p.status = "Recebida";
+    p.dataRecebimento = dataRec;
+    p.recebimentoId = rec.id;
+    obra.recebimentos.push({
+      id: rec.id, valor: p.valor, data: dataRec, descricao: p.descricao,
+      formaPagamento: "", observacao: "Baixa de parcela",
+    });
+  } catch (e) {
+    await erroBanco("dar baixa na parcela", e);
+    return;
+  }
+  renderTudo();
+  mostrarToast("Parcela recebida!");
+}
+
+async function excluirParcela(id) {
+  const obra = pegarObra(obraAbertaId);
+  if (!obra || obraSomenteLeitura(obra)) return;
+  const p = (obra.parcelas || []).find((x) => x.id === id);
+  if (!p) return;
+  if (!confirm(`Excluir a parcela "${p.descricao}"?`)) return;
+  try {
+    // Se gerou recebimento, apaga ele junto (não deixa dinheiro órfão)
+    if (p.recebimentoId) {
+      await DB.excluirRecebimento(p.recebimentoId);
+      obra.recebimentos = obra.recebimentos.filter((r) => r.id !== p.recebimentoId);
+    }
+    await DB.excluirParcela(id);
+  } catch (e) {
+    await erroBanco("excluir a parcela", e);
+    return;
+  }
+  obra.parcelas = obra.parcelas.filter((x) => x.id !== id);
+  renderTudo();
+  mostrarToast("Parcela excluída.");
+}
+
+// ---------- PESQUISA GLOBAL ----------
+// Busca nos dados JÁ carregados (sem consulta nova, com debounce).
+// Não toca no banco nem no localStorage.
+let buscaTimer = null;
+
+function buscarGlobal(termo) {
+  const q = (termo || "").trim().toLowerCase();
+  if (q.length < 2) return null;
+  const grupos = { obras: [], gastos: [], equipe: [], recebimentos: [], parcelas: [] };
+  const tem = (v) => String(v ?? "").toLowerCase().includes(q);
+  for (const obra of obras) {
+    if (tem(obra.nome) || tem(obra.cliente)) grupos.obras.push({ obra });
+    for (const g of obra.gastos || []) {
+      if (g.maoObraId) continue; // legado não aparece na busca
+      if (tem(g.descricao) || tem(g.categoria)) grupos.gastos.push({ obra, item: g });
+    }
+    for (const t of obra.equipe || []) {
+      if (tem(t.nome) || tem(t.funcao)) grupos.equipe.push({ obra, item: t });
+    }
+    for (const r of obra.recebimentos || []) {
+      if (tem(r.descricao)) grupos.recebimentos.push({ obra, item: r });
+    }
+    for (const p of obra.parcelas || []) {
+      if (tem(p.descricao)) grupos.parcelas.push({ obra, item: p });
+    }
+  }
+  return grupos;
+}
+
+function irParaResultado(obraId, aba) {
+  const campo = document.getElementById("busca-global");
+  if (campo) campo.value = "";
+  const box = document.getElementById("busca-resultados");
+  box.hidden = true;
+  box.innerHTML = "";
+  abrirObra(obraId);
+  if (aba) trocarAba(aba);
+}
+
+function renderBusca(termo) {
+  const box = document.getElementById("busca-resultados");
+  const grupos = buscarGlobal(termo);
+  if (!grupos) {
+    box.hidden = true;
+    box.innerHTML = "";
+    return;
+  }
+  const total = grupos.obras.length + grupos.gastos.length + grupos.equipe.length +
+    grupos.recebimentos.length + grupos.parcelas.length;
+  box.hidden = false;
+  box.innerHTML = "";
+  if (!total) {
+    box.innerHTML = `<div class="lista-vazia">Nada encontrado para “${proteger(termo.trim())}”.</div>`;
+    return;
+  }
+  const titulos = {
+    obras: "🏗️ Obras", gastos: "💸 Gastos", equipe: "👷 Mão de obra",
+    recebimentos: "💰 Recebimentos", parcelas: "📋 Parcelas",
+  };
+  const abas = { gastos: "gastos", equipe: "equipe", recebimentos: "recebimentos", parcelas: "parcelas" };
+  for (const chave of Object.keys(titulos)) {
+    if (!grupos[chave].length) continue;
+    const h = document.createElement("p");
+    h.className = "busca-grupo";
+    h.textContent = `${titulos[chave]} (${grupos[chave].length})`;
+    box.appendChild(h);
+    for (const r of grupos[chave]) {
+      const b = document.createElement("button");
+      let inner = "";
+      if (chave === "obras") {
+        b.className = "busca-item b-obra";
+        inner = `<strong>${proteger(r.obra.nome)}</strong><span class="item-meta">Cliente: ${proteger(r.obra.cliente)}</span>`;
+      } else if (chave === "gastos") {
+        b.className = "busca-item b-gasto";
+        inner = `<strong>${proteger(r.item.descricao)}</strong><span class="item-meta">${formatarMoeda(r.item.valor)} • ${proteger(r.obra.nome)} • ${formatarData(r.item.data)}</span>`;
+      } else if (chave === "equipe") {
+        b.className = "busca-item b-equipe";
+        inner = `<strong>${proteger(r.item.nome)} • ${proteger(r.item.funcao)}</strong><span class="item-meta">${proteger(r.obra.nome)} • Total ${formatarMoeda(r.item.total)}</span>`;
+      } else if (chave === "recebimentos") {
+        b.className = "busca-item b-rec";
+        inner = `<strong>${proteger(r.item.descricao)}</strong><span class="item-meta">${formatarMoeda(r.item.valor)} • ${proteger(r.obra.nome)} • ${formatarData(r.item.data)}</span>`;
+      } else {
+        const st = statusParcela(r.item);
+        b.className = "busca-item b-par";
+        inner = `<strong>${proteger(r.item.descricao)}</strong><span class="item-meta">${formatarMoeda(r.item.valor)} • ${proteger(r.obra.nome)} • ${st.icone} ${st.texto}</span>`;
+      }
+      b.innerHTML = `<div class="item-conteudo">${inner}</div>`;
+      b.addEventListener("click", () => irParaResultado(r.obra.id, abas[chave]));
+      box.appendChild(b);
+    }
+  }
+}
+
 // ---------- 10. RENDERIZAÇÃO (desenhar a tela) ----------
 function renderTudo() {
   // Cada tela é desenhada de forma isolada: se uma falhar (ex: versão
@@ -774,6 +982,7 @@ function renderDashboard() {
     const dotClasse = encerrada ? "encerrada" : obra.status === "Pausada" ? "pausada" : "";
     const card = document.createElement("article");
     card.className = "obra-card" + (encerrada ? " encerrada" : "");
+    const mCard = margemInfo(t.lucro, t.totalRecebido);
     card.innerHTML = `
       <div class="obra-topo">
         <div class="obra-avatar" aria-hidden="true">${proteger(inicial)}</div>
@@ -788,6 +997,7 @@ function renderDashboard() {
         <div><small>${encerrada ? "Lucro final" : "Lucro atual"}</small><b class="texto-azul">${formatarMoeda(t.lucro)}</b></div>
       </div>
       <p class="obra-status-linha"><span class="status-dot ${dotClasse}"></span>${proteger(obra.status || "Em andamento")}${encerrada && obra.dataEncerramento ? ` · ${formatarData(obra.dataEncerramento)}` : ""} · 👷 ${formatarMoeda(t.totalMO)}</p>
+      <p class="obra-status-linha">📈 Margem: <strong>${mCard.texto}</strong>${mCard.icone ? ` ${mCard.icone} ${mCard.rotulo}` : ""}</p>
       <button class="btn btn-primario" style="margin-top:10px">Ver obra →</button>`;
     card.querySelector("button").addEventListener("click", () => abrirObra(obra.id));
     lista.appendChild(card);
@@ -803,6 +1013,18 @@ function atualizarSaudacao() {
   const dias = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
   document.getElementById("saudacao-data").textContent =
     `${dias[agora.getDay()]}, ${agora.getDate()} de ${MESES[agora.getMonth()]}`;
+}
+
+// Indicador visual de margem (USA A MESMA fórmula: lucro / recebido).
+// Limites: ≥30% boa · 15–29,99% atenção · <15% baixa · negativo prejuízo.
+function margemInfo(lucro, recebido) {
+  if (!(recebido > 0)) return { texto: "—", icone: "", rotulo: "ainda não disponível" };
+  const pct = (lucro / recebido) * 100;
+  const texto = pct.toFixed(2).replace(".", ",") + "%";
+  if (pct < 0) return { texto, icone: "🔴", rotulo: "Prejuízo" };
+  if (pct >= 30) return { texto, icone: "🟢", rotulo: "Boa margem" };
+  if (pct >= 15) return { texto, icone: "🟡", rotulo: "Atenção" };
+  return { texto, icone: "🔴", rotulo: "Margem baixa" };
 }
 
 // Desenha a tela de detalhe da obra aberta
@@ -827,8 +1049,9 @@ function renderObra() {
   lucroEl.textContent = formatarMoeda(t.lucro);
   lucroEl.style.color = t.lucro < 0 ? "var(--vermelho)" : "inherit";
   document.getElementById("d-areceber").textContent = formatarMoeda(t.aReceber);
-  document.getElementById("d-margem").textContent =
-    t.totalRecebido > 0 ? t.margem.toFixed(2).replace(".", ",") + "%" : "—";
+  const mg = margemInfo(t.lucro, t.totalRecebido);
+  document.getElementById("d-margem").innerHTML =
+    `${mg.icone ? mg.icone + " " : ""}${mg.texto}<br><span class="margem-rotulo">${mg.rotulo}</span>`;
 
   // Totais por aba + custo de mão de obra no Resumo (só exibição).
   const custoMO = t.totalMO; // soma dos trabalhadores (o que a aba Mão de obra lista)
@@ -845,6 +1068,7 @@ function renderObra() {
   renderRecebimentos(obra);
   renderGastos(obra);
   renderEquipe(obra);
+  renderParcelas(obra);
   renderResumoCategorias(obra);
   renderInfoExtra(obra);
   renderEncerramento(obra);
@@ -860,6 +1084,7 @@ function renderEncerramento(obra) {
   const banner = document.getElementById("obra-resultado-final");
   banner.hidden = !encerrada;
   if (encerrada) {
+    const mBanner = margemInfo(t.lucro, t.totalRecebido);
     banner.innerHTML = `
       <h3>🏁 Resultado final da obra</h3>
       <div class="rf-linha"><span>Valor da obra</span><strong>${formatarMoeda(t.valorContratado)}</strong></div>
@@ -868,7 +1093,7 @@ function renderEncerramento(obra) {
       <div class="rf-linha"><span>Mão de obra</span><strong>${formatarMoeda(t.totalMO)}</strong></div>
       <div class="rf-linha"><span>Custos totais</span><strong>${formatarMoeda(t.totalCusto)}</strong></div>
       <div class="rf-linha"><span>Lucro final</span><strong class="texto-verde">${formatarMoeda(t.lucro)}</strong></div>
-      <div class="rf-linha"><span>Margem de lucro</span><strong>${t.totalRecebido > 0 ? t.margem.toFixed(2).replace(".", ",") + "%" : "—"}</strong></div>
+      <div class="rf-linha"><span>Margem de lucro</span><strong>${mBanner.icone ? mBanner.icone + " " : ""}${mBanner.texto} · ${mBanner.rotulo}</strong></div>
       <div class="rf-linha"><span>Data de encerramento</span><strong>${formatarData(obra.dataEncerramento)}</strong></div>`;
   }
 
@@ -883,6 +1108,7 @@ function renderEncerramento(obra) {
   document.getElementById("btn-novo-recebimento").hidden = encerrada;
   document.getElementById("btn-novo-gasto").hidden = encerrada;
   document.getElementById("btn-novo-trabalhador").hidden = encerrada;
+  document.getElementById("btn-nova-parcela").hidden = encerrada;
 }
 
 function renderRecebimentos(obra) {
@@ -965,6 +1191,63 @@ function renderEquipe(obra) {
       <div class="item-acoes"><button data-a="editar">✏️ Editar</button><button data-a="excluir" class="excluir">🗑️ Excluir</button></div>`;
     div.querySelector('[data-a="editar"]').addEventListener("click", () => abrirModal("equipe", t.id));
     div.querySelector('[data-a="excluir"]').addEventListener("click", () => excluirTrabalhador(t.id));
+    lista.appendChild(div);
+  }
+}
+
+// Situação visual da parcela (só indicador; não muda nenhum valor)
+function statusParcela(p) {
+  if (p.status === "Recebida") return { icone: "✅", texto: "Recebida", classe: "chip-recebida" };
+  const hoje = hojeISO();
+  if (p.vencimento && p.vencimento < hoje) return { icone: "🔴", texto: "Vencida", classe: "chip-vencida" };
+  if (p.vencimento) {
+    const limite = new Date();
+    limite.setDate(limite.getDate() + 7);
+    if (p.vencimento <= limite.toISOString().slice(0, 10)) {
+      return { icone: "🟡", texto: "Vence em breve", classe: "chip-breve" };
+    }
+  }
+  return { icone: "⏳", texto: "Pendente", classe: "chip-pendente" };
+}
+
+function renderParcelas(obra) {
+  const lista = document.getElementById("lista-parcelas");
+  lista.innerHTML = "";
+  const parcelas = [...(obra.parcelas || [])].sort((a, b) => {
+    // pendentes primeiro (por vencimento), recebidas depois
+    if ((a.status === "Recebida") !== (b.status === "Recebida")) return a.status === "Recebida" ? 1 : -1;
+    return (a.vencimento || "9999") < (b.vencimento || "9999") ? -1 : 1;
+  });
+  const pendente = parcelas
+    .filter((p) => p.status !== "Recebida")
+    .reduce((s, p) => s + numeroOuZero(p.valor), 0);
+  document.getElementById("total-parcelas").textContent = formatarMoeda(pendente);
+  if (!parcelas.length) {
+    lista.innerHTML = `<div class="lista-vazia">Nenhuma parcela ainda.<br>Toque em <strong>+ Adicionar parcela</strong>.</div>`;
+    return;
+  }
+  for (const p of parcelas) {
+    const st = statusParcela(p);
+    const recebida = p.status === "Recebida";
+    const div = document.createElement("div");
+    div.className = "item recebimento";
+    div.innerHTML = `
+      <div class="item-topo">
+        <span class="item-icone" aria-hidden="true">📋</span>
+        <div class="item-conteudo">
+          <strong>${proteger(p.descricao)}</strong>
+          <span class="item-meta">${p.vencimento ? "Vence " + formatarData(p.vencimento) : "Sem vencimento"}${p.dataRecebimento ? " • Recebida em " + formatarData(p.dataRecebimento) : ""}</span>
+        </div>
+        <span class="item-valor texto-verde">${formatarMoeda(p.valor)}</span>
+      </div>
+      ${p.observacao ? `<p class="item-meta" style="margin-top:6px">${proteger(p.observacao)}</p>` : ""}
+      <p style="margin-top:8px"><span class="chip ${st.classe}">${st.icone} ${st.texto}</span></p>
+      <div class="item-acoes">${recebida ? "" : `<button data-a="receber">✅ Recebida</button><button data-a="editar">✏️ Editar</button>`}<button data-a="excluir" class="excluir">🗑️ Excluir</button></div>`;
+    if (!recebida) {
+      div.querySelector('[data-a="receber"]').addEventListener("click", () => marcarParcelaRecebida(p.id));
+      div.querySelector('[data-a="editar"]').addEventListener("click", () => abrirModal("parcela", p.id));
+    }
+    div.querySelector('[data-a="excluir"]').addEventListener("click", () => excluirParcela(p.id));
     lista.appendChild(div);
   }
 }
@@ -1305,10 +1588,11 @@ function abrirModal(tipo, idEditar = null) {
   if (obraSomenteLeitura(obra)) return; // obra encerrada: somente leitura (já avisa)
   const fundo = document.getElementById("modal-fundo");
   fundo.hidden = false;
-  // Esconde os 3 formulários, mostra só o pedido
+  // Esconde os 4 formulários, mostra só o pedido
   document.getElementById("form-recebimento").hidden = tipo !== "recebimento";
   document.getElementById("form-gasto").hidden = tipo !== "gasto";
   document.getElementById("form-equipe").hidden = tipo !== "equipe";
+  document.getElementById("form-parcela").hidden = tipo !== "parcela";
 
   if (tipo === "recebimento") {
     editandoRecId = idEditar;
@@ -1358,6 +1642,19 @@ function abrirModal(tipo, idEditar = null) {
       atualizarPreviaEquipe();
     }
   }
+  if (tipo === "parcela") {
+    editandoParcelaId = idEditar;
+    document.getElementById("modal-titulo").textContent = idEditar ? "Editar parcela" : "Nova parcela";
+    const form = document.getElementById("form-parcela");
+    form.reset();
+    if (idEditar) {
+      const p = (pegarObra(obraAbertaId).parcelas || []).find((x) => x.id === idEditar);
+      document.getElementById("par-desc").value = p.descricao;
+      document.getElementById("par-valor").value = p.valor;
+      document.getElementById("par-venc").value = p.vencimento || "";
+      document.getElementById("par-obs").value = p.observacao || "";
+    }
+  }
 }
 
 // ---------- ABERTURA SEPARADA DOS FORMULÁRIOS ----------
@@ -1376,9 +1673,13 @@ function abrirFormEquipe() {
   abrirModal("equipe");
 }
 
+function abrirFormParcela() {
+  abrirModal("parcela");
+}
+
 function fecharModal() {
   document.getElementById("modal-fundo").hidden = true;
-  editandoRecId = editandoGastoId = editandoEqId = null;
+  editandoRecId = editandoGastoId = editandoEqId = editandoParcelaId = null;
 }
 
 function atualizarPreviaEquipe() {
@@ -1480,6 +1781,13 @@ async function iniciar() {
     btn.addEventListener("click", () => irPara(btn.dataset.ir))
   );
 
+  // Pesquisa global (com espera de 250ms após parar de digitar)
+  aoMudar("busca-global", "input", (e) => {
+    clearTimeout(buscaTimer);
+    const valor = e.target.value;
+    buscaTimer = setTimeout(() => renderBusca(valor), 250);
+  });
+
   // Abas da obra
   document.querySelectorAll(".aba").forEach((b) =>
     b.addEventListener("click", () => trocarAba(b.dataset.aba))
@@ -1550,11 +1858,13 @@ async function iniciar() {
   aoClicar("btn-novo-recebimento", abrirFormRecebimento);
   aoClicar("btn-novo-gasto", abrirFormGasto);
   aoClicar("btn-novo-trabalhador", abrirFormEquipe);
+  aoClicar("btn-nova-parcela", abrirFormParcela);
 
   // Formulários do modal
   aoEnviar("form-recebimento", salvarRecebimento);
   aoEnviar("form-gasto", salvarGasto);
   aoEnviar("form-equipe", salvarTrabalhador);
+  aoEnviar("form-parcela", salvarParcela);
 
   // Fechar modal
   aoClicar("modal-fechar", fecharModal);

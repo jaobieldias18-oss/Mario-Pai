@@ -58,6 +58,16 @@ function linhaParaObra(l) {
       observacao: g.observacao || "",
       maoObraId: g.mao_obra_id || null, // elo LEGADO (ignorado nas listas/totais)
     })),
+    parcelas: (l.parcelas || []).map((p) => ({
+      id: p.id,
+      descricao: p.descricao,
+      valor: Number(p.valor) || 0,
+      vencimento: p.vencimento || "",
+      status: p.status || "Pendente",
+      dataRecebimento: p.data_recebimento || null,
+      recebimentoId: p.recebimento_id || null, // recebimento gerado (evita duplicar)
+      observacao: p.observacao || "",
+    })),
     equipe: (l.trabalhadores || []).map((t) => {
       const diaria = Number(t.diaria) || 0;
       const dias = Number(t.dias_trabalhados) || 0;
@@ -125,6 +135,19 @@ function trabalhadorParaLinha(obraId, d) {
   };
 }
 
+function parcelaParaLinha(obraId, d) {
+  return {
+    obra_id: obraId,
+    descricao: d.descricao,
+    valor: d.valor || 0,
+    vencimento: dataOuNulo(d.vencimento),
+    status: d.status || "Pendente",
+    data_recebimento: dataOuNulo(d.dataRecebimento),
+    recebimento_id: d.recebimentoId || null,
+    observacao: d.observacao || null,
+  };
+}
+
 // ---------- Operações (SELECT / INSERT / UPDATE / DELETE) ----------
 const DB = {
   // Carrega TODAS as obras com filhos (1 única consulta com embed).
@@ -136,7 +159,8 @@ const DB = {
       .select("id,nome,cliente,endereco,valor_contratado,data_inicio,previsao_termino,status,data_encerramento,observacoes,created_at," +
         "recebimentos(id,valor,data,descricao,forma_pagamento,observacao)," +
         "gastos(id,categoria,descricao,valor,data,forma_pagamento,observacao,mao_obra_id)," +
-        "trabalhadores(id,nome,funcao,diaria,dias_trabalhados,data,created_at)")
+        "trabalhadores(id,nome,funcao,diaria,dias_trabalhados,data,created_at)," +
+        "parcelas(id,descricao,valor,vencimento,status,data_recebimento,recebimento_id,observacao)")
       .order("created_at", { ascending: true });
     if (error) throw error;
     return (data || []).map(linhaParaObra);
@@ -227,6 +251,28 @@ const DB = {
   async excluirTrabalhador(id) {
     exigirConexao();
     const { error } = await sb.from("trabalhadores").delete().eq("id", id);
+    if (error) throw error;
+  },
+
+  // ---- Parcelas (plano de pagamento do cliente) ----
+  async inserirParcela(obraId, dados) {
+    exigirConexao();
+    const { data, error } = await sb.from("parcelas").insert(parcelaParaLinha(obraId, dados)).select().single();
+    if (error) throw error;
+    return linhaParaObra({ parcelas: [data] }).parcelas[0];
+  },
+
+  async atualizarParcela(id, dados) {
+    exigirConexao();
+    const linha = parcelaParaLinha(dados.obraId || null, dados);
+    delete linha.obra_id; // nunca troca a obra de um lançamento
+    const { error } = await sb.from("parcelas").update(linha).eq("id", id);
+    if (error) throw error;
+  },
+
+  async excluirParcela(id) {
+    exigirConexao();
+    const { error } = await sb.from("parcelas").delete().eq("id", id);
     if (error) throw error;
   },
 };

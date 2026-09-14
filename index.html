@@ -62,6 +62,11 @@
         <p class="saudacao" id="saudacao">👋 Resumo das suas obras</p>
         <p class="saudacao-sub">Como estão os negócios hoje?</p>
         <p class="hero-data"><span id="saudacao-data"></span> · <span id="dash-mes-titulo">Financeiro do mês</span></p>
+        <div class="busca">
+          <span class="busca-icone" aria-hidden="true">🔎</span>
+          <input type="search" id="busca-global" placeholder="Pesquisar obra, gasto, trabalhador..." autocomplete="off" aria-label="Pesquisa global" />
+        </div>
+        <div id="busca-resultados" class="lista" hidden></div>
       </div>
 
       <!-- Indicadores principais: só o essencial -->
@@ -219,6 +224,7 @@
         <button class="aba" data-aba="recebimentos">Recebimentos</button>
         <button class="aba" data-aba="gastos">Gastos</button>
         <button class="aba" data-aba="equipe">Mão de obra</button>
+        <button class="aba" data-aba="parcelas">Parcelas</button>
       </nav>
 
       <!-- Aba: Resumo -->
@@ -254,6 +260,13 @@
         <p class="total-aba">Total de mão de obra: <strong id="total-equipe">R$ 0,00</strong></p>
         <button class="btn btn-primario btn-grande" id="btn-novo-trabalhador">+ Adicionar trabalhador</button>
         <div id="lista-equipe" class="lista"></div>
+      </div>
+
+      <!-- Aba: Parcelas (plano de pagamento do cliente) -->
+      <div class="painel-aba" id="aba-parcelas">
+        <p class="total-aba">Total pendente: <strong id="total-parcelas">R$ 0,00</strong></p>
+        <button class="btn btn-primario btn-grande" id="btn-nova-parcela">+ Adicionar parcela</button>
+        <div id="lista-parcelas" class="lista"></div>
       </div>
     </section>
 
@@ -468,6 +481,22 @@
         </div>
         <label class="campo"><span>Data (entra no financeiro do mês) *</span><input type="date" id="eq-data" required /></label>
         <p class="total-previa">Total: <strong id="eq-total-previa">R$ 0,00</strong></p>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
+        </div>
+      </form>
+
+      <!-- Form parcela (plano de pagamento do cliente) -->
+      <form id="form-parcela" class="form" hidden novalidate>
+        <label class="campo"><span>Descrição *</span>
+          <input type="text" id="par-desc" placeholder="Ex: 2ª parcela" required maxlength="80" />
+        </label>
+        <label class="campo"><span>Valor (R$) *</span>
+          <input type="number" id="par-valor" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 10000" required />
+        </label>
+        <label class="campo"><span>Vencimento</span><input type="date" id="par-venc" /></label>
+        <label class="campo"><span>Observação</span><textarea id="par-obs" rows="2" maxlength="300"></textarea></label>
         <div class="modal-botoes">
           <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
           <button type="submit" class="btn btn-primario btn-grande">Salvar</button>

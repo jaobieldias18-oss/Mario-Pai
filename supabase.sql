@@ -98,6 +98,25 @@ alter table public.trabalhadores add column if not exists data date;
 -- Coluna forma de pagamento dos gastos em bancos criados antes dela existir
 alter table public.gastos add column if not exists forma_pagamento text;
 
+-- 5b. PARCELAS (plano de pagamento do cliente, ligado à obra)
+-- status: 'Pendente' ou 'Recebida'. Ao marcar como recebida, o app cria
+-- UM recebimento ligado (recebimento_id) — nunca dois (verificar antes).
+create table if not exists public.parcelas (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid references auth.users (id) on delete cascade,
+  obra_id uuid not null references public.obras (id) on delete cascade,
+  descricao text not null,
+  valor numeric(14, 2) not null default 0,
+  vencimento date,
+  status text not null default 'Pendente',
+  data_recebimento date,
+  recebimento_id uuid references public.recebimentos (id) on delete set null,
+  observacao text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_parcelas_obra on public.parcelas (obra_id);
+
 -- 6. Índices (listas por obra e filtro por data do financeiro)
 create index if not exists idx_obras_owner on public.obras (owner_id);
 create index if not exists idx_recebimentos_obra on public.recebimentos (obra_id);
@@ -112,6 +131,7 @@ alter table public.obras enable row level security;
 alter table public.recebimentos enable row level security;
 alter table public.gastos enable row level security;
 alter table public.trabalhadores enable row level security;
+alter table public.parcelas enable row level security;
 
 drop policy if exists "dono_total" on public.obras;
 create policy "dono_total" on public.obras
@@ -133,6 +153,12 @@ create policy "dono_total" on public.gastos
 
 drop policy if exists "dono_total" on public.trabalhadores;
 create policy "dono_total" on public.trabalhadores
+  for all to authenticated
+  using (auth.uid() = owner_id)
+  with check (auth.uid() = owner_id);
+
+drop policy if exists "dono_total" on public.parcelas;
+create policy "dono_total" on public.parcelas
   for all to authenticated
   using (auth.uid() = owner_id)
   with check (auth.uid() = owner_id);
@@ -170,4 +196,8 @@ create policy "anon_total" on public.gastos
 
 drop policy if exists "anon_total" on public.trabalhadores;
 create policy "anon_total" on public.trabalhadores
+  for all to anon using (true) with check (true);
+
+drop policy if exists "anon_total" on public.parcelas;
+create policy "anon_total" on public.parcelas
   for all to anon using (true) with check (true);

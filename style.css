@@ -690,3 +690,49 @@ strong, b { font-variant-numeric: tabular-nums; }
 /* Detalhe do mês tocado */
 .vg-detalhe { border-top: 4px solid var(--cor-secundaria); display: grid; gap: 4px; }
 .vg-detalhe h3 { font-size: 17px; text-transform: capitalize; }
+
+/* ===== Parcelas (chips de status) ===== */
+.chip {
+  display: inline-block; font-size: 12px; font-weight: 800;
+  padding: 3px 10px; border-radius: 20px; white-space: nowrap;
+}
+.chip-recebida { background: var(--sucesso-fundo); color: var(--sucesso); }
+.chip-vencida { background: var(--erro-fundo); color: var(--erro); }
+.chip-breve { background: var(--alerta-fundo); color: var(--alerta); }
+.chip-pendente { background: var(--info-fundo); color: var(--cor-secundaria); }
+
+/* ===== Pesquisa global (discreta no topo) ===== */
+.busca {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--card); border: 1px solid var(--borda);
+  border-radius: 12px; padding: 0 12px; margin-top: 10px;
+  box-shadow: var(--sombra);
+}
+.busca-icone { font-size: 17px; flex-shrink: 0; }
+.busca input {
+  border: none; background: transparent; outline: none;
+  font-size: 16px; padding: 13px 0; width: 100%;
+  font-family: inherit; color: var(--texto);
+}
+#busca-resultados { margin-top: 10px; }
+#busca-resultados[hidden] { display: none; }
+.busca-grupo { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--texto-sec); margin: 12px 2px 6px; }
+.busca-item {
+  display: grid; gap: 2px; width: 100%; text-align: left; font-family: inherit;
+  background: var(--card); border: 1px solid var(--borda); border-left-width: 5px;
+  border-radius: var(--raio-p); box-shadow: var(--sombra);
+  padding: 12px 13px; margin-bottom: 8px; cursor: pointer; color: var(--texto); font-size: 15px;
+}
+.busca-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.busca-item.b-obra { border-left-color: var(--cor-destaque); }
+.busca-item.b-gasto { border-left-color: var(--erro); }
+.busca-item.b-equipe { border-left-color: var(--cor-secundaria); }
+.busca-item.b-rec { border-left-color: var(--sucesso); }
+
+/* ===== Indicador de margem ===== */
+.margem-linha { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.dot-verde { background: var(--sucesso); }
+.dot-amarelo { background: var(--cor-destaque); }
+.dot-vermelho { background: var(--erro); }
+.margem-rotulo { font-size: 12px; font-weight: 700; color: var(--texto-sec); }
