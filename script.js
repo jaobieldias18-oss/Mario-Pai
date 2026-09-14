@@ -773,12 +773,12 @@ function renderDashboard() {
   }
 }
 
-// Saudação do topo (só visual: cumprimento + data de hoje)
+// Saudação do topo (só visual: cumprimento por horário + nome)
 function atualizarSaudacao() {
   const agora = new Date();
   const hora = agora.getHours();
-  const cumprimento = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
-  document.getElementById("saudacao").textContent = `${cumprimento}! 👋 Resumo das suas obras`;
+  const cumprimento = hora >= 5 && hora < 12 ? "Bom dia" : hora >= 12 && hora < 18 ? "Boa tarde" : "Boa noite";
+  document.getElementById("saudacao").innerHTML = `${cumprimento}, <strong>Mario Dias</strong>! 👋`;
   const dias = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
   document.getElementById("saudacao-data").textContent =
     `${dias[agora.getDay()]}, ${agora.getDate()} de ${MESES[agora.getMonth()]}`;

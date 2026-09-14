@@ -125,7 +125,9 @@ strong, b { font-variant-numeric: tabular-nums; }
 
 /* ===== Boas-vindas (dashboard) ===== */
 .hero { margin: 2px 0 4px; }
-.saudacao { font-size: 15px; font-weight: 700; }
+.saudacao { font-size: 16px; font-weight: 700; }
+.saudacao strong { color: var(--cor-destaque-escuro); }
+.saudacao-sub { font-size: 13.5px; color: var(--texto-sec); margin-top: 1px; }
 .hero-data { font-size: 13px; color: var(--texto-sec); text-transform: capitalize; }
 
 /* ===== Cards de indicador (KPIs) ===== */
