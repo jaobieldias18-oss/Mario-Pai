@@ -12,6 +12,12 @@
   <link rel="icon" type="image/svg+xml" href="assets/icone.svg" />
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
   <link rel="apple-touch-icon" href="assets/icone-180.png" />
+  <!-- PWA: instalável como aplicativo no Chrome -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MARIO" />
   <!-- Acelera o carregamento: conecta antes nos servidores externos -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="preconnect" href="https://wmcrbjlzsqveekwifded.supabase.co" crossorigin />
@@ -471,5 +477,14 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js"></script>
   <script src="script.js"></script>
+  <!-- PWA: registra o Service Worker (só funciona em http/https,
+       abrindo como arquivo local o registro é ignorado sem erro) -->
+  <script>
+    if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function (e) { console.error("SW:", e); });
+      });
+    }
+  </script>
 </body>
 </html>
