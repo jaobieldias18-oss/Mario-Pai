@@ -50,9 +50,9 @@ function ehEncerrada(obra) {
 }
 
 // ---------- 2. ARMAZENAMENTO (Supabase) ----------
-// Os dados agora vivem no Supabase (ver supabase.js, objeto DB).
-// O "BancoLocal" abaixo serve SÓ para ler o localStorage antigo
-// na migração única — o app não salva mais nada nele.
+// Os dados vivem no Supabase (ver supabase.js, objeto DB).
+// O "BancoLocal" abaixo só guarda o backup antigo do navegador
+// (não é mais exibido nem usado na interface).
 const BancoLocal = {
   chave: "controle_obras_v1",
   carregar() {
@@ -1334,37 +1334,9 @@ function fecharConfirm(resposta) {
   resolverConfirm = null;
 }
 
-// ---------- CARREGAMENTO + MIGRAÇÃO ----------
+// ---------- CARREGAMENTO ----------
 function mostrarCarregando(visivel) {
   document.getElementById("carregando").hidden = !visivel;
-}
-
-// Banner "Migrar dados": aparece só se há dados no celular ainda não migrados
-function atualizarBannerMigrar() {
-  const mostrar = BancoLocal.temDados() && !BancoLocal.jaMigrado();
-  document.getElementById("banner-migrar").hidden = !mostrar;
-  if (mostrar) document.getElementById("migrar-qtd").textContent = BancoLocal.carregar().length;
-}
-
-// Migração única: copia tudo do localStorage para o Supabase.
-// O localStorage antigo é MANTIDO como backup (nada é apagado).
-async function clicarMigrar() {
-  const locais = BancoLocal.carregar();
-  if (!locais.length) return;
-  // Evita duplicar sem querer: se o banco já tem obras, confirma antes
-  if (obras.length > 0 && !confirm(`O Supabase já tem ${obras.length} obra(s). Migrar mesmo assim? Pode duplicar.`)) return;
-  mostrarCarregando(true);
-  try {
-    const n = await migrarLocalParaSupabase();
-    obras = await DB.carregarTudo();
-    mostrarToast(`Migração concluída: ${n} obra(s) no Supabase!`);
-  } catch (e) {
-    console.error("Erro na migração:", e);
-    mostrarToast("Falha na migração. Nada foi apagado — tente de novo.", false);
-  }
-  mostrarCarregando(false);
-  atualizarBannerMigrar();
-  renderTudo();
 }
 
 // ---------- 12. EVENTOS (inicialização) ----------
@@ -1381,7 +1353,6 @@ async function iniciar() {
     mostrarToast("Sem conexão com o banco. Verifique a internet e recarregue.", false);
   }
   mostrarCarregando(false);
-  atualizarBannerMigrar();
 
   renderTudo();
   mostrarTela("dashboard");
@@ -1449,9 +1420,6 @@ async function iniciar() {
   document.querySelectorAll("[data-fechar-modal]").forEach((b) =>
     b.addEventListener("click", fecharModal)
   );
-
-  // Migração única do localStorage antigo para o Supabase
-  document.getElementById("btn-migrar").addEventListener("click", clicarMigrar);
 
   // Visão Geral: troca de ano
   document.getElementById("vg-ano").addEventListener("change", (e) => {

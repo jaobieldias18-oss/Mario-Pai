@@ -553,8 +553,6 @@ strong, b { font-variant-numeric: tabular-nums; }
   animation: girar 0.8s linear infinite;
 }
 @keyframes girar { to { transform: rotate(360deg); } }
-.banner-migrar { border-left: 5px solid var(--cor-destaque); display: grid; gap: 12px; }
-
 /* ===== Visão Geral (gráfico de evolução + meses) ===== */
 .vg-filtro { margin-bottom: 12px; }
 /* Gráfico de barras do resultado (CSS puro, toque p/ detalhar) */
