@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MARIO · Logo principal (para fundos CLAROS) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 242 72" role="img" aria-label="MARIO — Gestão de Obras">
+  <g>
+    <path d="M14 52 V16 L32 36 L50 16 V52"
+          fill="none" stroke="#1A2433" stroke-width="9"
+          stroke-linejoin="miter" stroke-linecap="butt"/>
+    <rect x="45.5" y="7" width="9" height="9" rx="2" fill="#E8A020"/>
+    <rect x="10" y="55" width="44" height="4" rx="2" fill="#E8A020"/>
+  </g>
+  <text x="74" y="40" font-family="Arial, Helvetica, sans-serif"
+        font-size="33" font-weight="900" letter-spacing="1.5" fill="#1A2433">MARIO</text>
+  <text x="75" y="58" font-family="Arial, Helvetica, sans-serif"
+        font-size="10.5" font-weight="700" letter-spacing="3.4" fill="#687385">GESTÃO DE OBRAS</text>
+</svg>

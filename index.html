@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#1a2433" />
   <meta name="description" content="Controle financeiro de obras — simples, mobile-first, sem login." />
-  <title>Controle de Obras</title>
-  <!-- LOGO: quando estiver pronta, salve como "logo.png" nesta pasta.
-       Ela aparece no cabeçalho, na aba do navegador e servirá de ícone PWA. -->
-  <link rel="icon" type="image/png" href="logo.png" />
-  <link rel="apple-touch-icon" href="logo.png" />
+  <title>MARIO · Controle de Obras</title>
+  <!-- Identidade MARIO em assets/: logo.svg (fundo claro),
+       logo-claro.svg (fundo escuro), icone.svg (símbolo),
+       favicon-32.png e icone-180.png (gerados do SVG). -->
+  <link rel="icon" type="image/svg+xml" href="assets/icone.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/icone-180.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -17,10 +19,10 @@
   <!-- ===== TOPO ===== -->
   <header class="topo">
     <div class="topo-inner">
-      <!-- Espaço da logo: mostra logo.png se existir, senão o emoji.
-           A imagem nunca é distorcida (object-fit: contain). -->
+      <!-- Logo MARIO (versão clara, para o cabeçalho escuro).
+           Se o SVG falhar, mantém o emoji — nada quebra. -->
       <div class="logo-slot" id="logo-slot">
-        <img src="logo.png" alt="Logo da empresa" id="logo-img" />
+        <img src="assets/logo-claro.svg" alt="MARIO — Gestão de Obras" id="logo-img" />
         <span class="logo-fallback" aria-hidden="true">🏗️</span>
       </div>
       <div>

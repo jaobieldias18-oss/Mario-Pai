@@ -1430,8 +1430,8 @@ async function iniciar() {
     if (e.target.id === "modal-confirm") fecharConfirm(false);
   });
 
-  // Logo: se o arquivo logo.png existir, a imagem aparece no cabeçalho;
-  // se não existir (erro 404), mantém o emoji padrão — nada quebra.
+  // Logo MARIO (assets/logo-claro.svg): se carregar, mostra;
+  // se falhar, mantém o emoji padrão — nada quebra.
   const logoImg = document.getElementById("logo-img");
   if (logoImg) {
     const slot = document.getElementById("logo-slot");

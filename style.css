@@ -10,10 +10,9 @@
    --texto / --texto-sec / --borda
    --sucesso / --alerta / --erro (+ fundos suaves)
    -----------------------------------------------------
-   PARA TROCAR A LOGO: salve o arquivo como "logo.png"
-   ao lado do index.html. O espaço já está pronto no
-   cabeçalho (sem distorcer, preserva transparência).
-   O mesmo arquivo serve de ícone PWA futuramente.
+   IDENTIDADE MARIO (pasta assets/): logo.svg (fundo claro),
+   logo-claro.svg (fundo escuro/cabeçalho), icone.svg (símbolo),
+   favicon-32.png e icone-180.png. Mesma paleta do sistema.
    ===================================================== */
 :root {
   --cor-principal: #1a2433;
@@ -102,9 +101,8 @@ strong, b { font-variant-numeric: tabular-nums; }
 }
 .logo-fallback { font-size: 26px; line-height: 1; }
 /* Quando a logo existir, ela cobre o emoji.
-   Como a logo tem fundo claro, o espaço vira um selo branco
-   para combinar com o cabeçalho escuro. */
-.logo-slot.tem-logo { background: #ffffff; padding: 4px 10px; }
+   A versão clara dispensa selo branco: fundo transparente. */
+.logo-slot.tem-logo { background: transparent; padding: 2px 4px; }
 .logo-slot.tem-logo .logo-fallback { display: none; }
 .topo h1 { font-size: 19px; letter-spacing: 0.2px; }
 .subtitulo { font-size: 12.5px; opacity: 0.72; }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MARIO · Símbolo/ícone (fundo transparente)
+     Conceito "M-estrutura": M em vigas de aço (construção + organização),
+     nó âmbar no topo (crescimento/tecnologia) e base âmbar (fundação). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Símbolo MARIO">
+  <path d="M14 52 V16 L32 36 L50 16 V52"
+        fill="none" stroke="#1A2433" stroke-width="9"
+        stroke-linejoin="miter" stroke-linecap="butt"/>
+  <rect x="45.5" y="7" width="9" height="9" rx="2" fill="#E8A020"/>
+  <rect x="10" y="55" width="44" height="4" rx="2" fill="#E8A020"/>
+</svg>
