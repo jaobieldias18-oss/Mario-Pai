@@ -278,37 +278,36 @@ strong, b { font-variant-numeric: tabular-nums; }
 .numero-card.azul span { color: #ffd98a; }
 .numero-card.amarelo { background: var(--alerta-fundo); border-color: #ecd9a8; }
 
-/* Ações rápidas: os 3 botões mais importantes, bem grandes */
-.acoes-rapidas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
-.acao-rapida {
-  border: none; cursor: pointer;
-  background: var(--cor-principal); color: #fff;
-  border-radius: var(--raio); padding: 14px 6px;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  font-size: 22px; min-height: 76px; justify-content: center;
-  box-shadow: var(--sombra);
-  transition: transform 0.08s ease;
-}
-.acao-rapida:active { transform: scale(0.96); }
-.acao-rapida span { font-size: 12.5px; font-weight: 800; }
-.acao-rapida.destaque { background: var(--cor-destaque); color: #2a1f02; }
-
-/* Abas */
+/* Abas da obra (navegação única, compacta; rola discreto se não couber) */
 .abas {
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: flex;
   background: #fff; border: 1px solid var(--borda); border-radius: 13px;
   padding: 4px; gap: 4px; box-shadow: var(--sombra); margin-bottom: 12px;
   position: sticky; top: 78px; z-index: 10;
+  overflow-x: auto; scrollbar-width: none;
 }
+.abas::-webkit-scrollbar { display: none; }
 .aba {
+  flex: 1 0 auto; white-space: nowrap;
   border: none; background: transparent; border-radius: 9px;
-  padding: 13px 4px; font-size: 13.5px; font-weight: 800;
+  padding: 12px 14px; font-size: 13.5px; font-weight: 800;
   color: var(--texto-sec); cursor: pointer; min-height: 48px;
 }
 .aba.ativa { background: var(--cor-principal); color: #fff; }
 .painel-aba { display: none; }
 .painel-aba.ativo { display: block; }
 .painel-aba .btn { margin-bottom: 12px; }
+
+/* Total no topo de cada aba (recebimentos, gastos, mão de obra) */
+.total-aba {
+  background: var(--card); border: 1px solid var(--borda);
+  border-radius: var(--raio-p); box-shadow: var(--sombra);
+  padding: 12px 14px; margin-bottom: 10px; font-size: 15px;
+}
+.total-aba strong { font-size: 17px; }
+
+/* Destaque do custo de mão de obra no Resumo */
+.mo-destaque { border-left: 5px solid var(--cor-secundaria); font-size: 15px; }
 
 /* ===== Itens (gastos, recebimentos, equipe, detalhe mensal) ===== */
 .lista { display: grid; gap: 10px; padding-bottom: 10px; }
@@ -524,7 +523,6 @@ strong, b { font-variant-numeric: tabular-nums; }
   .modal { border-radius: 20px; border-top: none; border: 1px solid var(--borda); }
   .btn { max-width: 420px; }
   .painel-aba .btn, .acoes-obra .btn { max-width: 380px; }
-  .acoes-rapidas { max-width: 560px; }
 }
 @media (min-width: 1024px) {
   .lista-obras { grid-template-columns: repeat(3, 1fr); }

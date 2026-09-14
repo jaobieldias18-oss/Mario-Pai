@@ -769,6 +769,17 @@ function renderObra() {
   document.getElementById("d-margem").textContent =
     t.totalRecebido > 0 ? t.margem.toFixed(2).replace(".", ",") + "%" : "—";
 
+  // Totais por aba + custo de mão de obra no Resumo (só exibição).
+  // Custo MO = soma dos trabalhadores (o que a aba Mão de obra lista).
+  const custoMO = (obra.equipe || []).reduce((s, x) => s + (Number(x.total) || 0), 0);
+  document.getElementById("resumo-mo-valor").textContent = formatarMoeda(custoMO);
+  document.getElementById("resumo-mo-qtd").textContent =
+    obra.equipe.length === 0 ? "· nenhum trabalhador"
+    : `· ${obra.equipe.length} trabalhador${obra.equipe.length > 1 ? "es" : ""}`;
+  document.getElementById("total-recebimentos").textContent = formatarMoeda(t.totalRecebido);
+  document.getElementById("total-gastos").textContent = formatarMoeda(t.totalGasto);
+  document.getElementById("total-equipe").textContent = formatarMoeda(custoMO);
+
   renderRecebimentos(obra);
   renderGastos(obra);
   renderEquipe(obra);
@@ -1383,11 +1394,6 @@ async function iniciar() {
     logoImg.addEventListener("error", () => { logoImg.hidden = true; });
     if (logoImg.complete && logoImg.naturalWidth > 0) slot.classList.add("tem-logo");
   }
-
-  // Ações rápidas da obra: vão para a aba certa e já abrem o formulário
-  document.getElementById("qa-gasto").addEventListener("click", () => { trocarAba("gastos"); abrirModal("gasto"); });
-  document.getElementById("qa-recebimento").addEventListener("click", () => { trocarAba("recebimentos"); abrirModal("recebimento"); });
-  document.getElementById("qa-equipe").addEventListener("click", () => { trocarAba("equipe"); abrirModal("equipe"); });
 
   // Botões "Cancelar" dentro dos modais
   document.querySelectorAll("[data-fechar-modal]").forEach((b) =>

@@ -190,11 +190,10 @@
         <div class="numero-card"><span>Margem</span><strong id="d-margem">—</strong></div>
       </div>
 
-      <!-- Ações rápidas: o mais fácil de alcançar com uma mão -->
-      <div class="acoes-rapidas">
-        <button class="acao-rapida destaque" id="qa-gasto">＋<span>Gasto</span></button>
-        <button class="acao-rapida" id="qa-recebimento">＋<span>Receber</span></button>
-        <button class="acao-rapida" id="qa-equipe">👷<span>Mão de obra</span></button>
+      <!-- Ações da obra: encerrar / reabrir (logo após os números) -->
+      <div class="card acoes-obra">
+        <button class="btn btn-perigo" id="btn-encerrar-obra">🔒 Encerrar obra</button>
+        <button class="btn btn-primario" id="btn-reabrir-obra" hidden>🔓 Reabrir obra</button>
       </div>
 
       <!-- Resultado final (aparece só em obra encerrada) -->
@@ -206,16 +205,20 @@
         Os dados estão aqui só para consulta. Para lançar algo novo, reabra a obra.
       </div>
 
-      <!-- Abas internas da obra -->
+      <!-- Abas internas da obra (navegação única) -->
       <nav class="abas" role="tablist">
         <button class="aba ativa" data-aba="resumo">Resumo</button>
-        <button class="aba" data-aba="recebimentos">Receb.</button>
+        <button class="aba" data-aba="recebimentos">Recebimentos</button>
         <button class="aba" data-aba="gastos">Gastos</button>
         <button class="aba" data-aba="equipe">Mão de obra</button>
       </nav>
 
       <!-- Aba: Resumo -->
       <div class="painel-aba ativo" id="aba-resumo">
+        <div class="card mo-destaque">
+          <p>👷 Custo de mão de obra: <strong id="resumo-mo-valor">R$ 0,00</strong>
+          <span class="texto-suave" id="resumo-mo-qtd"></span></p>
+        </div>
         <h3 class="titulo-secao">Resumo dos gastos</h3>
         <div id="resumo-categorias"></div>
         <div class="card dica">
@@ -226,26 +229,23 @@
 
       <!-- Aba: Recebimentos -->
       <div class="painel-aba" id="aba-recebimentos">
+        <p class="total-aba">Total recebido: <strong id="total-recebimentos">R$ 0,00</strong></p>
         <button class="btn btn-primario btn-grande" id="btn-novo-recebimento">+ Adicionar recebimento</button>
         <div id="lista-recebimentos" class="lista"></div>
       </div>
 
       <!-- Aba: Gastos -->
       <div class="painel-aba" id="aba-gastos">
+        <p class="total-aba">Total gasto: <strong id="total-gastos">R$ 0,00</strong></p>
         <button class="btn btn-primario btn-grande" id="btn-novo-gasto">+ Adicionar gasto</button>
         <div id="lista-gastos" class="lista"></div>
       </div>
 
       <!-- Aba: Mão de obra -->
       <div class="painel-aba" id="aba-equipe">
-        <button class="btn btn-primario btn-grande" id="btn-novo-trabalhador">+ Adicionar trabalhador</button>
+        <p class="total-aba">Total de mão de obra: <strong id="total-equipe">R$ 0,00</strong></p>
+        <button class="btn btn-primario btn-grande" id="btn-novo-trabalhador">+ Adicionar mão de obra</button>
         <div id="lista-equipe" class="lista"></div>
-      </div>
-
-      <!-- Ações da obra: encerrar / reabrir -->
-      <div class="card acoes-obra">
-        <button class="btn btn-perigo" id="btn-encerrar-obra">🔒 Encerrar obra</button>
-        <button class="btn btn-primario" id="btn-reabrir-obra" hidden>🔓 Reabrir obra</button>
       </div>
     </section>
 
