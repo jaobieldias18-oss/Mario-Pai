@@ -1337,6 +1337,22 @@ function abrirModal(tipo, idEditar = null) {
   }
 }
 
+// ---------- ABERTURA SEPARADA DOS FORMULÁRIOS ----------
+// Cada botão chama a SUA função (lógica separada por tipo).
+// O motor comum abrirModal() mostra um form e esconde os outros;
+// com a regra CSS [hidden], só o form pedido aparece na tela.
+function abrirFormRecebimento() {
+  abrirModal("recebimento");
+}
+
+function abrirFormGasto() {
+  abrirModal("gasto");
+}
+
+function abrirFormEquipe() {
+  abrirModal("equipe");
+}
+
 function fecharModal() {
   document.getElementById("modal-fundo").hidden = true;
   editandoRecId = editandoGastoId = editandoEqId = null;
@@ -1454,10 +1470,10 @@ async function iniciar() {
     renderVisaoGeral();
   });
 
-  // Botões que abrem o modal
-  document.getElementById("btn-novo-recebimento").addEventListener("click", () => abrirModal("recebimento"));
-  document.getElementById("btn-novo-gasto").addEventListener("click", () => abrirModal("gasto"));
-  document.getElementById("btn-novo-trabalhador").addEventListener("click", () => abrirModal("equipe"));
+  // Botões que abrem o modal (cada um chama sua função separada)
+  document.getElementById("btn-novo-recebimento").addEventListener("click", abrirFormRecebimento);
+  document.getElementById("btn-novo-gasto").addEventListener("click", abrirFormGasto);
+  document.getElementById("btn-novo-trabalhador").addEventListener("click", abrirFormEquipe);
 
   // Formulários do modal
   document.getElementById("form-recebimento").addEventListener("submit", salvarRecebimento);
