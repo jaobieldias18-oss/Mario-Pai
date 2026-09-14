@@ -47,33 +47,48 @@ function ehEncerrada(obra) {
   return obra.status === "Encerrada" || obra.status === "Concluída";
 }
 
-// ---------- 2. ARMAZENAMENTO ----------
-// Tudo passa por este objeto "Banco".
-// HOJE ele usa localStorage. NO FUTURO basta trocar o conteúdo
-// destas 2 funções por chamadas ao Supabase — o resto do app não muda.
-const Banco = {
+// ---------- 2. ARMAZENAMENTO (Supabase) ----------
+// Os dados agora vivem no Supabase (ver supabase.js, objeto DB).
+// O "BancoLocal" abaixo serve SÓ para ler o localStorage antigo
+// na migração única — o app não salva mais nada nele.
+const BancoLocal = {
   chave: "controle_obras_v1",
   carregar() {
     try {
       const texto = localStorage.getItem(this.chave);
       return texto ? JSON.parse(texto) : [];
     } catch (e) {
-      console.error("Erro ao ler dados salvos:", e);
+      console.error("Erro ao ler localStorage antigo:", e);
       return [];
     }
   },
-  salvar(dados) {
+  temDados() {
+    return this.carregar().length > 0;
+  },
+  jaMigrado() {
     try {
-      localStorage.setItem(this.chave, JSON.stringify(dados));
+      return localStorage.getItem("controle_obras_migrado") === "1";
     } catch (e) {
-      console.error("Erro ao salvar dados:", e);
-      mostrarToast("Erro ao salvar. Espaço cheio?");
+      return true;
     }
-  }
+  },
 };
 
-function salvarTudo() {
-  Banco.salvar(obras);
+// Recarrega tudo do banco (a tela sempre mostra a verdade do servidor)
+async function recarregar() {
+  try {
+    obras = await DB.carregarTudo();
+  } catch (e) {
+    console.error("Erro ao recarregar do banco:", e);
+  }
+  renderTudo();
+}
+
+// Erro padrão: avisa o usuário, registra e recarrega (nunca finge que salvou)
+async function erroBanco(operacao, e) {
+  console.error("Erro Supabase (" + operacao + "):", e);
+  mostrarToast("Não foi possível " + operacao + ". Verifique sua conexão e tente novamente.", false);
+  await recarregar();
 }
 
 // ---------- 3. UTILIDADES ----------
@@ -308,39 +323,61 @@ function salvarObra(event) {
     observacoes: document.getElementById("obra-obs").value.trim(),
   };
 
+  salvarObraNoBanco(dados);
+}
+
+// Parte que fala com o Supabase (separada para tratar erro de conexão)
+async function salvarObraNoBanco(dados) {
   if (editandoObraId) {
     const obra = pegarObra(editandoObraId);
-    Object.assign(obra, dados);
+    if (!obra) { editandoObraId = null; return; }
+    const atual = { ...obra, ...dados };
     // Se marcou como encerrada e ainda não tem data, registra hoje.
     // Se voltou para ativa, limpa a data de encerramento.
-    if (ehEncerrada(obra) && !obra.dataEncerramento) obra.dataEncerramento = hojeISO();
-    if (!ehEncerrada(obra)) obra.dataEncerramento = null;
+    if (ehEncerrada(atual) && !atual.dataEncerramento) atual.dataEncerramento = hojeISO();
+    if (!ehEncerrada(atual)) atual.dataEncerramento = null;
+    try {
+      await DB.atualizarObra(editandoObraId, atual); // UPDATE em obras
+      Object.assign(obra, atual);
+    } catch (e) {
+      editandoObraId = null;
+      await erroBanco("salvar a obra", e);
+      return;
+    }
     mostrarToast("Obra atualizada!");
-    salvarTudo();
     abrirObra(editandoObraId);
   } else {
-    const nova = {
-      id: gerarId(), criadoEm: hojeISO(), dataEncerramento: null,
-      recebimentos: [], gastos: [], equipe: [], ...dados,
-    };
+    const nova = { ...dados, dataEncerramento: null };
     // Obra nova já criada como encerrada (raro, mas possível): registra a data
     if (ehEncerrada(nova)) nova.dataEncerramento = hojeISO();
-    obras.push(nova);
+    let criada;
+    try {
+      criada = await DB.criarObra(nova); // INSERT em obras
+    } catch (e) {
+      editandoObraId = null;
+      await erroBanco("criar a obra", e);
+      return;
+    }
+    obras.push(criada);
     mostrarToast("Obra criada!");
-    salvarTudo();
     renderTudo();
     mostrarTela("dashboard");
   }
   editandoObraId = null;
 }
 
-function excluirObra() {
+async function excluirObra() {
   const obra = pegarObra(obraAbertaId);
   if (!obra) return;
   if (!confirm(`Excluir "${obra.nome}" e todos os lançamentos?`)) return;
+  try {
+    await DB.excluirObra(obraAbertaId); // DELETE (o banco apaga os filhos junto)
+  } catch (e) {
+    await erroBanco("excluir a obra", e);
+    return;
+  }
   obras = obras.filter((o) => o.id !== obraAbertaId);
   obraAbertaId = null;
-  salvarTudo();
   renderTudo();
   mostrarTela("dashboard");
   mostrarToast("Obra excluída.");
@@ -366,19 +403,29 @@ async function encerrarObra() {
     "Encerrar obra"
   );
   if (!ok) return;
+  try {
+    await DB.atualizarObra(obraAbertaId, { ...obra, status: "Encerrada", dataEncerramento: hojeISO() });
+  } catch (e) {
+    await erroBanco("encerrar a obra", e);
+    return;
+  }
   obra.status = "Encerrada";
   obra.dataEncerramento = hojeISO();
-  salvarTudo();
   renderTudo();
   mostrarToast("Obra encerrada e movida para o histórico.");
 }
 
-function reabrirObra() {
+async function reabrirObra() {
   const obra = pegarObra(obraAbertaId);
   if (!obra || !ehEncerrada(obra)) return;
+  try {
+    await DB.atualizarObra(obraAbertaId, { ...obra, status: "Em andamento", dataEncerramento: null });
+  } catch (e) {
+    await erroBanco("reabrir a obra", e);
+    return;
+  }
   obra.status = "Em andamento";
   obra.dataEncerramento = null;
-  salvarTudo();
   renderTudo();
   mostrarToast("Obra reaberta.");
 }
@@ -394,7 +441,7 @@ function obraSomenteLeitura(obra) {
 }
 
 // ---------- 8. RECEBIMENTOS ----------
-function salvarRecebimento(event) {
+async function salvarRecebimento(event) {
   event.preventDefault();
   const obra = pegarObra(obraAbertaId);
   if (!obra || obraSomenteLeitura(obra)) return;
@@ -414,30 +461,51 @@ function salvarRecebimento(event) {
   };
 
   if (editandoRecId) {
-    Object.assign(obra.recebimentos.find((r) => r.id === editandoRecId), dados);
+    try {
+      await DB.atualizarRecebimento(editandoRecId, dados); // UPDATE em recebimentos
+      Object.assign(obra.recebimentos.find((r) => r.id === editandoRecId), dados);
+    } catch (e) {
+      editandoRecId = null;
+      fecharModal();
+      await erroBanco("atualizar o recebimento", e);
+      return;
+    }
     mostrarToast("Recebimento atualizado!");
   } else {
-    obra.recebimentos.push({ id: gerarId(), ...dados });
+    let novo;
+    try {
+      novo = await DB.inserirRecebimento(obra.id, dados); // INSERT em recebimentos
+    } catch (e) {
+      editandoRecId = null;
+      fecharModal();
+      await erroBanco("registrar o recebimento", e);
+      return;
+    }
+    obra.recebimentos.push(novo);
     mostrarToast("Recebimento registrado!");
   }
   editandoRecId = null;
-  salvarTudo();
   fecharModal();
   renderTudo();
 }
 
-function excluirRecebimento(id) {
+async function excluirRecebimento(id) {
   const obra = pegarObra(obraAbertaId);
   if (!obra || obraSomenteLeitura(obra)) return;
   if (!confirm("Excluir este recebimento?")) return;
+  try {
+    await DB.excluirRecebimento(id); // DELETE em recebimentos
+  } catch (e) {
+    await erroBanco("excluir o recebimento", e);
+    return;
+  }
   obra.recebimentos = obra.recebimentos.filter((r) => r.id !== id);
-  salvarTudo();
   renderTudo();
   mostrarToast("Recebimento excluído.");
 }
 
 // ---------- 9. GASTOS ----------
-function salvarGasto(event) {
+async function salvarGasto(event) {
   event.preventDefault();
   const obra = pegarObra(obraAbertaId);
   if (!obra || obraSomenteLeitura(obra)) return;
@@ -462,19 +530,35 @@ function salvarGasto(event) {
       mostrarToast("Edite pela aba Mão de obra.", false);
       return;
     }
-    Object.assign(gasto, dados);
+    try {
+      await DB.atualizarGasto(editandoGastoId, dados); // UPDATE em gastos
+      Object.assign(gasto, dados);
+    } catch (e) {
+      editandoGastoId = null;
+      fecharModal();
+      await erroBanco("atualizar o gasto", e);
+      return;
+    }
     mostrarToast("Gasto atualizado!");
   } else {
-    obra.gastos.push({ id: gerarId(), maoObraId: null, ...dados });
+    let novo;
+    try {
+      novo = await DB.inserirGasto(obra.id, { ...dados, maoObraId: null }); // INSERT em gastos
+    } catch (e) {
+      editandoGastoId = null;
+      fecharModal();
+      await erroBanco("registrar o gasto", e);
+      return;
+    }
+    obra.gastos.push(novo);
     mostrarToast("Gasto registrado!");
   }
   editandoGastoId = null;
-  salvarTudo();
   fecharModal();
   renderTudo();
 }
 
-function excluirGasto(id) {
+async function excluirGasto(id) {
   const obra = pegarObra(obraAbertaId);
   if (!obra || obraSomenteLeitura(obra)) return;
   const gasto = obra.gastos.find((g) => g.id === id);
@@ -484,18 +568,23 @@ function excluirGasto(id) {
     return;
   }
   if (!confirm("Excluir este gasto?")) return;
+  try {
+    await DB.excluirGasto(id); // DELETE em gastos
+  } catch (e) {
+    await erroBanco("excluir o gasto", e);
+    return;
+  }
   obra.gastos = obra.gastos.filter((g) => g.id !== id);
-  salvarTudo();
   renderTudo();
   mostrarToast("Gasto excluído.");
 }
 
 // ---------- 10. MÃO DE OBRA ----------
-// COMO EVITAMOS CONTA DUPLA:
+// COMO EVITAMOS CONTA DUPLA (igual ao original):
 // Cada trabalhador gera UM gasto automático (categoria "Mão de obra",
-// ligado pelo campo maoObraId). O total gasto soma SÓ a lista de gastos.
+// ligado por maoObraId). O total gasto soma SÓ a lista de gastos.
 // Então: editar/excluir o trabalhador atualiza/apaga o gasto junto.
-function salvarTrabalhador(event) {
+async function salvarTrabalhador(event) {
   event.preventDefault();
   const obra = pegarObra(obraAbertaId);
   if (!obra || obraSomenteLeitura(obra)) return;
@@ -513,35 +602,67 @@ function salvarTrabalhador(event) {
 
   if (editandoEqId) {
     const trab = obra.equipe.find((t) => t.id === editandoEqId);
-    Object.assign(trab, { nome, funcao, valorDiaria: diaria, dias, total });
-    // Atualiza o gasto ligado
+    if (!trab) { editandoEqId = null; fecharModal(); return; }
+    // Atualiza o gasto ligado (mantém o elo maoObraId)
     const gasto = obra.gastos.find((g) => g.maoObraId === editandoEqId);
-    if (gasto) Object.assign(gasto, { descricao: descricaoGasto, valor: total });
+    try {
+      await DB.atualizarTrabalhador(editandoEqId, { nome, funcao, valorDiaria: diaria, dias });
+      if (gasto) {
+        await DB.atualizarGasto(gasto.id, {
+          categoria: gasto.categoria, descricao: descricaoGasto, valor: total,
+          data: gasto.data, observacao: gasto.observacao, maoObraId: editandoEqId,
+        });
+      }
+      Object.assign(trab, { nome, funcao, valorDiaria: diaria, dias, total });
+      if (gasto) Object.assign(gasto, { descricao: descricaoGasto, valor: total });
+    } catch (e) {
+      editandoEqId = null;
+      fecharModal();
+      await erroBanco("atualizar o trabalhador", e);
+      return;
+    }
     mostrarToast("Trabalhador atualizado!");
   } else {
-    const id = gerarId();
-    obra.equipe.push({ id, nome, funcao, valorDiaria: diaria, dias, total });
-    // Cria o gasto automático (é assim que entra no total, sem duplicar)
-    obra.gastos.push({
-      id: gerarId(), categoria: "Mão de obra", descricao: descricaoGasto,
-      valor: total, data: hojeISO(), observacao: "Gerado automaticamente (aba Mão de obra).",
-      maoObraId: id,
-    });
+    let novoT = null, novoG = null;
+    try {
+      novoT = await DB.inserirTrabalhador(obra.id, { nome, funcao, valorDiaria: diaria, dias });
+      // Cria o gasto automático (é assim que entra no total, sem duplicar)
+      novoG = await DB.inserirGasto(obra.id, {
+        categoria: "Mão de obra", descricao: descricaoGasto,
+        valor: total, data: hojeISO(), observacao: "Gerado automaticamente (aba Mão de obra).",
+        maoObraId: novoT.id,
+      });
+      obra.equipe.push(novoT);
+      obra.gastos.push(novoG);
+    } catch (e) {
+      // Se o gasto falhar após criar o trabalhador, desfaz para não quebrar o elo
+      if (novoT && !novoG) { try { await DB.excluirTrabalhador(novoT.id); } catch (e2) { /* recarregar resolve */ } }
+      editandoEqId = null;
+      fecharModal();
+      await erroBanco("adicionar o trabalhador", e);
+      return;
+    }
     mostrarToast("Trabalhador adicionado!");
   }
   editandoEqId = null;
-  salvarTudo();
   fecharModal();
   renderTudo();
 }
 
-function excluirTrabalhador(id) {
+async function excluirTrabalhador(id) {
   const obra = pegarObra(obraAbertaId);
   if (!obra || obraSomenteLeitura(obra)) return;
   if (!confirm("Remover trabalhador (e o gasto ligado a ele)?")) return;
+  const gasto = obra.gastos.find((g) => g.maoObraId === id); // gasto automático junto
+  try {
+    if (gasto) await DB.excluirGasto(gasto.id);
+    await DB.excluirTrabalhador(id);
+  } catch (e) {
+    await erroBanco("remover o trabalhador", e);
+    return;
+  }
   obra.equipe = obra.equipe.filter((t) => t.id !== id);
-  obra.gastos = obra.gastos.filter((g) => g.maoObraId !== id); // apaga o gasto automático junto
-  salvarTudo();
+  obra.gastos = obra.gastos.filter((g) => g.maoObraId !== id);
   renderTudo();
   mostrarToast("Trabalhador removido.");
 }
@@ -1036,18 +1157,54 @@ function fecharConfirm(resposta) {
   resolverConfirm = null;
 }
 
+// ---------- CARREGAMENTO + MIGRAÇÃO ----------
+function mostrarCarregando(visivel) {
+  document.getElementById("carregando").hidden = !visivel;
+}
+
+// Banner "Migrar dados": aparece só se há dados no celular ainda não migrados
+function atualizarBannerMigrar() {
+  const mostrar = BancoLocal.temDados() && !BancoLocal.jaMigrado();
+  document.getElementById("banner-migrar").hidden = !mostrar;
+  if (mostrar) document.getElementById("migrar-qtd").textContent = BancoLocal.carregar().length;
+}
+
+// Migração única: copia tudo do localStorage para o Supabase.
+// O localStorage antigo é MANTIDO como backup (nada é apagado).
+async function clicarMigrar() {
+  const locais = BancoLocal.carregar();
+  if (!locais.length) return;
+  // Evita duplicar sem querer: se o banco já tem obras, confirma antes
+  if (obras.length > 0 && !confirm(`O Supabase já tem ${obras.length} obra(s). Migrar mesmo assim? Pode duplicar.`)) return;
+  mostrarCarregando(true);
+  try {
+    const n = await migrarLocalParaSupabase();
+    obras = await DB.carregarTudo();
+    mostrarToast(`Migração concluída: ${n} obra(s) no Supabase!`);
+  } catch (e) {
+    console.error("Erro na migração:", e);
+    mostrarToast("Falha na migração. Nada foi apagado — tente de novo.", false);
+  }
+  mostrarCarregando(false);
+  atualizarBannerMigrar();
+  renderTudo();
+}
+
 // ---------- 12. EVENTOS (inicialização) ----------
-function iniciar() {
-  obras = Banco.carregar(); // carrega do localStorage
-  // Garante formato novo mesmo se dados antigos existirem
-  obras.forEach((o) => {
-    o.recebimentos = o.recebimentos || [];
-    o.gastos = o.gastos || [];
-    o.equipe = o.equipe || [];
-    o.status = o.status || "Em andamento";
-    if (!("dataEncerramento" in o)) o.dataEncerramento = null;
-  });
+async function iniciar() {
   mesSelecionado = mesAtual();
+
+  // 1. Carrega tudo do Supabase (com tela de "Carregando...")
+  mostrarCarregando(true);
+  try {
+    obras = await DB.carregarTudo();
+  } catch (e) {
+    console.error("Erro ao carregar do banco:", e);
+    obras = [];
+    mostrarToast("Sem conexão com o banco. Verifique a internet e recarregue.", false);
+  }
+  mostrarCarregando(false);
+  atualizarBannerMigrar();
 
   renderTudo();
   mostrarTela("dashboard");
@@ -1115,6 +1272,9 @@ function iniciar() {
   document.querySelectorAll("[data-fechar-modal]").forEach((b) =>
     b.addEventListener("click", fecharModal)
   );
+
+  // Migração única do localStorage antigo para o Supabase
+  document.getElementById("btn-migrar").addEventListener("click", clicarMigrar);
 
   // Botões que abrem o modal
   document.getElementById("btn-novo-recebimento").addEventListener("click", () => abrirModal("recebimento"));

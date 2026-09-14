@@ -77,6 +77,13 @@
         <span>Lucro: <strong id="res-lucro">R$ 0,00</strong></span>
       </div>
 
+      <!-- Migração única do celular para o Supabase (aparece só se há dados antigos) -->
+      <div class="card banner-migrar" id="banner-migrar" hidden>
+        <p>📦 Encontramos <strong id="migrar-qtd">0</strong> obra(s) salva(s) neste celular.<br />
+        <span class="texto-suave">Copie tudo para o Supabase com 1 toque (nada é apagado).</span></p>
+        <button class="btn btn-primario" id="btn-migrar">Migrar dados para o Supabase</button>
+      </div>
+
       <!-- Lista de obras -->
       <div class="linha-secao" id="ancora-obras">
         <h2 class="titulo-secao">Minhas obras</h2>
@@ -370,6 +377,14 @@
   <!-- Toast de confirmação -->
   <div class="toast" id="toast" hidden></div>
 
+  <!-- Tela de carregamento (buscando dados no Supabase) -->
+  <div class="carregando" id="carregando" hidden>
+    <div class="carregando-caixa">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Carregando...</p>
+    </div>
+  </div>
+
   <!-- Modal de confirmação (ex: encerrar obra) -->
   <div class="modal-fundo" id="modal-confirm" hidden>
     <div class="modal modal-confirm" role="alertdialog" aria-modal="true">
@@ -390,6 +405,9 @@
     <button class="nav-item acao" data-ir="nova-obra"><span class="nav-mais">＋</span><span>Nova obra</span></button>
   </nav>
 
+  <!-- Supabase (CDN) + camada de banco + app. Sem frameworks. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

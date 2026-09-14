@@ -126,3 +126,38 @@ create policy "dono_total" on public.trabalhadores
   for all to authenticated
   using (auth.uid() = owner_id)
   with check (auth.uid() = owner_id);
+
+-- =====================================================
+-- 8. AJUSTE: app SEM login (decisão do dono)
+-- Sem autenticação não há owner para preencher, então:
+-- (a) owner_id vira opcional (coluna mantida p/ login futuro)
+-- (b) RLS continua ATIVO, com política aberta p/ anon
+-- ATENÇÃO: com anon liberado, quem tiver URL + chave pública
+-- acessa os dados. Mantenha o repositório PRIVADO.
+-- =====================================================
+alter table public.obras alter column owner_id drop not null;
+alter table public.recebimentos alter column owner_id drop not null;
+alter table public.gastos alter column owner_id drop not null;
+alter table public.trabalhadores alter column owner_id drop not null;
+
+-- Permissões de acesso para a chave pública (anon)
+grant usage on schema public to anon;
+grant select, insert, update, delete on all tables in schema public to anon;
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to anon;
+
+drop policy if exists "anon_total" on public.obras;
+create policy "anon_total" on public.obras
+  for all to anon using (true) with check (true);
+
+drop policy if exists "anon_total" on public.recebimentos;
+create policy "anon_total" on public.recebimentos
+  for all to anon using (true) with check (true);
+
+drop policy if exists "anon_total" on public.gastos;
+create policy "anon_total" on public.gastos
+  for all to anon using (true) with check (true);
+
+drop policy if exists "anon_total" on public.trabalhadores;
+create policy "anon_total" on public.trabalhadores
+  for all to anon using (true) with check (true);
