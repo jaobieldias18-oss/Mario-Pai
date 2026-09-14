@@ -24,6 +24,8 @@ let editandoGastoId = null;// gasto sendo editado
 let editandoEqId = null;   // trabalhador sendo editado
 let filtroObras = "ativas"; // filtro da lista: "ativas" | "encerradas" | "todas"
 let mesSelecionado = null;  // mês aberto no Financeiro, formato "AAAA-MM"
+let vgAno = null;           // ano do filtro da Visão Geral ("2026" ou "todos")
+let vgMesDetalhe = null;    // mês tocado na Visão Geral, formato "AAAA-MM"
 
 const CATEGORIAS = ["Materiais", "Mão de obra", "Frete/Transporte", "Ferramentas", "Alimentação", "Equipamentos", "Outros"];
 
@@ -230,7 +232,7 @@ function listarMesesComMovimento() {
 }
 
 // ---------- 6. NAVEGAÇÃO ----------
-const telas = ["dashboard", "nova-obra", "obra", "financeiro"];
+const telas = ["dashboard", "nova-obra", "obra", "financeiro", "visao-geral"];
 
 function mostrarTela(nome) {
   // Mostra só a tela pedida
@@ -239,6 +241,7 @@ function mostrarTela(nome) {
     "nova-obra": "tela-nova-obra",
     obra: "tela-obra",
     financeiro: "tela-financeiro",
+    "visao-geral": "tela-visao-geral",
   };
   document.querySelectorAll(".tela").forEach((el) => el.classList.remove("ativa"));
   document.getElementById(mapa[nome]).classList.add("ativa");
@@ -248,6 +251,9 @@ function mostrarTela(nome) {
     if (!mesSelecionado) mesSelecionado = mesAtual();
     renderFinanceiro();
   }
+
+  // Visão Geral: desenha com os mesmos dados do Financeiro (sem nova consulta)
+  if (nome === "visao-geral") renderVisaoGeral();
 
   // Atualiza menu ativo
   document.querySelectorAll("[data-ir]").forEach((btn) => {
@@ -260,6 +266,7 @@ function mostrarTela(nome) {
 function irPara(destino) {
   if (destino === "dashboard") mostrarTela("dashboard");
   else if (destino === "financeiro") mostrarTela("financeiro");
+  else if (destino === "visao-geral") mostrarTela("visao-geral");
   else if (destino === "obras") {
     mostrarTela("dashboard");
     setTimeout(() => document.getElementById("ancora-obras").scrollIntoView({ behavior: "smooth" }), 50);
@@ -673,6 +680,8 @@ function renderTudo() {
   renderObra();
   // Se o Financeiro estiver aberto, atualiza ele também
   if (document.getElementById("tela-financeiro").classList.contains("ativa")) renderFinanceiro();
+  // Idem para a Visão Geral (usa os mesmos dados, sem nova consulta)
+  if (document.getElementById("tela-visao-geral").classList.contains("ativa")) renderVisaoGeral();
 }
 
 function renderDashboard() {
@@ -1064,6 +1073,174 @@ function renderHistorico() {
   }
 }
 
+// ---------- VISÃO GERAL (usa calcularMes — mesma fonte do Financeiro) ----------
+// Sem tabela nova, sem consulta nova, sem localStorage: tudo é derivado
+// das datas reais dos recebimentos e gastos já carregados (inclui encerradas,
+// pois o que vale é a DATA do movimento, não o status da obra).
+function anosComMovimento() {
+  // ["2026", "2025", ...] a partir dos meses que têm lançamento
+  const anos = new Set(listarMesesComMovimento().map((m) => m.slice(0, 4)));
+  return [...anos].sort().reverse();
+}
+
+function mesesDoFiltro() {
+  // "todos" = só meses com movimento (ordem cronológica);
+  // ano = Jan..Dez completos (mês parado aparece zerado p/ leitura da sequência)
+  if (vgAno === "todos") return listarMesesComMovimento().slice().reverse();
+  const ano = vgAno || mesAtual().slice(0, 4);
+  const meses = [];
+  for (let m = 1; m <= 12; m++) meses.push(ano + "-" + String(m).padStart(2, "0"));
+  return meses;
+}
+
+function renderVisaoGeral() {
+  // Filtro padrão: ano atual se tem movimento, senão "todos"
+  const anos = anosComMovimento();
+  const anoAtual = mesAtual().slice(0, 4);
+  if (!vgAno) vgAno = anos.includes(anoAtual) ? anoAtual : "todos";
+
+  // Preenche o select de ano (preserva a escolha)
+  const sel = document.getElementById("vg-ano");
+  sel.innerHTML = "";
+  const opTodos = document.createElement("option");
+  opTodos.value = "todos";
+  opTodos.textContent = "Todos os meses";
+  sel.appendChild(opTodos);
+  for (const a of anos) {
+    const op = document.createElement("option");
+    op.value = a;
+    op.textContent = a;
+    sel.appendChild(op);
+  }
+  sel.value = vgAno;
+
+  // Calcula cada mês com a MESMA função do Financeiro (sem duplicar lógica)
+  const meses = mesesDoFiltro();
+  const dados = meses.map((m) => ({ chave: m, ...calcularMes(m) }));
+
+  if (dados.length === 0) {
+    document.getElementById("vg-grafico").innerHTML =
+      `<div class="lista-vazia">Sem movimentação.<br>Registre recebimentos e gastos nas obras.</div>`;
+    document.getElementById("vg-lista").innerHTML = "";
+    document.getElementById("vg-extremos").hidden = true;
+    document.getElementById("vg-detalhe").hidden = true;
+    return;
+  }
+
+  // Cards de resumo do período
+  const totE = dados.reduce((s, d) => s + d.entradas, 0);
+  const totG = dados.reduce((s, d) => s + d.gastos, 0);
+  document.getElementById("vg-entradas").textContent = formatarMoeda(totE);
+  document.getElementById("vg-gastos").textContent = formatarMoeda(totG);
+  const resEl = document.getElementById("vg-resultado");
+  resEl.textContent = formatarMoeda(totE - totG);
+  resEl.style.color = totE - totG < 0 ? "#ff9d97" : "#fff";
+
+  renderVgGrafico(dados);
+  renderVgLista(dados);
+  renderVgExtremos(dados);
+  renderVgDetalhe(dados);
+}
+
+// Gráfico de barras do resultado (CSS puro, toque p/ detalhar)
+function renderVgGrafico(dados) {
+  const box = document.getElementById("vg-grafico");
+  box.innerHTML = "";
+  const maximo = Math.max(1, ...dados.map((d) => Math.abs(d.resultado)));
+  for (const d of dados) {
+    const b = document.createElement("button");
+    b.className = "vg-coluna" + (d.chave === vgMesDetalhe ? " selecionada" : "");
+    const cls = d.resultado > 0 ? "pos" : d.resultado < 0 ? "neg" : "zero";
+    const altura = Math.max(3, Math.round((Math.abs(d.resultado) / maximo) * 100));
+    b.title = `${nomeMes(d.chave)}: ${formatarMoeda(d.resultado)}`;
+    b.setAttribute("aria-label", `Ver ${nomeMes(d.chave)}`);
+    b.innerHTML = `
+      <div class="vg-coluna-barra"><div class="vg-barra-r ${cls}" style="height:${altura}%"></div></div>
+      <span class="g-mes">${MESES[Number(d.chave.slice(5, 7)) - 1].slice(0, 3)}</span>`;
+    b.addEventListener("click", () => selecionarVgMes(d.chave));
+    box.appendChild(b);
+  }
+}
+
+// Linhas de mês com entradas/gastos/resultado (toque p/ detalhar)
+function renderVgLista(dados) {
+  const box = document.getElementById("vg-lista");
+  box.innerHTML = "";
+  const maximo = Math.max(1, ...dados.flatMap((d) => [d.entradas, d.gastos]));
+  for (const d of dados) {
+    const b = document.createElement("button");
+    b.className = "vg-linha" + (d.chave === vgMesDetalhe ? " selecionada" : "");
+    const pctE = Math.max(2, Math.round((d.entradas / maximo) * 100));
+    const pctG = Math.max(2, Math.round((d.gastos / maximo) * 100));
+    b.innerHTML = `
+      <div class="vg-linha-topo">
+        <strong>${nomeMes(d.chave)}</strong>
+        <span class="hist-resultado ${d.resultado < 0 ? "texto-vermelho" : "texto-verde"}">${formatarMoeda(d.resultado)}</span>
+      </div>
+      <div class="vg-barra-linha">
+        <span>Entradas</span>
+        <div class="barra"><div style="width:${pctE}%;background:var(--sucesso)"></div></div>
+        <b>${formatarMoeda(d.entradas)}</b>
+      </div>
+      <div class="vg-barra-linha">
+        <span>Gastos</span>
+        <div class="barra"><div style="width:${pctG}%;background:var(--erro)"></div></div>
+        <b>${formatarMoeda(d.gastos)}</b>
+      </div>`;
+    b.addEventListener("click", () => selecionarVgMes(d.chave));
+    box.appendChild(b);
+  }
+}
+
+function selecionarVgMes(chave) {
+  vgMesDetalhe = vgMesDetalhe === chave ? null : chave; // toca de novo p/ fechar
+  renderVisaoGeral();
+  if (vgMesDetalhe) {
+    document.getElementById("vg-detalhe").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+// Melhor mês e menor resultado (só entre meses COM movimento)
+function renderVgExtremos(dados) {
+  const comMovimento = dados.filter((d) => d.entradas + d.gastos > 0);
+  const box = document.getElementById("vg-extremos");
+  if (comMovimento.length === 0) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  let melhor = comMovimento[0], pior = comMovimento[0];
+  for (const d of comMovimento) {
+    if (d.resultado > melhor.resultado) melhor = d;
+    if (d.resultado < pior.resultado) pior = d;
+  }
+  document.getElementById("vg-melhor-nome").textContent = nomeMes(melhor.chave);
+  document.getElementById("vg-melhor-valor").textContent = formatarMoeda(melhor.resultado);
+  document.getElementById("vg-pior-nome").textContent = nomeMes(pior.chave);
+  document.getElementById("vg-pior-valor").textContent = formatarMoeda(pior.resultado);
+}
+
+// Detalhe do mês tocado + atalho para o Financeiro
+function renderVgDetalhe(dados) {
+  const box = document.getElementById("vg-detalhe");
+  const d = dados.find((x) => x.chave === vgMesDetalhe);
+  if (!d) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  box.innerHTML = `
+    <h3>${nomeMes(d.chave)}</h3>
+    <div class="rf-linha"><span>Entradas</span><strong class="texto-verde">${formatarMoeda(d.entradas)}</strong></div>
+    <div class="rf-linha"><span>Gastos</span><strong class="texto-vermelho">${formatarMoeda(d.gastos)}</strong></div>
+    <div class="rf-linha"><span>Resultado</span><strong>${formatarMoeda(d.resultado)}</strong></div>
+    <button class="btn btn-texto" id="vg-ver-mes">Ver mês no Financeiro →</button>`;
+  document.getElementById("vg-ver-mes").addEventListener("click", () => {
+    mesSelecionado = d.chave;
+    mostrarTela("financeiro");
+  });
+}
+
 // Evita que texto digitado quebre o HTML (segurança simples)
 function proteger(texto) {
   return String(texto ?? "").replace(/[&<>"']/g, (c) => ({
@@ -1275,6 +1452,13 @@ async function iniciar() {
 
   // Migração única do localStorage antigo para o Supabase
   document.getElementById("btn-migrar").addEventListener("click", clicarMigrar);
+
+  // Visão Geral: troca de ano
+  document.getElementById("vg-ano").addEventListener("change", (e) => {
+    vgAno = e.target.value;
+    vgMesDetalhe = null;
+    renderVisaoGeral();
+  });
 
   // Botões que abrem o modal
   document.getElementById("btn-novo-recebimento").addEventListener("click", () => abrirModal("recebimento"));

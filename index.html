@@ -33,6 +33,7 @@
       <button class="nav-btn ativo" data-ir="dashboard">Início</button>
       <button class="nav-btn" data-ir="obras">Obras</button>
       <button class="nav-btn" data-ir="financeiro">Financeiro</button>
+      <button class="nav-btn" data-ir="visao-geral">Visão Geral</button>
       <button class="nav-btn destaque" data-ir="nova-obra">+ Nova obra</button>
     </nav>
   </header>
@@ -295,6 +296,68 @@
       <h3 class="titulo-secao">Histórico mensal</h3>
       <div id="fin-historico" class="lista"></div>
     </section>
+
+    <!-- ===== TELA: VISÃO GERAL ===== -->
+    <section id="tela-visao-geral" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Visão geral financeira</h2>
+      <p class="texto-suave">Resultado mês a mês, somando todas as obras (mesma fonte do Financeiro).</p>
+
+      <!-- Filtro de período -->
+      <div class="card vg-filtro">
+        <label class="campo">
+          <span>Ano</span>
+          <select id="vg-ano"></select>
+        </label>
+      </div>
+
+      <!-- Resumo do período -->
+      <div class="grid-resumo">
+        <div class="mini-card verde">
+          <span class="mini-label">💰 Entradas no período</span>
+          <strong id="vg-entradas">R$ 0,00</strong>
+        </div>
+        <div class="mini-card vermelho">
+          <span class="mini-label">💸 Gastos no período</span>
+          <strong id="vg-gastos">R$ 0,00</strong>
+        </div>
+        <div class="mini-card azul destaque-lucro">
+          <span class="mini-label">📈 Resultado no período</span>
+          <strong id="vg-resultado">R$ 0,00</strong>
+        </div>
+      </div>
+
+      <!-- Gráfico: evolução do resultado (toque numa barra p/ detalhar) -->
+      <h3 class="titulo-secao">Evolução mensal</h3>
+      <div class="card">
+        <div class="vg-grafico" id="vg-grafico"></div>
+        <div class="legenda">
+          <span class="leg-item"><i class="cor cor-entradas"></i>Resultado positivo</span>
+          <span class="leg-item"><i class="cor cor-gastos"></i>Resultado negativo</span>
+        </div>
+      </div>
+
+      <!-- Detalhe do mês tocado -->
+      <div class="card vg-detalhe" id="vg-detalhe" hidden></div>
+
+      <!-- Melhor e pior mês do período -->
+      <div class="grid-resumo" id="vg-extremos" hidden>
+        <div class="mini-card verde">
+          <span class="mini-label">🏆 Melhor mês</span>
+          <strong id="vg-melhor-nome">—</strong>
+          <span class="texto-suave" id="vg-melhor-valor"></span>
+        </div>
+        <div class="mini-card vermelho">
+          <span class="mini-label">📉 Menor resultado</span>
+          <strong id="vg-pior-nome">—</strong>
+          <span class="texto-suave" id="vg-pior-valor"></span>
+        </div>
+      </div>
+
+      <!-- Meses do período (toque p/ detalhar) -->
+      <h3 class="titulo-secao">Meses</h3>
+      <div id="vg-lista" class="lista"></div>
+    </section>
   </main>
 
   <!-- ===== MODAL GENÉRICO (bottom-sheet no celular) ===== -->
@@ -402,6 +465,7 @@
     <button class="nav-item" data-ir="dashboard">🏠<span>Início</span></button>
     <button class="nav-item" data-ir="obras">🏗️<span>Obras</span></button>
     <button class="nav-item" data-ir="financeiro">💰<span>Financeiro</span></button>
+    <button class="nav-item" data-ir="visao-geral">📊<span>Visão Geral</span></button>
     <button class="nav-item acao" data-ir="nova-obra"><span class="nav-mais">＋</span><span>Nova obra</span></button>
   </nav>
 
