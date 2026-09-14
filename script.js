@@ -3,8 +3,8 @@
    -----------------------------------------------------
    Organização do código (para iniciantes):
    1. DADOS (estado global)
-   2. ARMAZENAMENTO (localStorage — fácil trocar por Supabase)
-   3. UTILIDADES (moeda, data, id, toast)
+   2. ARMAZENAMENTO (Supabase — ver supabase.js)
+   3. UTILIDADES (moeda, data, toast)
    4. CÁLCULOS DA OBRA (recebido, gasto, lucro, margem...)
    5. CÁLCULOS MENSAIS (financeiro: entradas/gastos por mês)
    6. NAVEGAÇÃO (trocar de telas e abas)
@@ -51,30 +51,7 @@ function ehEncerrada(obra) {
 
 // ---------- 2. ARMAZENAMENTO (Supabase) ----------
 // Os dados vivem no Supabase (ver supabase.js, objeto DB).
-// O "BancoLocal" abaixo só guarda o backup antigo do navegador
-// (não é mais exibido nem usado na interface).
-const BancoLocal = {
-  chave: "controle_obras_v1",
-  carregar() {
-    try {
-      const texto = localStorage.getItem(this.chave);
-      return texto ? JSON.parse(texto) : [];
-    } catch (e) {
-      console.error("Erro ao ler localStorage antigo:", e);
-      return [];
-    }
-  },
-  temDados() {
-    return this.carregar().length > 0;
-  },
-  jaMigrado() {
-    try {
-      return localStorage.getItem("controle_obras_migrado") === "1";
-    } catch (e) {
-      return true;
-    }
-  },
-};
+// Nada é lido ou salvo no localStorage durante o uso normal.
 
 // Recarrega tudo do banco (a tela sempre mostra a verdade do servidor)
 async function recarregar() {
@@ -94,10 +71,6 @@ async function erroBanco(operacao, e) {
 }
 
 // ---------- 3. UTILIDADES ----------
-function gerarId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
 function formatarMoeda(valor) {
   const numero = Number(valor) || 0;
   return numero.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

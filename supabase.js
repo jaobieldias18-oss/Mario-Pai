@@ -122,12 +122,16 @@ function trabalhadorParaLinha(obraId, d) {
 
 // ---------- Operações (SELECT / INSERT / UPDATE / DELETE) ----------
 const DB = {
-  // Carrega TODAS as obras com filhos (1 consulta com embed)
+  // Carrega TODAS as obras com filhos (1 única consulta com embed).
+  // Colunas explícitas = menos bytes no celular (sem owner_id, updated_at etc.)
   async carregarTudo() {
     exigirConexao();
     const { data, error } = await sb
       .from("obras")
-      .select("*, recebimentos(*), gastos(*), trabalhadores(*)")
+      .select("id,nome,cliente,endereco,valor_contratado,data_inicio,previsao_termino,status,data_encerramento,observacoes,created_at," +
+        "recebimentos(id,valor,data,descricao,forma_pagamento,observacao)," +
+        "gastos(id,categoria,descricao,valor,data,observacao,mao_obra_id)," +
+        "trabalhadores(id,nome,funcao,diaria,dias_trabalhados)")
       .order("created_at", { ascending: true });
     if (error) throw error;
     return (data || []).map(linhaParaObra);
@@ -221,55 +225,3 @@ const DB = {
     if (error) throw error;
   },
 };
-
-// ---------- MIGRAÇÃO localStorage -> Supabase (ETAPA 7) ----------
-// Lê a chave antiga, insere tudo no banco e marca como migrado.
-// O localStorage antigo é MANTIDO como backup (nada é apagado).
-// O elo mão-de-obra->gasto é refeito via mapa id antigo -> id novo (UUID).
-async function migrarLocalParaSupabase() {
-  const locais = BancoLocal.carregar();
-  if (!locais.length) throw new Error("nada-para-migrar");
-
-  for (const antiga of locais) {
-    const obra = await DB.criarObra({
-      nome: antiga.nome || "Sem nome",
-      cliente: antiga.cliente || "—",
-      endereco: antiga.endereco || "",
-      valorContratado: Number(antiga.valorContratado) || 0,
-      dataInicio: antiga.dataInicio || "",
-      previsaoTermino: antiga.previsaoTermino || "",
-      status: antiga.status || "Em andamento",
-      dataEncerramento: antiga.dataEncerramento || null,
-      observacoes: antiga.observacoes || "",
-    });
-
-    // Trabalhadores primeiro (para mapear os elos dos gastos automáticos)
-    const mapaEq = {};
-    for (const t of antiga.equipe || []) {
-      const novo = await DB.inserirTrabalhador(obra.id, {
-        nome: t.nome, funcao: t.funcao, valorDiaria: t.valorDiaria, dias: t.dias,
-      });
-      if (t.id) mapaEq[t.id] = novo.id;
-    }
-
-    for (const r of antiga.recebimentos || []) {
-      await DB.inserirRecebimento(obra.id, {
-        valor: r.valor, data: r.data, descricao: r.descricao,
-        formaPagamento: r.formaPagamento, observacao: r.observacao,
-      });
-    }
-
-    for (const g of antiga.gastos || []) {
-      await DB.inserirGasto(obra.id, {
-        categoria: g.categoria, descricao: g.descricao, valor: g.valor,
-        data: g.data, observacao: g.observacao,
-        maoObraId: g.maoObraId ? (mapaEq[g.maoObraId] || null) : null,
-      });
-    }
-  }
-
-  try {
-    localStorage.setItem("controle_obras_migrado", "1");
-  } catch (e) { /* sem localStorage, segue o jogo */ }
-  return locais.length;
-}
