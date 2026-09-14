@@ -418,13 +418,14 @@ strong, b { font-variant-numeric: tabular-nums; }
 
 /* Filtros da lista de obras */
 .filtros {
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-template-columns: repeat(4, 1fr);
   background: #fff; border: 1px solid var(--borda); border-radius: 13px;
   padding: 4px; gap: 4px; box-shadow: var(--sombra); margin: 10px 0;
 }
 .filtro {
   border: none; background: transparent; border-radius: 9px;
-  padding: 12px 4px; font-size: 14px; font-weight: 800;
+  padding: 12px 2px; font-size: 13px; font-weight: 800; line-height: 1.25;
+  text-align: center;
   color: var(--texto-sec); cursor: pointer; min-height: 48px;
 }
 .filtro.ativo { background: var(--cor-principal); color: #fff; }

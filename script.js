@@ -22,7 +22,7 @@ let editandoObraId = null; // se estamos editando obra (null = criando nova)
 let editandoRecId = null;  // recebimento sendo editado
 let editandoGastoId = null;// gasto sendo editado
 let editandoEqId = null;   // trabalhador sendo editado
-let filtroObras = "ativas"; // filtro da lista: "ativas" | "encerradas" | "todas"
+let filtroObras = "ativas"; // "ativas" | "encerradas" | "concluidas" | "todas"
 let mesSelecionado = null;  // mês aberto no Financeiro, formato "AAAA-MM"
 let vgAno = null;           // ano do filtro da Visão Geral ("2026" ou "todos")
 let vgMesDetalhe = null;    // mês tocado na Visão Geral, formato "AAAA-MM"
@@ -741,10 +741,12 @@ function renderDashboard() {
     b.classList.toggle("ativo", b.dataset.filtro === filtroObras)
   );
 
-  // Aplica o filtro: ativas = não encerradas | encerradas | todas
+  // Aplica o filtro: ativas = não encerradas | encerradas (só "Encerrada")
+  // | concluidas (só "Concluída") | todas
   let visiveis = obras;
   if (filtroObras === "ativas") visiveis = obras.filter((o) => !ehEncerrada(o));
-  else if (filtroObras === "encerradas") visiveis = obras.filter((o) => ehEncerrada(o));
+  else if (filtroObras === "encerradas") visiveis = obras.filter((o) => o.status === "Encerrada");
+  else if (filtroObras === "concluidas") visiveis = obras.filter((o) => o.status === "Concluída");
 
   document.getElementById("contador-obras").textContent =
     visiveis.length === 0 ? "" : `${visiveis.length} obra${visiveis.length > 1 ? "s" : ""}`;
