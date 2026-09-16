@@ -419,6 +419,17 @@ function abrirObra(id) {
   obraAbertaId = id;
   trocarAba("resumo");
   renderObra();
+  // Plano: reflete o estado real (parcelado só se há parcelas numeradas)
+  const temPlano = ((pegarObra(id) || {}).parcelas || []).some((p) => p.numero && p.total);
+  const rParc = document.querySelector('input[name="forma-pagto"][value="parcelado"]');
+  const rUnico = document.querySelector('input[name="forma-pagto"][value="unico"]');
+  if (rParc && rUnico) (temPlano ? rParc : rUnico).checked = true;
+  document.getElementById("plano-campos").hidden = !temPlano;
+  const obra = pegarObra(id);
+  if (obra && !document.getElementById("plano-total").value && obra.valorContratado)
+    document.getElementById("plano-total").value = obra.valorContratado;
+  if (!document.getElementById("plano-primeira").value)
+    document.getElementById("plano-primeira").value = hojeISO();
   mostrarTela("obra");
 }
 
@@ -715,8 +726,8 @@ async function salvarParcela(event) {
   if (editandoParcelaId) {
     const p = (obra.parcelas || []).find((x) => x.id === editandoParcelaId);
     if (!p) { editandoParcelaId = null; fecharModal(); return; }
-    if (p.status === "Recebida") {
-      mostrarToast("Parcela recebida não pode ser editada.", false);
+    if (parcelaPaga(p) || p.recebimentoId) {
+      mostrarToast("Parcela paga não pode ser editada.", false);
       return;
     }
     const dados = { descricao, valor, vencimento, observacao };
@@ -735,7 +746,7 @@ async function salvarParcela(event) {
     try {
       nova = await DB.inserirParcela(obra.id, {
         descricao, valor, vencimento, observacao,
-        status: "Pendente", dataRecebimento: null, recebimentoId: null,
+        status: "pendente", dataRecebimento: null, recebimentoId: null,
       });
     } catch (e) {
       editandoParcelaId = null;
@@ -752,39 +763,10 @@ async function salvarParcela(event) {
   renderTudo();
 }
 
-// Marca como recebida: cria o recebimento, liga na parcela e atualiza tudo.
-// Se já tem recebimento ligado (ou status Recebida), não faz nada — sem duplicar.
+// Marca como recebida: abre o modal de baixa (data real editável).
+// Mantido o nome p/ compatibilidade; a baixa real está em confirmarBaixaParcela.
 async function marcarParcelaRecebida(id) {
-  const obra = pegarObra(obraAbertaId);
-  if (!obra || obraSomenteLeitura(obra)) return;
-  const p = (obra.parcelas || []).find((x) => x.id === id);
-  if (!p || p.status === "Recebida" || p.recebimentoId) return;
-  if (!confirm(`Marcar "${p.descricao}" (${formatarMoeda(p.valor)}) como recebida?`)) return;
-  const dataRec = hojeISO();
-  try {
-    const rec = await DB.inserirRecebimento(obra.id, {
-      valor: p.valor, data: dataRec,
-      descricao: p.descricao,
-      formaPagamento: "", observacao: "Baixa de parcela",
-    });
-    await DB.atualizarParcela(id, {
-      descricao: p.descricao, valor: p.valor, vencimento: p.vencimento,
-      observacao: p.observacao, status: "Recebida",
-      dataRecebimento: dataRec, recebimentoId: rec.id,
-    });
-    p.status = "Recebida";
-    p.dataRecebimento = dataRec;
-    p.recebimentoId = rec.id;
-    obra.recebimentos.push({
-      id: rec.id, valor: p.valor, data: dataRec, descricao: p.descricao,
-      formaPagamento: "", observacao: "Baixa de parcela",
-    });
-  } catch (e) {
-    await erroBanco("dar baixa na parcela", e);
-    return;
-  }
-  renderTudo();
-  mostrarToast("Parcela recebida!");
+  abrirBaixaParcela(id);
 }
 
 async function excluirParcela(id) {
@@ -792,7 +774,15 @@ async function excluirParcela(id) {
   if (!obra || obraSomenteLeitura(obra)) return;
   const p = (obra.parcelas || []).find((x) => x.id === id);
   if (!p) return;
-  if (!confirm(`Excluir a parcela "${p.descricao}"?`)) return;
+  // Parcela paga tem recebimento vinculado: confirma deixando isso claro
+  if ((parcelaPaga(p) || p.recebimentoId) && p.recebimentoId) {
+    const ok = await pedirConfirmacao(
+      "Excluir parcela paga?",
+      `A parcela "${p.descricao}" tem um recebimento de ${formatarMoeda(p.valor)} associado. Excluir apaga os dois juntos.`,
+      "Excluir os dois"
+    );
+    if (!ok) return;
+  } else if (!confirm(`Excluir a parcela "${p.descricao}"?`)) return;
   try {
     // Se gerou recebimento, apaga ele junto (não deixa dinheiro órfão)
     if (p.recebimentoId) {
@@ -1195,56 +1185,230 @@ function renderEquipe(obra) {
   }
 }
 
-// Situação visual da parcela (só indicador; não muda nenhum valor)
+// Situação da parcela (spec parcelamento mensal): ⏳ Pendente, 🟢 Pago, 🔴 Vencido.
+// "Vencido" é só alerta de cobrança: nunca cria recebimento sozinho.
+// Compat: status legado "Recebida" vale como pago.
+function parcelaPaga(p) {
+  return p.status === "pago" || p.status === "Recebida";
+}
 function statusParcela(p) {
-  if (p.status === "Recebida") return { icone: "✅", texto: "Recebida", classe: "chip-recebida" };
+  if (parcelaPaga(p)) return { icone: "🟢", texto: "Pago", classe: "chip-pago" };
   const hoje = hojeISO();
-  if (p.vencimento && p.vencimento < hoje) return { icone: "🔴", texto: "Vencida", classe: "chip-vencida" };
-  if (p.vencimento) {
-    const limite = new Date();
-    limite.setDate(limite.getDate() + 7);
-    if (p.vencimento <= limite.toISOString().slice(0, 10)) {
-      return { icone: "🟡", texto: "Vence em breve", classe: "chip-breve" };
-    }
+  if (p.vencimento && p.vencimento < hoje) return { icone: "🔴", texto: "Vencido", classe: "chip-vencido" };
+  return { icone: "🟡", texto: "Pendente", classe: "chip-pendente" };
+}
+
+// ---------- PLANO MENSAL: datas e valores ----------
+// Soma meses preservando o dia (31/01 +1 = 28/02); atravessa meses e anos.
+function somarMeses(iso, offset) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const base = new Date(y, m - 1 + offset, 1);
+  const last = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+  const dia = Math.min(d, last);
+  const dt = new Date(base.getFullYear(), base.getMonth(), dia);
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${dt.getFullYear()}-${mm}-${dd}`;
+}
+
+// Divide sem perder centavos: a diferença vai para a última parcela.
+function dividirValor(total, n) {
+  const centavos = Math.round(numeroOuZero(total) * 100);
+  const base = Math.floor(centavos / n);
+  const resto = centavos - base * n;
+  const out = [];
+  for (let i = 0; i < n; i++) out.push((base + (i === n - 1 ? resto : 0)) / 100);
+  return out;
+}
+
+function rotuloParcela(p) {
+  if (p.numero && p.total) return `Parcela ${p.numero}/${p.total}`;
+  return p.descricao || "Parcela";
+}
+
+async function gerarPlano() {
+  const obra = pegarObra(obraAbertaId);
+  if (!obra || obraSomenteLeitura(obra)) return;
+  const n = parseInt(document.getElementById("plano-num").value, 10);
+  const total = numeroOuZero(document.getElementById("plano-total").value);
+  const primeira = document.getElementById("plano-primeira").value;
+  if (!n || n < 2 || n > 120 || !(total > 0) || !dataValida(primeira)) {
+    mostrarToast("Informe nº de parcelas (2–120), valor total e 1º vencimento.", false);
+    return;
   }
-  return { icone: "⏳", texto: "Pendente", classe: "chip-pendente" };
+  const atual = obra.parcelas || [];
+  if (atual.some((p) => parcelaPaga(p) || p.recebimentoId)) {
+    mostrarToast("Há parcelas pagas: apague o plano com cuidado, sem mexer nos recebimentos.", false);
+    return;
+  }
+  if (atual.length > 0) {
+    const ok = await pedirConfirmacao(
+      "Substituir parcelas?",
+      `Apagar as ${atual.length} parcelas pendentes e gerar ${n} novas?`,
+      "Gerar mesmo assim"
+    );
+    if (!ok) return;
+    try {
+      for (const p of atual) await DB.excluirParcela(p.id);
+    } catch (e) { await erroBanco("substituir as parcelas", e); return; }
+    obra.parcelas = [];
+  }
+  const valores = dividirValor(total, n);
+  try {
+    for (let i = 0; i < n; i++) {
+      const nova = await DB.inserirParcela(obra.id, {
+        descricao: `Parcela ${i + 1}/${n}`,
+        numero: i + 1, total: n,
+        valor: valores[i], vencimento: somarMeses(primeira, i),
+        status: "pendente", dataRecebimento: null, recebimentoId: null,
+        observacao: "",
+      });
+      obra.parcelas.push(nova);
+    }
+  } catch (e) { await erroBanco("gerar as parcelas", e); return; }
+  renderTudo();
+  mostrarToast(`${n} parcelas geradas!`);
+}
+
+function atualizarPreviaPlano() {
+  const n = parseInt((document.getElementById("plano-num") || {}).value, 10);
+  const total = numeroOuZero((document.getElementById("plano-total") || {}).value);
+  const el = document.getElementById("plano-previa");
+  if (!el) return;
+  el.textContent = (n >= 2 && total > 0)
+    ? `${n}x de ${formatarMoeda(total / n)} • Total ${formatarMoeda(total)}`
+    : "—";
+}
+
+// Baixa com data REAL editável. Anti-duplicação: paga só uma vez.
+let baixandoParcelaId = null;
+function abrirBaixaParcela(id) {
+  const obra = pegarObra(obraAbertaId);
+  if (!obra || obraSomenteLeitura(obra)) return;
+  const p = (obra.parcelas || []).find((x) => x.id === id);
+  if (!p) return;
+  if (parcelaPaga(p) || p.recebimentoId) {
+    mostrarToast("Parcela já está paga. Nada duplicado.", false);
+    return;
+  }
+  baixandoParcelaId = id;
+  const fundo = document.getElementById("modal-fundo");
+  fundo.hidden = false;
+  document.getElementById("form-recebimento").hidden = true;
+  document.getElementById("form-gasto").hidden = true;
+  document.getElementById("form-equipe").hidden = true;
+  document.getElementById("form-parcela").hidden = true;
+  document.getElementById("form-baixa-parcela").hidden = false;
+  document.getElementById("modal-titulo").textContent = "Registrar pagamento";
+  document.getElementById("baixa-info").textContent =
+    `${rotuloParcela(p)} • Vencimento ${formatarData(p.vencimento)} • Valor ${formatarMoeda(p.valor)}`;
+  document.getElementById("baixa-valor").value = p.valor;
+  document.getElementById("baixa-data").value = hojeISO();
+}
+
+async function confirmarBaixaParcela(event) {
+  event.preventDefault();
+  const obra = pegarObra(obraAbertaId);
+  if (!obra || obraSomenteLeitura(obra)) return;
+  const p = (obra.parcelas || []).find((x) => x.id === baixandoParcelaId);
+  if (!p) { fecharModal(); return; }
+  // Trava dupla contra duplicação (status E vínculo)
+  if (parcelaPaga(p) || p.recebimentoId) {
+    mostrarToast("Parcela já paga — nenhum recebimento duplicado.", false);
+    fecharModal();
+    return;
+  }
+  const valor = numeroOuZero(document.getElementById("baixa-valor").value);
+  const dataPag = document.getElementById("baixa-data").value;
+  if (!(valor > 0) || !dataValida(dataPag)) {
+    mostrarToast("Informe valor e data do pagamento.", false);
+    return;
+  }
+  const rotulo = rotuloParcela(p);
+  try {
+    // Recebimento na DATA REAL (financeiro cai no mês do pagamento)
+    const rec = await DB.inserirRecebimento(obra.id, {
+      valor, data: dataPag,
+      descricao: `${rotulo} — ${obra.nome}`,
+      formaPagamento: "", observacao: `Vencimento ${formatarData(p.vencimento)}. Pago em ${formatarData(dataPag)}.`,
+    });
+    await DB.atualizarParcela(p.id, {
+      descricao: p.descricao, numero: p.numero, total: p.total,
+      valor, vencimento: p.vencimento, observacao: p.observacao,
+      status: "pago", dataRecebimento: dataPag, recebimentoId: rec.id,
+    });
+    Object.assign(p, { valor, status: "pago", dataRecebimento: dataPag, recebimentoId: rec.id });
+    obra.recebimentos.push({
+      id: rec.id, valor, data: dataPag, descricao: `${rotulo} — ${obra.nome}`,
+      formaPagamento: "", observacao: `Vencimento ${formatarData(p.vencimento)}. Pago em ${formatarData(dataPag)}.`,
+    });
+  } catch (e) {
+    baixandoParcelaId = null;
+    fecharModal();
+    await erroBanco("registrar o pagamento", e);
+    return;
+  }
+  baixandoParcelaId = null;
+  fecharModal();
+  renderTudo(); // recebido, a receber, lucro, margem e financeiro recalculam
+  mostrarToast("Parcela recebida!");
 }
 
 function renderParcelas(obra) {
   const lista = document.getElementById("lista-parcelas");
   lista.innerHTML = "";
   const parcelas = [...(obra.parcelas || [])].sort((a, b) => {
-    // pendentes primeiro (por vencimento), recebidas depois
-    if ((a.status === "Recebida") !== (b.status === "Recebida")) return a.status === "Recebida" ? 1 : -1;
+    // plano primeiro por número; avulsas por vencimento; pagas por último
+    const na = a.numero || 9999, nb = b.numero || 9999;
+    if (na !== nb) return na - nb;
+    if (parcelaPaga(a) !== parcelaPaga(b)) return parcelaPaga(a) ? 1 : -1;
     return (a.vencimento || "9999") < (b.vencimento || "9999") ? -1 : 1;
   });
-  const pendente = parcelas
-    .filter((p) => p.status !== "Recebida")
-    .reduce((s, p) => s + numeroOuZero(p.valor), 0);
+  const total = parcelas.reduce((s, p) => s + numeroOuZero(p.valor), 0);
+  const pagas = parcelas.filter((p) => parcelaPaga(p));
+  const recebido = pagas.reduce((s, p) => s + numeroOuZero(p.valor), 0);
+  const pendente = total - recebido;
   document.getElementById("total-parcelas").textContent = formatarMoeda(pendente);
+
+  // Resumo do parcelamento (só quando há plano numerado)
+  const cardResumo = document.getElementById("card-resumo-plano");
+  const comPlano = parcelas.filter((p) => p.numero && p.total);
+  if (cardResumo) {
+    cardResumo.hidden = comPlano.length === 0;
+    if (comPlano.length > 0) {
+      const tPlano = comPlano[0].total;
+      const vMedio = comPlano.reduce((s, p) => s + numeroOuZero(p.valor), 0) / comPlano.length;
+      const pgPlano = comPlano.filter((p) => parcelaPaga(p));
+      document.getElementById("plc-total").textContent = formatarMoeda(comPlano.reduce((s, p) => s + numeroOuZero(p.valor), 0));
+      document.getElementById("plc-qtd").textContent = String(tPlano);
+      document.getElementById("plc-valor").textContent = formatarMoeda(vMedio);
+      document.getElementById("plc-pagas").textContent = `${pgPlano.length} de ${comPlano.length}`;
+      document.getElementById("plc-recebido").textContent = formatarMoeda(pgPlano.reduce((s, p) => s + numeroOuZero(p.valor), 0));
+      document.getElementById("plc-pendente").textContent = formatarMoeda(comPlano.reduce((s, p) => s + numeroOuZero(p.valor), 0) - pgPlano.reduce((s, p) => s + numeroOuZero(p.valor), 0));
+      const proxPlano = comPlano.find((p) => !parcelaPaga(p));
+      document.getElementById("plc-prox").textContent = proxPlano
+        ? `${formatarData(proxPlano.vencimento)} (${rotuloParcela(proxPlano)})` : "—";
+    }
+  }
+
   if (!parcelas.length) {
-    lista.innerHTML = `<div class="lista-vazia">Nenhuma parcela ainda.<br>Toque em <strong>+ Adicionar parcela</strong>.</div>`;
+    lista.innerHTML = `<div class="lista-vazia">Nenhuma parcela ainda.<br>Escolha <strong>Pagamento parcelado</strong> acima ou toque em <strong>+ Adicionar parcela</strong>.</div>`;
     return;
   }
   for (const p of parcelas) {
     const st = statusParcela(p);
-    const recebida = p.status === "Recebida";
+    const paga = parcelaPaga(p);
     const div = document.createElement("div");
-    div.className = "item recebimento";
+    div.className = "parcela-card " + (paga ? "pago" : st.texto === "Vencido" ? "vencido" : "pendente");
     div.innerHTML = `
-      <div class="item-topo">
-        <span class="item-icone" aria-hidden="true">📋</span>
-        <div class="item-conteudo">
-          <strong>${proteger(p.descricao)}</strong>
-          <span class="item-meta">${p.vencimento ? "Vence " + formatarData(p.vencimento) : "Sem vencimento"}${p.dataRecebimento ? " • Recebida em " + formatarData(p.dataRecebimento) : ""}</span>
-        </div>
-        <span class="item-valor texto-verde">${formatarMoeda(p.valor)}</span>
-      </div>
-      ${p.observacao ? `<p class="item-meta" style="margin-top:6px">${proteger(p.observacao)}</p>` : ""}
-      <p style="margin-top:8px"><span class="chip ${st.classe}">${st.icone} ${st.texto}</span></p>
-      <div class="item-acoes">${recebida ? "" : `<button data-a="receber">✅ Recebida</button><button data-a="editar">✏️ Editar</button>`}<button data-a="excluir" class="excluir">🗑️ Excluir</button></div>`;
-    if (!recebida) {
-      div.querySelector('[data-a="receber"]').addEventListener("click", () => marcarParcelaRecebida(p.id));
+      <div class="parcela-topo"><span>${proteger(rotuloParcela(p))}</span><span class="parcela-status ${paga ? "pago" : st.texto === "Vencido" ? "vencido" : "pendente"}">${st.icone} ${st.texto}</span></div>
+      <div class="parcela-valor">${formatarMoeda(p.valor)}</div>
+      <div class="parcela-meta">Vencimento: ${formatarData(p.vencimento)}</div>
+      ${paga && p.dataRecebimento ? `<div class="parcela-meta">Pago em: ${formatarData(p.dataRecebimento)}</div>` : ""}
+      ${p.observacao ? `<div class="parcela-meta">${proteger(p.observacao)}</div>` : ""}
+      <div class="item-acoes">${paga ? "" : `<button data-a="receber">Marcar como pago</button><button data-a="editar">✏️ Editar</button>`}<button data-a="excluir" class="excluir">🗑️ Excluir</button></div>`;
+    if (!paga) {
+      div.querySelector('[data-a="receber"]').addEventListener("click", () => abrirBaixaParcela(p.id));
       div.querySelector('[data-a="editar"]').addEventListener("click", () => abrirModal("parcela", p.id));
     }
     div.querySelector('[data-a="excluir"]').addEventListener("click", () => excluirParcela(p.id));
@@ -1588,11 +1752,12 @@ function abrirModal(tipo, idEditar = null) {
   if (obraSomenteLeitura(obra)) return; // obra encerrada: somente leitura (já avisa)
   const fundo = document.getElementById("modal-fundo");
   fundo.hidden = false;
-  // Esconde os 4 formulários, mostra só o pedido
+  // Esconde os formulários, mostra só o pedido
   document.getElementById("form-recebimento").hidden = tipo !== "recebimento";
   document.getElementById("form-gasto").hidden = tipo !== "gasto";
   document.getElementById("form-equipe").hidden = tipo !== "equipe";
   document.getElementById("form-parcela").hidden = tipo !== "parcela";
+  document.getElementById("form-baixa-parcela").hidden = true;
 
   if (tipo === "recebimento") {
     editandoRecId = idEditar;
@@ -1679,6 +1844,8 @@ function abrirFormParcela() {
 
 function fecharModal() {
   document.getElementById("modal-fundo").hidden = true;
+  document.getElementById("form-baixa-parcela").hidden = true;
+  baixandoParcelaId = null;
   editandoRecId = editandoGastoId = editandoEqId = editandoParcelaId = null;
 }
 
@@ -1853,6 +2020,26 @@ async function iniciar() {
     vgMesDetalhe = null;
     renderVisaoGeral();
   });
+
+  // Parcelamento mensal: tipo de pagamento, gerar plano e baixa com data real
+  document.querySelectorAll('input[name="forma-pagto"]').forEach((r) =>
+    r.addEventListener("change", () => {
+      const parc = document.querySelector('input[name="forma-pagto"]:checked').value === "parcelado";
+      document.getElementById("plano-campos").hidden = !parc;
+      if (parc) {
+        const obra = pegarObra(obraAbertaId);
+        if (obra && !document.getElementById("plano-total").value && obra.valorContratado)
+          document.getElementById("plano-total").value = obra.valorContratado;
+        if (!document.getElementById("plano-primeira").value)
+          document.getElementById("plano-primeira").value = hojeISO();
+        atualizarPreviaPlano();
+      }
+    })
+  );
+  aoClicar("btn-gerar-plano", gerarPlano);
+  aoMudar("plano-num", "input", atualizarPreviaPlano);
+  aoMudar("plano-total", "input", atualizarPreviaPlano);
+  aoEnviar("form-baixa-parcela", confirmarBaixaParcela);
 
   // Botões que abrem o modal (cada um chama sua função separada)
   aoClicar("btn-novo-recebimento", abrirFormRecebimento);

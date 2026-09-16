@@ -61,10 +61,14 @@ function linhaParaObra(l) {
     parcelas: (l.parcelas || []).map((p) => ({
       id: p.id,
       descricao: p.descricao,
+      // Plano mensal (spec): numero/total; vencimento e pagamento com
+      // fallback para as colunas legadas (vencimento/data_recebimento).
+      numero: p.numero_parcela || null,
+      total: p.total_parcelas || null,
       valor: Number(p.valor) || 0,
-      vencimento: p.vencimento || "",
-      status: p.status || "Pendente",
-      dataRecebimento: p.data_recebimento || null,
+      vencimento: p.data_vencimento || p.vencimento || "",
+      status: p.status || "pendente",
+      dataRecebimento: p.data_pagamento || p.data_recebimento || null,
       recebimentoId: p.recebimento_id || null, // recebimento gerado (evita duplicar)
       observacao: p.observacao || "",
     })),
@@ -136,13 +140,19 @@ function trabalhadorParaLinha(obraId, d) {
 }
 
 function parcelaParaLinha(obraId, d) {
+  const venc = dataOuNulo(d.vencimento);
+  const pag = dataOuNulo(d.dataRecebimento);
   return {
     obra_id: obraId,
     descricao: d.descricao,
+    numero_parcela: d.numero || null,
+    total_parcelas: d.total || null,
     valor: d.valor || 0,
-    vencimento: dataOuNulo(d.vencimento),
-    status: d.status || "Pendente",
-    data_recebimento: dataOuNulo(d.dataRecebimento),
+    vencimento: venc, // espelho legado (compat)
+    data_vencimento: venc, // nome oficial do parcelamento mensal
+    status: d.status || "pendente",
+    data_recebimento: pag, // espelho legado (compat)
+    data_pagamento: pag, // nome oficial (data REAL do pagamento)
     recebimento_id: d.recebimentoId || null,
     observacao: d.observacao || null,
   };
@@ -160,7 +170,7 @@ const DB = {
         "recebimentos(id,valor,data,descricao,forma_pagamento,observacao)," +
         "gastos(id,categoria,descricao,valor,data,forma_pagamento,observacao,mao_obra_id)," +
         "trabalhadores(id,nome,funcao,diaria,dias_trabalhados,data,created_at)," +
-        "parcelas(id,descricao,valor,vencimento,status,data_recebimento,recebimento_id,observacao)")
+        "parcelas(id,descricao,numero_parcela,total_parcelas,valor,vencimento,data_vencimento,status,data_recebimento,data_pagamento,recebimento_id,observacao)")
       .order("created_at", { ascending: true });
     if (error) throw error;
     return (data || []).map(linhaParaObra);

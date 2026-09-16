@@ -736,3 +736,26 @@ strong, b { font-variant-numeric: tabular-nums; }
 .dot-amarelo { background: var(--cor-destaque); }
 .dot-vermelho { background: var(--erro); }
 .margem-rotulo { font-size: 12px; font-weight: 700; color: var(--texto-sec); }
+
+/* ===== Parcelamento mensal (cards + plano + resumo) ===== */
+.parcelas-grid { display: grid; gap: 10px; margin-top: 10px; }
+@media (min-width: 700px) { .parcelas-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .parcelas-grid { grid-template-columns: repeat(3, 1fr); } }
+.parcela-card { background: #fff; border: 1px solid var(--borda); border-radius: var(--raio-p); box-shadow: var(--sombra); padding: 13px 14px; border-left: 5px solid #9aa5b5; display: grid; gap: 4px; }
+.parcela-card.pago { border-left-color: var(--sucesso); background: var(--sucesso-fundo); }
+.parcela-card.pendente { border-left-color: var(--cor-destaque); }
+.parcela-card.vencido { border-left-color: var(--erro); background: var(--erro-fundo); }
+.parcela-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 800; }
+.parcela-valor { font-size: 19px; font-weight: 800; }
+.parcela-meta { font-size: 13px; color: var(--texto-sec); }
+.parcela-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; padding: 5px 11px; border-radius: 20px; background: #eef1f6; white-space: nowrap; }
+.parcela-status.pago { background: var(--sucesso); color: #fff; }
+.parcela-status.pendente { background: var(--alerta-fundo); color: var(--alerta); }
+.parcela-status.vencido { background: var(--erro); color: #fff; }
+.chip-pago { background: var(--sucesso-fundo); color: var(--sucesso); }
+.chip-vencido { background: var(--erro-fundo); color: var(--erro); }
+.parcelas-resumo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.parcelas-resumo .numero-card strong { font-size: 16px; }
+.forma-pagto { display: grid; gap: 8px; margin: 10px 0; }
+.forma-pagto label { display: flex; gap: 8px; align-items: center; background: #fff; border: 1.5px solid var(--borda); border-radius: 11px; padding: 12px; font-weight: 700; cursor: pointer; }
+.forma-pagto input { width: 20px; height: 20px; }

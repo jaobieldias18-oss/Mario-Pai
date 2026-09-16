@@ -264,9 +264,43 @@
 
       <!-- Aba: Parcelas (plano de pagamento do cliente) -->
       <div class="painel-aba" id="aba-parcelas">
+        <div class="card" id="card-plano">
+          <h3 class="titulo-secao" style="margin-top:0">Forma de pagamento</h3>
+          <div class="forma-pagto">
+            <label><input type="radio" name="forma-pagto" value="unico" checked /> Pagamento único</label>
+            <label><input type="radio" name="forma-pagto" value="parcelado" /> Pagamento parcelado</label>
+          </div>
+          <div id="plano-campos" hidden>
+            <div class="form">
+              <label class="campo"><span>Número de parcelas</span>
+                <input type="number" id="plano-num" min="2" max="120" step="1" value="12" />
+              </label>
+              <label class="campo"><span>Valor total (R$)</span>
+                <input type="number" id="plano-total" min="0" step="0.01" inputmode="decimal" />
+              </label>
+              <label class="campo"><span>Data da primeira parcela</span>
+                <input type="date" id="plano-primeira" />
+              </label>
+              <p class="texto-suave" id="plano-previa">—</p>
+              <button class="btn btn-primario" id="btn-gerar-plano">Gerar parcelas</button>
+            </div>
+          </div>
+        </div>
+        <div class="card" id="card-resumo-plano" hidden>
+          <h3 class="titulo-secao" style="margin-top:0">Parcelamento</h3>
+          <div class="parcelas-resumo">
+            <div class="numero-card"><span>Valor total</span><strong id="plc-total">R$ 0,00</strong></div>
+            <div class="numero-card"><span>Total de parcelas</span><strong id="plc-qtd">—</strong></div>
+            <div class="numero-card"><span>Valor por parcela</span><strong id="plc-valor">—</strong></div>
+            <div class="numero-card"><span>Parcelas pagas</span><strong id="plc-pagas">—</strong></div>
+            <div class="numero-card verde"><span>Total recebido</span><strong id="plc-recebido">R$ 0,00</strong></div>
+            <div class="numero-card amarelo"><span>Total pendente</span><strong id="plc-pendente">R$ 0,00</strong></div>
+          </div>
+          <p class="texto-suave" style="margin-top:8px">Próximo vencimento: <strong id="plc-prox">—</strong></p>
+        </div>
         <p class="total-aba">Total pendente: <strong id="total-parcelas">R$ 0,00</strong></p>
         <button class="btn btn-primario btn-grande" id="btn-nova-parcela">+ Adicionar parcela</button>
-        <div id="lista-parcelas" class="lista"></div>
+        <div id="lista-parcelas" class="parcelas-grid"></div>
       </div>
     </section>
 
@@ -500,6 +534,19 @@
         <div class="modal-botoes">
           <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
           <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
+        </div>
+      </form>
+
+      <!-- Form registrar pagamento de parcela (data REAL do pagamento) -->
+      <form id="form-baixa-parcela" class="form" hidden novalidate>
+        <p class="texto-suave" id="baixa-info">Registrar pagamento</p>
+        <label class="campo"><span>Valor (R$) *</span>
+          <input type="number" id="baixa-valor" min="0" step="0.01" inputmode="decimal" required />
+        </label>
+        <label class="campo"><span>Data do pagamento *</span><input type="date" id="baixa-data" required /></label>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Confirmar pagamento</button>
         </div>
       </form>
     </div>
