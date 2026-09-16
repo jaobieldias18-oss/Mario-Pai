@@ -275,10 +275,12 @@
           </div>
           <p class="texto-suave" style="margin-top:8px">Próximo vencimento: <strong id="plc-prox">—</strong></p>
         </div>
-        <p class="total-aba">Total pendente: <strong id="total-parcelas">R$ 0,00</strong></p>
-        <button class="btn btn-primario btn-grande" id="btn-nova-parcela">+ Adicionar parcela</button>
-        <div id="lista-parcelas" class="parcelas-grid"></div>
-        <h3 class="titulo-secao">Outros recebimentos</h3>
+        <div id="bloco-parcelas" hidden>
+          <p class="total-aba">Total pendente: <strong id="total-parcelas">R$ 0,00</strong></p>
+          <button class="btn btn-primario btn-grande" id="btn-nova-parcela">+ Adicionar parcela</button>
+          <div id="lista-parcelas" class="parcelas-grid"></div>
+        </div>
+        <h3 class="titulo-secao" id="titulo-avulsos">Outros recebimentos</h3>
         <p class="total-aba">Total recebido: <strong id="total-recebimentos">R$ 0,00</strong></p>
         <button class="btn btn-primario btn-grande" id="btn-novo-recebimento">+ Adicionar recebimento</button>
         <div id="lista-recebimentos" class="lista"></div>

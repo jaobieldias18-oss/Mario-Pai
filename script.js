@@ -418,8 +418,7 @@ async function excluirObra() {
 function abrirObra(id) {
   obraAbertaId = id;
   trocarAba("resumo");
-  renderObra();
-  // Plano: reflete o estado real (parcelado só se há parcelas numeradas)
+  // Plano antes de desenhar: o render usa o modo para mostrar/esconder o bloco
   const temPlano = ((pegarObra(id) || {}).parcelas || []).some((p) => p.numero && p.total);
   const rParc = document.querySelector('input[name="forma-pagto"][value="parcelado"]');
   const rUnico = document.querySelector('input[name="forma-pagto"][value="unico"]');
@@ -427,6 +426,7 @@ function abrirObra(id) {
   document.getElementById("plano-campos").hidden = !temPlano;
   // Plano recolhido quando já existe (aba mais limpa); aberto quando não há
   document.getElementById("card-plano").open = !temPlano;
+  renderObra();
   const obra = pegarObra(id);
   if (obra && !document.getElementById("plano-total").value && obra.valorContratado)
     document.getElementById("plano-total").value = obra.valorContratado;
@@ -1359,8 +1359,13 @@ async function confirmarBaixaParcela(event) {
 function renderParcelas(obra) {
   const lista = document.getElementById("lista-parcelas");
   lista.innerHTML = "";
-  const parcelas = [...(obra.parcelas || [])].sort((a, b) => {
-    // plano primeiro por número; avulsas por vencimento; pagas por último
+  // Bloco de parcelas só aparece no modo parcelado — mas nunca esconde
+  // dado existente: com parcelas salvas, sempre visível.
+  const modoParcelado = (document.querySelector('input[name="forma-pagto"]:checked') || {}).value === "parcelado";
+  const mostrarBloco = modoParcelado || (obra.parcelas || []).length > 0;
+  document.getElementById("bloco-parcelas").hidden = !mostrarBloco;
+  document.getElementById("titulo-avulsos").hidden = !mostrarBloco;
+  const parcelas = [...(obra.parcelas || [])].sort((a, b) => {    // plano primeiro por número; avulsas por vencimento; pagas por último
     const na = a.numero || 9999, nb = b.numero || 9999;
     if (na !== nb) return na - nb;
     if (parcelaPaga(a) !== parcelaPaga(b)) return parcelaPaga(a) ? 1 : -1;
@@ -2029,6 +2034,9 @@ async function iniciar() {
       const parc = document.querySelector('input[name="forma-pagto"]:checked').value === "parcelado";
       document.getElementById("plano-campos").hidden = !parc;
       document.getElementById("card-plano").open = true;
+      // Mostra/esconde o bloco de parcelas na hora (sem perder dados)
+      const obra = pegarObra(obraAbertaId);
+      if (obra) renderParcelas(obra);
       if (parc) {
         const obra = pegarObra(obraAbertaId);
         if (obra && !document.getElementById("plano-total").value && obra.valorContratado)
