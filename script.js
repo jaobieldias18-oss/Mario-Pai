@@ -1201,13 +1201,11 @@ function statusParcela(p) {
 }
 
 // ---------- PLANO MENSAL: datas e valores ----------
-// Soma meses preservando o dia (31/01 +1 = 28/02); atravessa meses e anos.
-function somarMeses(iso, offset) {
+// Vencimento a cada 30 dias corridos: a data-limite cai no mês seguinte
+// (10/10 → 09/11 → 09/12...), atravessando meses e anos sozinho.
+function somarDias(iso, dias) {
   const [y, m, d] = iso.split("-").map(Number);
-  const base = new Date(y, m - 1 + offset, 1);
-  const last = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
-  const dia = Math.min(d, last);
-  const dt = new Date(base.getFullYear(), base.getMonth(), dia);
+  const dt = new Date(y, m - 1, d + dias);
   const mm = String(dt.getMonth() + 1).padStart(2, "0");
   const dd = String(dt.getDate()).padStart(2, "0");
   return `${dt.getFullYear()}-${mm}-${dd}`;
@@ -1261,7 +1259,7 @@ async function gerarPlano() {
       const nova = await DB.inserirParcela(obra.id, {
         descricao: `Parcela ${i + 1}/${n}`,
         numero: i + 1, total: n,
-        valor: valores[i], vencimento: somarMeses(primeira, i),
+        valor: valores[i], vencimento: somarDias(primeira, i * 30),
         status: "pendente", dataRecebimento: null, recebimentoId: null,
         observacao: "",
       });
