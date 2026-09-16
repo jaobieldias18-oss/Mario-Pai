@@ -223,7 +223,6 @@
         <button class="aba" data-aba="recebimentos">Recebimentos</button>
         <button class="aba" data-aba="gastos">Gastos</button>
         <button class="aba" data-aba="equipe">Mão de obra</button>
-        <button class="aba" data-aba="parcelas">Parcelas</button>
       </nav>
 
       <!-- Aba: Resumo -->
@@ -240,29 +239,8 @@
         <div class="card" id="obra-info-extra"></div>
       </div>
 
-      <!-- Aba: Recebimentos -->
+      <!-- Aba: Recebimentos (parcelas + avulsos) -->
       <div class="painel-aba" id="aba-recebimentos">
-        <p class="total-aba">Total recebido: <strong id="total-recebimentos">R$ 0,00</strong></p>
-        <button class="btn btn-primario btn-grande" id="btn-novo-recebimento">+ Adicionar recebimento</button>
-        <div id="lista-recebimentos" class="lista"></div>
-      </div>
-
-      <!-- Aba: Gastos -->
-      <div class="painel-aba" id="aba-gastos">
-        <p class="total-aba">Total gasto: <strong id="total-gastos">R$ 0,00</strong></p>
-        <button class="btn btn-primario btn-grande" id="btn-novo-gasto">+ Adicionar gasto</button>
-        <div id="lista-gastos" class="lista"></div>
-      </div>
-
-      <!-- Aba: Mão de obra -->
-      <div class="painel-aba" id="aba-equipe">
-        <p class="total-aba">Total de mão de obra: <strong id="total-equipe">R$ 0,00</strong></p>
-        <button class="btn btn-primario btn-grande" id="btn-novo-trabalhador">+ Adicionar trabalhador</button>
-        <div id="lista-equipe" class="lista"></div>
-      </div>
-
-      <!-- Aba: Parcelas (plano de pagamento do cliente) -->
-      <div class="painel-aba" id="aba-parcelas">
         <div class="card" id="card-plano">
           <h3 class="titulo-secao" style="margin-top:0">Forma de pagamento</h3>
           <div class="forma-pagto">
@@ -300,6 +278,24 @@
         <p class="total-aba">Total pendente: <strong id="total-parcelas">R$ 0,00</strong></p>
         <button class="btn btn-primario btn-grande" id="btn-nova-parcela">+ Adicionar parcela</button>
         <div id="lista-parcelas" class="parcelas-grid"></div>
+        <h3 class="titulo-secao">Outros recebimentos</h3>
+        <p class="total-aba">Total recebido: <strong id="total-recebimentos">R$ 0,00</strong></p>
+        <button class="btn btn-primario btn-grande" id="btn-novo-recebimento">+ Adicionar recebimento</button>
+        <div id="lista-recebimentos" class="lista"></div>
+      </div>
+
+      <!-- Aba: Gastos -->
+      <div class="painel-aba" id="aba-gastos">
+        <p class="total-aba">Total gasto: <strong id="total-gastos">R$ 0,00</strong></p>
+        <button class="btn btn-primario btn-grande" id="btn-novo-gasto">+ Adicionar gasto</button>
+        <div id="lista-gastos" class="lista"></div>
+      </div>
+
+      <!-- Aba: Mão de obra -->
+      <div class="painel-aba" id="aba-equipe">
+        <p class="total-aba">Total de mão de obra: <strong id="total-equipe">R$ 0,00</strong></p>
+        <button class="btn btn-primario btn-grande" id="btn-novo-trabalhador">+ Adicionar trabalhador</button>
+        <div id="lista-equipe" class="lista"></div>
       </div>
     </section>
 

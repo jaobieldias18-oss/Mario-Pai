@@ -858,7 +858,7 @@ function renderBusca(termo) {
     obras: "🏗️ Obras", gastos: "💸 Gastos", equipe: "👷 Mão de obra",
     recebimentos: "💰 Recebimentos", parcelas: "📋 Parcelas",
   };
-  const abas = { gastos: "gastos", equipe: "equipe", recebimentos: "recebimentos", parcelas: "parcelas" };
+  const abas = { gastos: "gastos", equipe: "equipe", recebimentos: "recebimentos", parcelas: "recebimentos" };
   for (const chave of Object.keys(titulos)) {
     if (!grupos[chave].length) continue;
     const h = document.createElement("p");
