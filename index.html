@@ -241,8 +241,8 @@
 
       <!-- Aba: Recebimentos (parcelas + avulsos) -->
       <div class="painel-aba" id="aba-recebimentos">
-        <div class="card" id="card-plano">
-          <h3 class="titulo-secao" style="margin-top:0">Forma de pagamento</h3>
+        <details class="card" id="card-plano" open>
+          <summary class="plano-sumario">Forma de pagamento</summary>
           <div class="forma-pagto">
             <label><input type="radio" name="forma-pagto" value="unico" checked /> Pagamento único</label>
             <label><input type="radio" name="forma-pagto" value="parcelado" /> Pagamento parcelado</label>
@@ -262,7 +262,7 @@
               <button class="btn btn-primario" id="btn-gerar-plano">Gerar parcelas</button>
             </div>
           </div>
-        </div>
+        </details>
         <div class="card" id="card-resumo-plano" hidden>
           <h3 class="titulo-secao" style="margin-top:0">Parcelamento</h3>
           <div class="parcelas-resumo">

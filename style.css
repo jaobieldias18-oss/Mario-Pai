@@ -759,3 +759,12 @@ strong, b { font-variant-numeric: tabular-nums; }
 .forma-pagto { display: grid; gap: 8px; margin: 10px 0; }
 .forma-pagto label { display: flex; gap: 8px; align-items: center; background: #fff; border: 1.5px solid var(--borda); border-radius: 11px; padding: 12px; font-weight: 700; cursor: pointer; }
 .forma-pagto input { width: 20px; height: 20px; }
+/* Recebimentos organizado: plano dobrável + respiro entre blocos */
+.plano-sumario { font-size: 16px; font-weight: 800; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+.plano-sumario::-webkit-details-marker { display: none; }
+.plano-sumario::before { content: "▸"; color: var(--texto-sec); transition: transform 0.15s ease; }
+details[open] > .plano-sumario::before { transform: rotate(90deg); }
+#aba-recebimentos > .card { margin-bottom: 12px; }
+#aba-recebimentos > .total-aba { margin: 14px 0 8px; }
+#aba-recebimentos > h3.titulo-secao { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--borda); }
+#lista-parcelas.parcelas-grid { margin-bottom: 4px; }

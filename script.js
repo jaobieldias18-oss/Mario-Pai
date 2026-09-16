@@ -425,6 +425,8 @@ function abrirObra(id) {
   const rUnico = document.querySelector('input[name="forma-pagto"][value="unico"]');
   if (rParc && rUnico) (temPlano ? rParc : rUnico).checked = true;
   document.getElementById("plano-campos").hidden = !temPlano;
+  // Plano recolhido quando já existe (aba mais limpa); aberto quando não há
+  document.getElementById("card-plano").open = !temPlano;
   const obra = pegarObra(id);
   if (obra && !document.getElementById("plano-total").value && obra.valorContratado)
     document.getElementById("plano-total").value = obra.valorContratado;
@@ -2026,6 +2028,7 @@ async function iniciar() {
     r.addEventListener("change", () => {
       const parc = document.querySelector('input[name="forma-pagto"]:checked').value === "parcelado";
       document.getElementById("plano-campos").hidden = !parc;
+      document.getElementById("card-plano").open = true;
       if (parc) {
         const obra = pegarObra(obraAbertaId);
         if (obra && !document.getElementById("plano-total").value && obra.valorContratado)
