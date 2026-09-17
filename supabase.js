@@ -51,7 +51,9 @@ function prepararFoto(arquivo) {
 async function enviarFoto(arquivo) {
   exigirConexao();
   const blob = await prepararFoto(arquivo);
-  const nome = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+  // Nome longo e imprevisível: sem listar o bucket, ninguém adivinha a URL
+  const aleat = (crypto.getRandomValues ? [...crypto.getRandomValues(new Uint8Array(18))].map((b) => b.toString(36)).join("") : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).slice(0, 24);
+  const nome = Date.now().toString(36) + "-" + aleat + ".jpg";
   const { error } = await sb.storage.from("anexos").upload(nome, blob, { contentType: "image/jpeg" });
   if (error) throw error;
   const { data } = sb.storage.from("anexos").getPublicUrl(nome);
