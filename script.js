@@ -30,18 +30,18 @@ let vgMesDetalhe = null;    // mês tocado na Visão Geral, formato "AAAA-MM"
 
 const CATEGORIAS = ["Materiais", "Mão de obra", "Frete/Transporte", "Ferramentas", "Alimentação", "Equipamentos", "Outros"];
 
-// Ícones das categorias (só visual — os dados continuam iguais)
+// Iniciais das categorias (só visual — os dados continuam iguais)
 const ICONES_CATEGORIA = {
-  "Materiais": "🧱",
-  "Mão de obra": "👷",
-  "Frete/Transporte": "🚚",
-  "Ferramentas": "🧰",
-  "Alimentação": "🍽️",
-  "Equipamentos": "⚙️",
-  "Outros": "📦",
+  "Materiais": "M",
+  "Mão de obra": "O",
+  "Frete/Transporte": "F",
+  "Ferramentas": "F",
+  "Alimentação": "A",
+  "Equipamentos": "E",
+  "Outros": "O",
 };
 function iconeCategoria(cat) {
-  return ICONES_CATEGORIA[cat] || "📦";
+  return ICONES_CATEGORIA[cat] || "•";
 }
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
@@ -857,8 +857,8 @@ function renderBusca(termo) {
     return;
   }
   const titulos = {
-    obras: "🏗️ Obras", gastos: "💸 Gastos", equipe: "👷 Mão de obra",
-    recebimentos: "💰 Recebimentos", parcelas: "📋 Parcelas",
+    obras: "Obras", gastos: "Gastos", equipe: "Mão de obra",
+    recebimentos: "Recebimentos", parcelas: "Parcelas",
   };
   const abas = { gastos: "gastos", equipe: "equipe", recebimentos: "recebimentos", parcelas: "recebimentos" };
   for (const chave of Object.keys(titulos)) {
@@ -998,8 +998,8 @@ function renderDashboard() {
         <div><small>Gastos</small><b class="texto-vermelho">${formatarMoeda(t.totalGasto)}</b></div>
         <div><small>${encerrada ? "Lucro final" : "Lucro atual"}</small><b class="texto-azul">${formatarMoeda(t.lucro)}</b></div>
       </div>
-      <p class="obra-status-linha"><span class="status-dot ${dotClasse}"></span>${proteger(obra.status || "Em andamento")}${encerrada && obra.dataEncerramento ? ` · ${formatarData(obra.dataEncerramento)}` : ""} · 👷 ${formatarMoeda(t.totalMO)}</p>
-      <p class="obra-status-linha">📈 Margem: <strong>${mCard.texto}</strong>${mCard.icone ? ` ${mCard.icone} ${mCard.rotulo}` : ""}</p>
+      <p class="obra-status-linha"><span class="status-dot ${dotClasse}"></span>${proteger(obra.status || "Em andamento")}${encerrada && obra.dataEncerramento ? ` · ${formatarData(obra.dataEncerramento)}` : ""} · MO ${formatarMoeda(t.totalMO)}</p>
+      <p class="obra-status-linha">Margem: <strong>${mCard.texto}</strong>${mCard.rotulo ? ` · ${mCard.rotulo}` : ""}</p>
       <button class="btn btn-primario" style="margin-top:10px">Ver obra →</button>`;
     card.querySelector("button").addEventListener("click", () => abrirObra(obra.id));
     lista.appendChild(card);
@@ -1011,7 +1011,7 @@ function atualizarSaudacao() {
   const agora = new Date();
   const hora = agora.getHours();
   const cumprimento = hora >= 5 && hora < 12 ? "Bom dia" : hora >= 12 && hora < 18 ? "Boa tarde" : "Boa noite";
-  document.getElementById("saudacao").innerHTML = `${cumprimento}, <strong>Mario Dias</strong>! 👋`;
+  document.getElementById("saudacao").innerHTML = `${cumprimento}, <strong>Mario Dias</strong>!`;
   const dias = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
   document.getElementById("saudacao-data").textContent =
     `${dias[agora.getDay()]}, ${agora.getDate()} de ${MESES[agora.getMonth()]}`;
@@ -1027,10 +1027,10 @@ function margemInfo(lucro, recebido) {
   if (!(recebido > 0)) return { texto: "—", icone: "", rotulo: "ainda não disponível" };
   const pct = (lucro / recebido) * 100;
   const texto = pct.toFixed(2).replace(".", ",") + "%";
-  if (pct < 0) return { texto, icone: "🔴", rotulo: "Prejuízo" };
-  if (pct >= 30) return { texto, icone: "🟢", rotulo: "Boa margem" };
-  if (pct >= 15) return { texto, icone: "🟡", rotulo: "Atenção" };
-  return { texto, icone: "🔴", rotulo: "Margem baixa" };
+  if (pct < 0) return { texto, icone: "", rotulo: "Prejuízo" };
+  if (pct >= 30) return { texto, icone: "", rotulo: "Boa margem" };
+  if (pct >= 15) return { texto, icone: "", rotulo: "Atenção" };
+  return { texto, icone: "", rotulo: "Margem baixa" };
 }
 
 // Desenha a tela de detalhe da obra aberta
@@ -1092,7 +1092,7 @@ function renderEncerramento(obra) {
   if (encerrada) {
     const mBanner = margemInfo(t.lucro, t.totalRecebido);
     banner.innerHTML = `
-      <h3>🏁 Resultado final da obra</h3>
+      <h3>Resultado final da obra</h3>
       <div class="rf-linha"><span>Valor da obra</span><strong>${formatarMoeda(t.valorContratado)}</strong></div>
       <div class="rf-linha"><span>Total recebido</span><strong>${formatarMoeda(t.totalRecebido)}</strong></div>
       <div class="rf-linha"><span>Total gasto</span><strong>${formatarMoeda(t.totalGasto)}</strong></div>
@@ -1130,7 +1130,7 @@ function renderRecebimentos(obra) {
     div.className = "item recebimento";
     div.innerHTML = `
       <div class="item-topo">
-        <span class="item-icone" aria-hidden="true">💰</span>
+        <span class="item-icone" aria-hidden="true">R</span>
         <div class="item-conteudo">
           <strong>${proteger(r.descricao)}</strong>
           <span class="item-meta">${formatarData(r.data)} • ${proteger(r.formaPagamento || "")}</span>
@@ -1138,7 +1138,7 @@ function renderRecebimentos(obra) {
         <span class="item-valor texto-verde">${formatarMoeda(r.valor)}</span>
       </div>
       ${r.observacao ? `<p class="item-meta" style="margin-top:6px">${proteger(r.observacao)}</p>` : ""}
-      <div class="item-acoes"><button data-a="editar">✏️ Editar</button><button data-a="excluir" class="excluir">🗑️ Excluir</button></div>`;
+      <div class="item-acoes"><button data-a="editar">Editar</button><button data-a="excluir" class="excluir">Excluir</button></div>`;
     div.querySelector('[data-a="editar"]').addEventListener("click", () => abrirModal("recebimento", r.id));
     div.querySelector('[data-a="excluir"]').addEventListener("click", () => excluirRecebimento(r.id));
     lista.appendChild(div);
@@ -1168,7 +1168,7 @@ function renderGastos(obra) {
         <span class="item-valor texto-vermelho">${formatarMoeda(g.valor)}</span>
       </div>
       ${g.observacao ? `<p class="item-meta" style="margin-top:6px">${proteger(g.observacao)}</p>` : ""}
-      <div class="item-acoes"><button data-a="editar">✏️ Editar</button><button data-a="excluir" class="excluir">🗑️ Excluir</button></div>`;
+      <div class="item-acoes"><button data-a="editar">Editar</button><button data-a="excluir" class="excluir">Excluir</button></div>`;
     div.querySelector('[data-a="editar"]').addEventListener("click", () => abrirModal("gasto", g.id));
     div.querySelector('[data-a="excluir"]').addEventListener("click", () => excluirGasto(g.id));
     lista.appendChild(div);
@@ -1187,31 +1187,31 @@ function renderEquipe(obra) {
     div.className = "item equipe";
     div.innerHTML = `
       <div class="item-topo">
-        <span class="item-icone" aria-hidden="true">👷</span>
+        <span class="item-icone" aria-hidden="true">E</span>
         <div class="item-conteudo">
           <strong>${proteger(t.nome)} • ${proteger(t.funcao)}</strong>
           <span class="item-meta">${formatarMoeda(t.valorDiaria)}/dia × ${t.dias} dia${t.dias > 1 ? "s" : ""}</span>
         </div>
         <span class="item-valor texto-azul">${formatarMoeda(t.total)}</span>
       </div>
-      <div class="item-acoes"><button data-a="editar">✏️ Editar</button><button data-a="excluir" class="excluir">🗑️ Excluir</button></div>`;
+      <div class="item-acoes"><button data-a="editar">Editar</button><button data-a="excluir" class="excluir">Excluir</button></div>`;
     div.querySelector('[data-a="editar"]').addEventListener("click", () => abrirModal("equipe", t.id));
     div.querySelector('[data-a="excluir"]').addEventListener("click", () => excluirTrabalhador(t.id));
     lista.appendChild(div);
   }
 }
 
-// Situação da parcela (spec parcelamento mensal): ⏳ Pendente, 🟢 Pago, 🔴 Vencido.
+// Situação da parcela: Pendente, Pago, Vencido (texto + cor, sem emojis).
 // "Vencido" é só alerta de cobrança: nunca cria recebimento sozinho.
 // Compat: status legado "Recebida" vale como pago.
 function parcelaPaga(p) {
   return p.status === "pago" || p.status === "Recebida";
 }
 function statusParcela(p) {
-  if (parcelaPaga(p)) return { icone: "🟢", texto: "Pago", classe: "chip-pago" };
+  if (parcelaPaga(p)) return { icone: "", texto: "Pago", classe: "chip-pago" };
   const hoje = hojeISO();
-  if (p.vencimento && p.vencimento < hoje) return { icone: "🔴", texto: "Vencido", classe: "chip-vencido" };
-  return { icone: "🟡", texto: "Pendente", classe: "chip-pendente" };
+  if (p.vencimento && p.vencimento < hoje) return { icone: "", texto: "Vencido", classe: "chip-vencido" };
+  return { icone: "", texto: "Pendente", classe: "chip-pendente" };
 }
 
 // ---------- PLANO MENSAL: datas e valores ----------
@@ -1425,7 +1425,7 @@ function renderParcelas(obra) {
       <div class="parcela-meta">Vencimento: ${formatarData(p.vencimento)}</div>
       ${paga && p.dataRecebimento ? `<div class="parcela-meta">Pago em: ${formatarData(p.dataRecebimento)}</div>` : ""}
       ${p.observacao ? `<div class="parcela-meta">${proteger(p.observacao)}</div>` : ""}
-      <div class="item-acoes">${paga ? "" : `<button data-a="receber">Marcar como pago</button><button data-a="editar">✏️ Editar</button>`}<button data-a="excluir" class="excluir">🗑️ Excluir</button></div>`;
+      <div class="item-acoes">${paga ? "" : `<button data-a="receber">Marcar como pago</button><button data-a="editar">Editar</button>`}<button data-a="excluir" class="excluir">Excluir</button></div>`;
     if (!paga) {
       div.querySelector('[data-a="receber"]').addEventListener("click", () => abrirBaixaParcela(p.id));
       div.querySelector('[data-a="editar"]').addEventListener("click", () => abrirModal("parcela", p.id));
@@ -1534,10 +1534,10 @@ function renderDetalheMes(rm) {
     div.className = "item recebimento";
     div.innerHTML = `
       <div class="item-topo">
-        <span class="item-icone" aria-hidden="true">💰</span>
+        <span class="item-icone" aria-hidden="true">R</span>
         <div class="item-conteudo">
           <strong>${proteger(e.descricao)}</strong>
-          <span class="item-meta">🏗️ ${proteger(e.obra)} • ${formatarData(e.data)}</span>
+          <span class="item-meta">${proteger(e.obra)} • ${formatarData(e.data)}</span>
         </div>
         <span class="item-valor texto-verde">+ ${formatarMoeda(e.valor)}</span>
       </div>`;
@@ -1551,7 +1551,7 @@ function renderDetalheMes(rm) {
         <span class="item-icone" aria-hidden="true">${iconeCategoria(s.categoria)}</span>
         <div class="item-conteudo">
           <strong>${proteger(s.descricao)}</strong>
-          <span class="item-meta">🏗️ ${proteger(s.obra)} • ${formatarData(s.data)}${s.formaPagamento ? " • " + proteger(s.formaPagamento) : ""}</span>
+          <span class="item-meta">${proteger(s.obra)} • ${formatarData(s.data)}${s.formaPagamento ? " • " + proteger(s.formaPagamento) : ""}</span>
         </div>
         <span class="item-valor texto-vermelho">− ${formatarMoeda(s.valor)}</span>
       </div>`;

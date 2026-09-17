@@ -34,13 +34,13 @@
            Se o SVG falhar, mantém o emoji — nada quebra. -->
       <div class="logo-slot" id="logo-slot">
         <img src="assets/logo-claro.svg" alt="MARIO — Gestão de Obras" id="logo-img" />
-        <span class="logo-fallback" aria-hidden="true">🏗️</span>
+        <span class="logo-fallback" aria-hidden="true">M</span>
       </div>
       <div>
         <h1>Controle de Obras</h1>
         <p class="subtitulo">Financeiro simples para chefe de obra</p>
       </div>
-      <button class="btn-engrenagem" data-ir="opcoes" aria-label="Opções" title="Opções">⚙️</button>
+      <button class="btn-engrenagem" data-ir="opcoes" aria-label="Opções" title="Opções">≡</button>
     </div>
     <!-- Navegação desktop (no celular aparece a barra inferior) -->
     <nav class="nav-desktop">
@@ -61,13 +61,13 @@
         <div class="hero-topo">
           <div class="data-hoje" aria-hidden="true"><strong id="hoje-dia">--</strong><span id="hoje-mes">---</span></div>
           <div>
-            <p class="saudacao" id="saudacao">👋 Resumo das suas obras</p>
+            <p class="saudacao" id="saudacao">Resumo das suas obras</p>
             <p class="saudacao-sub">Como estão os negócios hoje?</p>
             <p class="hero-data"><span id="saudacao-data"></span> · <span id="dash-mes-titulo">Financeiro do mês</span></p>
           </div>
         </div>
         <div class="busca">
-          <span class="busca-icone" aria-hidden="true">🔎</span>
+          <span class="busca-icone" aria-hidden="true">⌕</span>
           <input type="search" id="busca-global" placeholder="Pesquisar obra, gasto, trabalhador..." autocomplete="off" aria-label="Pesquisa global" />
         </div>
         <div id="busca-resultados" class="lista" hidden></div>
@@ -76,19 +76,19 @@
       <!-- Indicadores principais: só o essencial -->
       <div class="grid-resumo hero-kpis">
         <div class="mini-card">
-          <span class="mini-label">🏗️ Obras ativas</span>
+          <span class="mini-label">Obras ativas</span>
           <strong id="res-ativas">0</strong>
         </div>
         <div class="mini-card verde">
-          <span class="mini-label">💰 Entradas do mês</span>
+          <span class="mini-label">Entradas do mês</span>
           <strong id="dash-mes-entradas">R$ 0,00</strong>
         </div>
         <div class="mini-card vermelho">
-          <span class="mini-label">💸 Gastos do mês</span>
+          <span class="mini-label">Gastos do mês</span>
           <strong id="dash-mes-gastos">R$ 0,00</strong>
         </div>
         <div class="mini-card azul destaque-lucro">
-          <span class="mini-label">📈 Resultado do mês</span>
+          <span class="mini-label">Resultado do mês</span>
           <strong id="dash-mes-resultado">R$ 0,00</strong>
         </div>
       </div>
@@ -121,7 +121,6 @@
 
       <!-- Estado vazio -->
       <div id="estado-vazio" class="estado-vazio" hidden>
-        <div class="estado-icone">🏠</div>
         <p><strong>Nenhuma obra cadastrada</strong></p>
         <p class="texto-suave">Toque em <strong>+ Nova obra</strong> para começar.</p>
         <button class="btn btn-primario btn-grande" data-ir="nova-obra">+ Nova obra</button>
@@ -190,8 +189,8 @@
       <div class="obra-acoes-topo">
         <span class="badge-status" id="obra-status-badge">—</span>
         <div class="acoes-icones">
-          <button class="btn-pequeno" id="btn-editar-obra" title="Editar obra">✏️ Editar</button>
-          <button class="btn-pequeno perigo" id="btn-excluir-obra" title="Excluir obra">🗑️ Excluir</button>
+          <button class="btn-pequeno" id="btn-editar-obra" title="Editar obra">Editar</button>
+          <button class="btn-pequeno perigo" id="btn-excluir-obra" title="Excluir obra">Excluir</button>
         </div>
       </div>
 
@@ -203,14 +202,14 @@
         <div class="numero-card azul"><span>Lucro atual</span><strong id="d-lucro">R$ 0,00</strong></div>
         <div class="numero-card amarelo"><span>A receber</span><strong id="d-areceber">R$ 0,00</strong></div>
         <div class="numero-card"><span>Margem</span><strong id="d-margem">—</strong></div>
-        <div class="numero-card mo"><span>👷 Mão de obra</span><strong id="d-mo">R$ 0,00</strong></div>
-        <div class="numero-card custos"><span>🧾 Custos totais</span><strong id="d-custos">R$ 0,00</strong></div>
+        <div class="numero-card mo"><span>Mão de obra</span><strong id="d-mo">R$ 0,00</strong></div>
+        <div class="numero-card custos"><span>Custos totais</span><strong id="d-custos">R$ 0,00</strong></div>
       </div>
 
       <!-- Ações da obra: encerrar / reabrir (logo após os números) -->
       <div class="card acoes-obra">
-        <button class="btn btn-perigo" id="btn-encerrar-obra">🔒 Encerrar obra</button>
-        <button class="btn btn-primario" id="btn-reabrir-obra" hidden>🔓 Reabrir obra</button>
+        <button class="btn btn-perigo" id="btn-encerrar-obra">Encerrar obra</button>
+        <button class="btn btn-primario" id="btn-reabrir-obra" hidden>Reabrir obra</button>
       </div>
 
       <!-- Resultado final (aparece só em obra encerrada) -->
@@ -218,7 +217,7 @@
 
       <!-- Aviso de somente-leitura (aparece só em obra encerrada) -->
       <div class="card aviso-encerrada" id="obra-aviso-encerrada" hidden>
-        🔒 Obra encerrada em <strong id="obra-data-encerramento">—</strong>.
+        Obra encerrada em <strong id="obra-data-encerramento">—</strong>.
         Os dados estão aqui só para consulta. Para lançar algo novo, reabra a obra.
       </div>
 
@@ -233,13 +232,13 @@
       <!-- Aba: Resumo -->
       <div class="painel-aba ativo" id="aba-resumo">
         <div class="card mo-destaque">
-          <p>👷 Custo de mão de obra: <strong id="resumo-mo-valor">R$ 0,00</strong>
+          <p>Custo de mão de obra: <strong id="resumo-mo-valor">R$ 0,00</strong>
           <span class="texto-suave" id="resumo-mo-qtd"></span></p>
         </div>
         <h3 class="titulo-secao">Resumo dos gastos</h3>
         <div id="resumo-categorias"></div>
         <div class="card dica">
-          <p>💡 <strong>Dica:</strong> valores da aba <strong>Mão de obra</strong> entram sozinhos no total. Não lance de novo em Gastos.</p>
+          <p><strong>Dica:</strong> valores da aba <strong>Mão de obra</strong> entram sozinhos no total. Não lance de novo em Gastos.</p>
         </div>
         <div class="card" id="obra-info-extra"></div>
       </div>
@@ -325,15 +324,15 @@
       <!-- Resumo do mês selecionado -->
       <div class="grid-resumo">
         <div class="mini-card verde">
-          <span class="mini-label">💰 Entradas</span>
+          <span class="mini-label">Entradas</span>
           <strong id="fin-entradas">R$ 0,00</strong>
         </div>
         <div class="mini-card vermelho">
-          <span class="mini-label">💸 Gastos</span>
+          <span class="mini-label">Gastos</span>
           <strong id="fin-gastos">R$ 0,00</strong>
         </div>
         <div class="mini-card azul destaque-lucro">
-          <span class="mini-label">📈 Resultado do mês</span>
+          <span class="mini-label">Resultado do mês</span>
           <strong id="fin-resultado">R$ 0,00</strong>
         </div>
       </div>
@@ -375,15 +374,15 @@
       <!-- Resumo do período -->
       <div class="grid-resumo">
         <div class="mini-card verde">
-          <span class="mini-label">💰 Entradas no período</span>
+          <span class="mini-label">Entradas no período</span>
           <strong id="vg-entradas">R$ 0,00</strong>
         </div>
         <div class="mini-card vermelho">
-          <span class="mini-label">💸 Gastos no período</span>
+          <span class="mini-label">Gastos no período</span>
           <strong id="vg-gastos">R$ 0,00</strong>
         </div>
         <div class="mini-card azul destaque-lucro">
-          <span class="mini-label">📈 Resultado no período</span>
+          <span class="mini-label">Resultado no período</span>
           <strong id="vg-resultado">R$ 0,00</strong>
         </div>
       </div>
@@ -404,12 +403,12 @@
       <!-- Melhor e pior mês do período -->
       <div class="grid-resumo" id="vg-extremos" hidden>
         <div class="mini-card verde">
-          <span class="mini-label">🏆 Melhor mês</span>
+          <span class="mini-label">Melhor mês</span>
           <strong id="vg-melhor-nome">—</strong>
           <span class="texto-suave" id="vg-melhor-valor"></span>
         </div>
         <div class="mini-card vermelho">
-          <span class="mini-label">📉 Menor resultado</span>
+          <span class="mini-label">Menor resultado</span>
           <strong id="vg-pior-nome">—</strong>
           <span class="texto-suave" id="vg-pior-valor"></span>
         </div>
@@ -429,8 +428,8 @@
         <h3 class="opcoes-titulo">Aparência</h3>
         <p class="texto-suave">Escolha como o MARIO aparece na tela.</p>
         <div class="opcoes-tema">
-          <button class="tema-opcao" data-tema="claro">☀️<span>Claro</span></button>
-          <button class="tema-opcao" data-tema="escuro">🌙<span>Escuro</span></button>
+          <button class="tema-opcao" data-tema="claro"><span>Claro</span></button>
+          <button class="tema-opcao" data-tema="escuro"><span>Escuro</span></button>
         </div>
       </div>
 
@@ -579,10 +578,10 @@
 
   <!-- Navegação inferior (mobile) -->
   <nav class="nav-inferior">
-    <button class="nav-item" data-ir="dashboard">🏠<span>Início</span></button>
-    <button class="nav-item" data-ir="obras">🏗️<span>Obras</span></button>
-    <button class="nav-item" data-ir="financeiro">💰<span>Financeiro</span></button>
-    <button class="nav-item" data-ir="visao-geral">📊<span>Visão Geral</span></button>
+    <button class="nav-item" data-ir="dashboard"><span>Início</span></button>
+    <button class="nav-item" data-ir="obras"><span>Obras</span></button>
+    <button class="nav-item" data-ir="financeiro"><span>Financeiro</span></button>
+    <button class="nav-item" data-ir="visao-geral"><span>Visão Geral</span></button>
     <button class="nav-item acao" data-ir="nova-obra"><span class="nav-mais">＋</span><span>Nova obra</span></button>
   </nav>
 

@@ -342,7 +342,7 @@ strong, b { font-variant-numeric: tabular-nums; }
 .badge-status.pausada { background: var(--alerta-fundo); color: var(--alerta); }
 .badge-status.pausada::before { color: var(--cor-destaque); }
 .badge-status.concluida { background: #e9edf2; color: #4c586a; }
-.badge-status.concluida::before { content: "🔒"; font-size: 11px; }
+.badge-status.concluida::before { content: "●"; font-size: 11px; }
 
 /* ===== Formulários ===== */
 .card { background: var(--card); border-radius: var(--raio); box-shadow: var(--sombra); padding: 16px; margin-bottom: 12px; border: 1px solid var(--borda); }
