@@ -367,6 +367,7 @@ strong, b { font-variant-numeric: tabular-nums; }
 }
 .campo input:invalid:not(:placeholder-shown) { border-color: var(--erro); }
 .linha-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.linha-2 > * { min-width: 0; }
 .total-previa { background: var(--info-fundo); border-radius: 10px; padding: 12px 14px; font-size: 16px; }
 
 /* ===== Detalhe da obra ===== */
