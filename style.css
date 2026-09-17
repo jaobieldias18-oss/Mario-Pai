@@ -183,13 +183,12 @@ strong, b { font-variant-numeric: tabular-nums; }
    quadrada ou retangular), sem distorção */
 .logo-slot {
   height: 80px; width: auto; min-width: 190px; flex-shrink: 0;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.12);
+  background: transparent;
   display: grid; place-items: center;
   overflow: hidden;
-  padding: 5px 12px;
-  border: 3px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.6), 0 0 26px rgba(255, 255, 255, 0.3);
+  padding: 0;
+  border: none;
+  box-shadow: none;
 }
 .logo-slot img {
   height: 100%; width: auto; max-width: 100%;
