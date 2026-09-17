@@ -964,37 +964,145 @@ function br(v) { return numeroOuZero(v).toFixed(2).replace(".", ","); }
 function xlsTexto(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-// Monta .xls formatado: colunas largas, fonte 12, cabeçalho em negrito
+// CRC32 (p/ montar .zip sem biblioteca)
+function xlsCrc(tabela, bytes) {
+  if (!tabela) {
+    tabela = [];
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      tabela[n] = c;
+    }
+    xlsCrc.tabela = tabela;
+  } else tabela = xlsCrc.tabela;
+  let crc = -1;
+  for (let i = 0; i < bytes.length; i++) crc = tabela[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  return (crc ^ -1) >>> 0;
+}
+// .ZIP simples sem compressão (só o que o .xlsx precisa)
+function xlsZip(arquivos) {
+  const enc = new TextEncoder();
+  const partes = [];
+  const central = [];
+  let off = 0;
+  const u16 = (v) => [v & 0xff, (v >> 8) & 0xff];
+  const u32 = (v) => [v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >> 24) & 0xff];
+  for (const [nome, texto] of arquivos) {
+    const nb = enc.encode(nome);
+    const db = enc.encode(texto);
+    const crc = xlsCrc(null, db);
+    const loc = [...u32(0x04034b50), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0),
+      ...u32(crc), ...u32(db.length), ...u32(db.length), ...u16(nb.length), ...u16(0),
+      ...nb, ...db];
+    partes.push({ loc, nb, crc, len: db.length, off });
+    off += loc.length;
+  }
+  let cdSize = 0;
+  const cd = [];
+  for (const p of partes) {
+    const e = [...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0),
+      ...u32(p.crc), ...u32(p.len), ...u32(p.len), ...u16(p.nb.length),
+      ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(p.off), ...p.nb];
+    cd.push(...e);
+  }
+  cdSize = cd.length;
+  const fim = [...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(partes.length), ...u16(partes.length),
+    ...u32(cdSize), ...u32(off), ...u16(0)];
+  const total = new Uint8Array(off + cdSize + fim.length);
+  let pos = 0;
+  for (const p of partes) { total.set(p.loc, pos); pos += p.loc.length; }
+  total.set(cd, pos); pos += cd.length;
+  total.set(fim, pos);
+  return new Blob([total], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+// Monta .xlsx formatado: colunas largas, fonte 12, cabeçalho em negrito
 // secoes = [{ titulo, larguras:[n...], cabec:[...], linhas:[[{v, num?}] ] }]
 function gerarXLS(nomeArquivo, titulo, secoes) {
-  let corpo = "";
+  const colLetra = (i) => {
+    let s = "";
+    i++;
+    while (i > 0) { const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); }
+    return s;
+  };
+  let linhas = "";
+  let r = 0;
+  const fusões = [];
   for (const s of secoes) {
-    corpo += `<Row><Cell ss:MergeAcross="${s.cabec.length - 1}" ss:StyleID="titulo"><Data ss:Type="String">${xlsTexto(s.titulo)}</Data></Cell></Row>`;
-    corpo += "<Row>";
-    s.cabec.forEach((c, i) => {
-      corpo += `<Cell ss:StyleID="cab"><Data ss:Type="String">${xlsTexto(c)}</Data></Cell>`;
-    });
-    corpo += "</Row>";
+    r++;
+    linhas += `<row r="${r}"><c r="A${r}" t="inlineStr" s="2"><is><t>${xlsTexto(s.titulo)}</t></is></c></row>`;
+    fusões.push(`A${r}:${colLetra(s.cabec.length - 1)}${r}`);
+    r++;
+    linhas += `<row r="${r}">` + s.cabec.map((c, i) =>
+      `<c r="${colLetra(i)}${r}" t="inlineStr" s="1"><is><t>${xlsTexto(c)}</t></is></c>`).join("") + "</row>";
     for (const lin of s.linhas) {
-      corpo += "<Row>";
-      for (const c of lin) {
-        if (c && c.num) corpo += `<Cell ss:StyleID="num"><Data ss:Type="Number">${Number(c.v) || 0}</Data></Cell>`;
-        else corpo += `<Cell><Data ss:Type="String">${xlsTexto(c && c.v !== undefined ? c.v : c)}</Data></Cell>`;
-      }
-      corpo += "</Row>";
+      r++;
+      linhas += `<row r="${r}">` + lin.map((c, i) => {
+        if (c && c.num) return `<c r="${colLetra(i)}${r}" s="3"><v>${Number(c.v) || 0}</v></c>`;
+        return `<c r="${colLetra(i)}${r}" t="inlineStr"><is><t>${xlsTexto(c && c.v !== undefined ? c.v : c)}</t></is></c>`;
+      }).join("") + "</row>";
     }
-    corpo += `<Row><Cell><Data ss:Type="String"></Data></Cell></Row>`;
+    r++;
+    linhas += `<row r="${r}"></row>`;
   }
-  const larguras = secoes.length && secoes[0].larguras
-    ? secoes[0].larguras.map((w) => `<Column ss:Width="${w}"/>`).join("")
-    : "";
-  const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>` +
-    `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">` +
-    `<Styles><Style ss:ID="titulo"><Font ss:Bold="1" ss:Size="14"/><Alignment ss:Horizontal="Left"/></Style>` +
-    `<Style ss:ID="cab"><Font ss:Bold="1" ss:Size="12"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/></Style>` +
-    `<Style ss:ID="num"><NumberFormat ss:Format="#,##0.00"/><Font ss:Size="12"/></Style></Styles>` +
-    `<Worksheet ss:Name="${xlsTexto(titulo).slice(0, 31)}"><Table>${larguras}${corpo}</Table></Worksheet></Workbook>`;
-  baixarArquivo(nomeArquivo, "﻿" + xml, "application/vnd.ms-excel");
+  const maxCols = Math.max(...secoes.map((s) => s.cabec.length));
+  const larg = (secoes[0] && secoes[0].larguras) || [];
+  let cols = "<cols>";
+  for (let i = 0; i < maxCols; i++)
+    cols += `<col min="${i + 1}" max="${i + 1}" width="${larg[i] || 18}" customWidth="1"/>`;
+  cols += "</cols>";
+  const folha = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+    `<sheetViews><sheetView workbookViewId="0"/></sheetViews>${cols}<sheetData>${linhas}</sheetData>` +
+    (fusões.length ? `<mergeCells count="${fusões.length}">` + fusões.map((m) => `<mergeCell ref="${m}"/>`).join("") + `</mergeCells>` : "") +
+    `</worksheet>`;
+  const estilos = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+    `<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts>` +
+    `<fonts count="3"><font><sz val="11"/></font>` +
+    `<font><b/><sz val="12"/><color rgb="FF000000"/></font>` +
+    `<font><b/><sz val="14"/><color rgb="FF000000"/></font></fonts>` +
+    `<fills count="3"><fill><patternFill patternType="none"/></fill>` +
+    `<fill><patternFill patternType="gray125"/></fill>` +
+    `<fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/></patternFill></fill></fills>` +
+    `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
+    `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
+    `<cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
+    `<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>` +
+    `<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>` +
+    `<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>` +
+    `</styleSheet>`;
+  const tipos = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+    `<Default Extension="rels" ContentType="application/vnd.openxml-package.relationships+xml"/>` +
+    `<Default Extension="xml" ContentType="application/xml"/>` +
+    `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
+    `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>` +
+    `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const pasta = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
+    `<sheets><sheet name="${xlsTexto(titulo).slice(0, 31)}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const relsPasta = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>` +
+    `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const blob = xlsZip([
+    ["[Content_Types].xml", tipos],
+    ["_rels/.rels", rels],
+    ["xl/workbook.xml", pasta],
+    ["xl/_rels/workbook.xml.rels", relsPasta],
+    ["xl/worksheets/sheet1.xml", folha],
+    ["xl/styles.xml", estilos],
+  ]);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = nomeArquivo;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
+  mostrarToast("Planilha baixada!");
 }
 function csvCelula(v) {
   const s = String(v ?? "");
@@ -1034,8 +1142,7 @@ function exportarCSVGeral() {
   for (const o of obras) for (const p of o.parcelas || [])
     lP.push([o.nome, rotuloParcela(p), N(p.valor), p.vencimento || "", parcelaPaga(p) ? "Pago" : statusParcela(p).texto, p.dataRecebimento || ""]);
   secoes.push({ titulo: "PARCELAS", larguras: [30, 18, 16, 14, 14, 14], cabec: ["Obra", "Parcela", "Valor", "Vencimento", "Status", "Pago em"], linhas: lP });
-  gerarXLS("mario-geral.xls", "MARIO geral", secoes);
-  mostrarToast("Planilha geral baixada!");
+  gerarXLS("mario-geral.xlsx", "MARIO geral", secoes);
 }
 // Relatório de impressão: documento completo (todas as páginas)
 function imprimirRelatorio() {
@@ -1074,10 +1181,9 @@ function exportarCSVMes() {
   for (const e of rm.listaEntradas) linhas.push(["Entrada", e.obra, e.descricao, e.data, N(e.valor)]);
   for (const s of rm.listaSaidas) linhas.push(["Saida", s.obra, s.descricao, s.data, N(s.valor)]);
   linhas.push(["Resultado", "", "", "", N(rm.resultado)]);
-  gerarXLS(`mario-${chave}.xls`, `Financeiro ${chave}`, [
+  gerarXLS(`mario-${chave}.xlsx`, `Financeiro ${chave}`, [
     { titulo: `FINANCEIRO ${chave}`, larguras: [14, 30, 40, 14, 16], cabec: ["Tipo", "Obra", "Descricao", "Data", "Valor"], linhas },
   ]);
-  mostrarToast("Planilha do mês baixada!");
 }
 // ---------- PESQUISA GLOBAL ----------
 // Busca nos dados JÁ carregados (sem consulta nova, com debounce).
