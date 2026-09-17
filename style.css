@@ -368,6 +368,12 @@ strong, b { font-variant-numeric: tabular-nums; }
 .campo input:invalid:not(:placeholder-shown) { border-color: var(--erro); }
 .linha-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .linha-2 > * { min-width: 0; }
+/* Nenhum campo de formulário estoura a tela */
+.form > * { min-width: 0; }
+.modal-botoes > * { min-width: 0; }
+.rf-linha strong { overflow-wrap: anywhere; }
+/* Trava qualquer rolagem lateral (cinza dos cantos), sem quebrar o topo fixo */
+html, body { overflow-x: clip; }
 .total-previa { background: var(--info-fundo); border-radius: 10px; padding: 12px 14px; font-size: 16px; }
 
 /* ===== Detalhe da obra ===== */
