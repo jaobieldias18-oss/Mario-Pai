@@ -130,6 +130,75 @@ function mostrarToast(mensagem, sucesso = true) {
   tempoToast = setTimeout(() => { el.hidden = true; }, 2200);
 }
 
+// Toast com botão de ação (ex: Desfazer). Uma ação por vez, 8 segundos.
+function mostrarToastAcao(mensagem, textoBotao, acao) {
+  const el = document.getElementById("toast");
+  el.innerHTML = "";
+  el.appendChild(document.createTextNode(mensagem + " "));
+  const btn = document.createElement("button");
+  btn.textContent = textoBotao;
+  btn.className = "toast-acao";
+  btn.addEventListener("click", async () => {
+    el.hidden = true;
+    await acao();
+  });
+  el.appendChild(btn);
+  el.hidden = false;
+  el.classList.remove("sucesso");
+  clearTimeout(tempoToast);
+  tempoToast = setTimeout(() => { el.hidden = true; }, 8000);
+}
+
+// ---------- LIXEIRA (desfazer exclusão) ----------
+// Guarda a cópia do que foi apagado e reinsere com o MESMO id,
+// então vínculos (parcela↔recebimento) continuam valendo.
+async function restaurarLinha(tabela, linha) {
+  if (!sb) throw new Error("sem-conexao");
+  const { error } = await sb.from(tabela).insert(linha);
+  if (error) throw error;
+}
+function linhaObra(o) {
+  return {
+    id: o.id, nome: o.nome, cliente: o.cliente, endereco: o.endereco || null,
+    valor_contratado: o.valorContratado || 0,
+    data_inicio: o.dataInicio || null, previsao_termino: o.previsaoTermino || null,
+    status: o.status || "Em andamento", data_encerramento: o.dataEncerramento || null,
+    observacoes: o.observacoes || null,
+  };
+}
+function linhaRec(obraId, r) {
+  return {
+    id: r.id, obra_id: obraId, valor: r.valor || 0, data: r.data,
+    descricao: r.descricao, forma_pagamento: r.formaPagamento || null,
+    observacao: r.observacao || null, foto_url: r.fotoUrl || null,
+  };
+}
+function linhaGasto(obraId, g) {
+  return {
+    id: g.id, obra_id: obraId, categoria: g.categoria || "Outros",
+    descricao: g.descricao, valor: g.valor || 0, data: g.data,
+    forma_pagamento: g.formaPagamento || null, observacao: g.observacao || null,
+    mao_obra_id: g.maoObraId || null, foto_url: g.fotoUrl || null,
+  };
+}
+function linhaTrab(obraId, t) {
+  return {
+    id: t.id, obra_id: obraId, nome: t.nome, funcao: t.funcao,
+    diaria: t.valorDiaria || 0, dias_trabalhados: t.dias || 0,
+    data: t.data || null,
+  };
+}
+function linhaParc(obraId, p) {
+  return {
+    id: p.id, obra_id: obraId, descricao: p.descricao,
+    numero_parcela: p.numero || null, total_parcelas: p.total || null,
+    valor: p.valor || 0, vencimento: p.vencimento || null,
+    data_vencimento: p.vencimento || null, status: p.status || "pendente",
+    data_recebimento: p.dataRecebimento || null, data_pagamento: p.dataRecebimento || null,
+    recebimento_id: p.recebimentoId || null, observacao: p.observacao || null,
+  };
+}
+
 // ---------- 4. CÁLCULOS ----------
 // Regras (gastos e mão de obra SEPARADOS, sem conta dupla):
 // totalRecebido = soma dos recebimentos
@@ -402,6 +471,7 @@ async function excluirObra() {
   const obra = pegarObra(obraAbertaId);
   if (!obra) return;
   if (!confirm(`Excluir "${obra.nome}" e todos os lançamentos?`)) return;
+  const copia = JSON.parse(JSON.stringify(obra)); // p/ Desfazer
   try {
     await DB.excluirObra(obraAbertaId); // DELETE (o banco apaga os filhos junto)
   } catch (e) {
@@ -412,7 +482,18 @@ async function excluirObra() {
   obraAbertaId = null;
   renderTudo();
   mostrarTela("dashboard");
-  mostrarToast("Obra excluída.");
+  mostrarToastAcao("Obra excluída.", "Desfazer", async () => {
+    try {
+      await restaurarLinha("obras", linhaObra(copia));
+      for (const r of copia.recebimentos || []) await restaurarLinha("recebimentos", linhaRec(copia.id, r));
+      for (const g of copia.gastos || []) await restaurarLinha("gastos", linhaGasto(copia.id, g));
+      for (const t of copia.equipe || []) await restaurarLinha("trabalhadores", linhaTrab(copia.id, t));
+      for (const p of copia.parcelas || []) await restaurarLinha("parcelas", linhaParc(copia.id, p));
+      obras.push(copia);
+      renderTudo();
+      mostrarToast("Obra restaurada!");
+    } catch (e) { await erroBanco("restaurar a obra", e); }
+  });
 }
 
 function abrirObra(id) {
@@ -505,6 +586,18 @@ async function salvarRecebimento(event) {
     observacao: document.getElementById("rec-obs").value.trim(),
   };
 
+  // Foto do comprovante (se escolhida): envia e vincula
+  const arqRec = document.getElementById("rec-foto").files[0];
+  if (arqRec) {
+    mostrarToast("Enviando foto...");
+    try {
+      dados.fotoUrl = await enviarFoto(arqRec);
+    } catch (e) {
+      await erroBanco("enviar a foto", e);
+      return;
+    }
+  }
+
   if (editandoRecId) {
     try {
       await DB.atualizarRecebimento(editandoRecId, dados); // UPDATE em recebimentos
@@ -537,7 +630,15 @@ async function salvarRecebimento(event) {
 async function excluirRecebimento(id) {
   const obra = pegarObra(obraAbertaId);
   if (!obra || obraSomenteLeitura(obra)) return;
+  // Recebimento gerado por parcela paga: só apaga junto com a parcela
+  const dona = (obra.parcelas || []).find((p) => p.recebimentoId === id);
+  if (dona) {
+    mostrarToast("Recebimento de parcela: exclua pela parcela.", false);
+    return;
+  }
   if (!confirm("Excluir este recebimento?")) return;
+  const alvo = (obra.recebimentos || []).find((r) => r.id === id);
+  const copia = alvo ? JSON.parse(JSON.stringify(alvo)) : null;
   try {
     await DB.excluirRecebimento(id); // DELETE em recebimentos
   } catch (e) {
@@ -546,7 +647,14 @@ async function excluirRecebimento(id) {
   }
   obra.recebimentos = obra.recebimentos.filter((r) => r.id !== id);
   renderTudo();
-  mostrarToast("Recebimento excluído.");
+  mostrarToastAcao("Recebimento excluído.", "Desfazer", async () => {
+    try {
+      await restaurarLinha("recebimentos", linhaRec(obra.id, copia));
+      obra.recebimentos.push(copia);
+      renderTudo();
+      mostrarToast("Recebimento restaurado!");
+    } catch (e) { await erroBanco("restaurar o recebimento", e); }
+  });
 }
 
 // ---------- 9. GASTOS ----------
@@ -569,6 +677,18 @@ async function salvarGasto(event) {
     formaPagamento: document.getElementById("gasto-forma").value,
     observacao: document.getElementById("gasto-obs").value.trim(),
   };
+
+  // Foto da nota (se escolhida): envia e vincula
+  const arqGasto = document.getElementById("gasto-foto").files[0];
+  if (arqGasto) {
+    mostrarToast("Enviando foto...");
+    try {
+      dados.fotoUrl = await enviarFoto(arqGasto);
+    } catch (e) {
+      await erroBanco("enviar a foto", e);
+      return;
+    }
+  }
 
   if (editandoGastoId) {
     const gasto = obra.gastos.find((g) => g.id === editandoGastoId);
@@ -614,6 +734,7 @@ async function excluirGasto(id) {
     return;
   }
   if (!confirm("Excluir este gasto?")) return;
+  const copia = JSON.parse(JSON.stringify(gasto));
   try {
     await DB.excluirGasto(id); // DELETE em gastos
   } catch (e) {
@@ -622,7 +743,14 @@ async function excluirGasto(id) {
   }
   obra.gastos = obra.gastos.filter((g) => g.id !== id);
   renderTudo();
-  mostrarToast("Gasto excluído.");
+  mostrarToastAcao("Gasto excluído.", "Desfazer", async () => {
+    try {
+      await restaurarLinha("gastos", linhaGasto(obra.id, copia));
+      obra.gastos.push(copia);
+      renderTudo();
+      mostrarToast("Gasto restaurado!");
+    } catch (e) { await erroBanco("restaurar o gasto", e); }
+  });
 }
 
 // ---------- 10. MÃO DE OBRA (módulo separado dos gastos) ----------
@@ -695,6 +823,9 @@ async function excluirTrabalhador(id) {
   if (!obra || obraSomenteLeitura(obra)) return;
   if (!confirm("Remover trabalhador?")) return;
   const gasto = obra.gastos.find((g) => g.maoObraId === id); // legado automático junto
+  const trab = (obra.equipe || []).find((t) => t.id === id);
+  const copiaT = trab ? JSON.parse(JSON.stringify(trab)) : null;
+  const copiaG = gasto ? JSON.parse(JSON.stringify(gasto)) : null;
   try {
     if (gasto) await DB.excluirGasto(gasto.id);
     await DB.excluirTrabalhador(id);
@@ -705,7 +836,16 @@ async function excluirTrabalhador(id) {
   obra.equipe = obra.equipe.filter((t) => t.id !== id);
   obra.gastos = obra.gastos.filter((g) => g.maoObraId !== id);
   renderTudo();
-  mostrarToast("Trabalhador removido.");
+  mostrarToastAcao("Trabalhador removido.", "Desfazer", async () => {
+    try {
+      await restaurarLinha("trabalhadores", linhaTrab(obra.id, copiaT));
+      if (copiaG) await restaurarLinha("gastos", linhaGasto(obra.id, copiaG));
+      obra.equipe.push(copiaT);
+      if (copiaG) obra.gastos.push(copiaG);
+      renderTudo();
+      mostrarToast("Trabalhador restaurado!");
+    } catch (e) { await erroBanco("restaurar o trabalhador", e); }
+  });
 }
 
 // ---------- PARCELAS (plano de pagamento do cliente) ----------
@@ -785,6 +925,11 @@ async function excluirParcela(id) {
     );
     if (!ok) return;
   } else if (!confirm(`Excluir a parcela "${p.descricao}"?`)) return;
+  const copiaP = JSON.parse(JSON.stringify(p));
+  const recAlvo = p.recebimentoId
+    ? (obra.recebimentos || []).find((r) => r.id === p.recebimentoId)
+    : null;
+  const copiaR = recAlvo ? JSON.parse(JSON.stringify(recAlvo)) : null;
   try {
     // Se gerou recebimento, apaga ele junto (não deixa dinheiro órfão)
     if (p.recebimentoId) {
@@ -798,7 +943,74 @@ async function excluirParcela(id) {
   }
   obra.parcelas = obra.parcelas.filter((x) => x.id !== id);
   renderTudo();
-  mostrarToast("Parcela excluída.");
+  mostrarToastAcao("Parcela excluída.", "Desfazer", async () => {
+    try {
+      if (copiaR) {
+        await restaurarLinha("recebimentos", linhaRec(obra.id, copiaR));
+        obra.recebimentos.push(copiaR);
+      }
+      await restaurarLinha("parcelas", linhaParc(obra.id, copiaP));
+      obra.parcelas.push(copiaP);
+      renderTudo();
+      mostrarToast("Parcela restaurada!");
+    } catch (e) { await erroBanco("restaurar a parcela", e); }
+  });
+}
+
+// ---------- EXPORTAR (CSV abre no Excel; impressão gera PDF) ----------
+function csvCelula(v) {
+  const s = String(v ?? "");
+  return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function baixarArquivo(nome, conteudo, tipo) {
+  const blob = new Blob([conteudo], { type: tipo });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = nome;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function exportarCSVGeral() {
+  const L = [];
+  L.push(["OBRAS"]);
+  L.push(["Obra", "Cliente", "Status", "Contratado", "Recebido", "Gasto", "Mao de obra", "Lucro"]);
+  for (const o of obras) {
+    const t = calcularTotais(o);
+    L.push([o.nome, o.cliente, o.status, t.valorContratado.toFixed(2), t.totalRecebido.toFixed(2), t.totalGasto.toFixed(2), t.totalMO.toFixed(2), t.lucro.toFixed(2)]);
+  }
+  L.push([]);
+  L.push(["RECEBIMENTOS"]);
+  L.push(["Obra", "Descricao", "Data", "Valor"]);
+  for (const o of obras) for (const r of o.recebimentos || [])
+    L.push([o.nome, r.descricao, r.data, numeroOuZero(r.valor).toFixed(2)]);
+  L.push([]);
+  L.push(["GASTOS"]);
+  L.push(["Obra", "Categoria", "Descricao", "Data", "Valor"]);
+  for (const o of obras) for (const g of o.gastos || [])
+    if (!g.maoObraId) L.push([o.nome, g.categoria, g.descricao, g.data, numeroOuZero(g.valor).toFixed(2)]);
+  L.push([]);
+  L.push(["MAO DE OBRA"]);
+  L.push(["Obra", "Nome", "Funcao", "Diaria", "Dias", "Total", "Data"]);
+  for (const o of obras) for (const t of o.equipe || [])
+    L.push([o.nome, t.nome, t.funcao, numeroOuZero(t.valorDiaria).toFixed(2), t.dias, numeroOuZero(t.total).toFixed(2), t.data || ""]);
+  L.push([]);
+  L.push(["PARCELAS"]);
+  L.push(["Obra", "Parcela", "Valor", "Vencimento", "Status", "Pago em"]);
+  for (const o of obras) for (const p of o.parcelas || [])
+    L.push([o.nome, rotuloParcela(p), numeroOuZero(p.valor).toFixed(2), p.vencimento || "", parcelaPaga(p) ? "Pago" : statusParcela(p).texto, p.dataRecebimento || ""]);
+  baixarArquivo("mario-geral.csv", "﻿" + L.map((l) => l.map(csvCelula).join(";")).join("\n"), "text/csv;charset=utf-8");
+  mostrarToast("CSV geral baixado!");
+}
+function exportarCSVMes() {
+  const chave = mesSelecionado || mesAtual();
+  const rm = calcularMes(chave);
+  const L = [[`FINANCEIRO ${chave}`], ["Tipo", "Obra", "Descricao", "Data", "Valor"]];
+  for (const e of rm.listaEntradas) L.push(["Entrada", e.obra, e.descricao, e.data, numeroOuZero(e.valor).toFixed(2)]);
+  for (const s of rm.listaSaidas) L.push(["Saida", s.obra, s.descricao, s.data, numeroOuZero(s.valor).toFixed(2)]);
+  L.push(["Resultado", "", "", "", rm.resultado.toFixed(2)]);
+  baixarArquivo(`mario-${chave}.csv`, "﻿" + L.map((l) => l.map(csvCelula).join(";")).join("\n"), "text/csv;charset=utf-8");
+  mostrarToast("CSV do mês baixado!");
 }
 
 // ---------- PESQUISA GLOBAL ----------
@@ -1138,6 +1350,7 @@ function renderRecebimentos(obra) {
         <span class="item-valor texto-verde">${formatarMoeda(r.valor)}</span>
       </div>
       ${r.observacao ? `<p class="item-meta" style="margin-top:6px">${proteger(r.observacao)}</p>` : ""}
+      ${r.fotoUrl ? `<a href="${proteger(r.fotoUrl)}" target="_blank" rel="noopener"><img class="foto-mini" src="${proteger(r.fotoUrl)}" alt="Comprovante" loading="lazy" /></a>` : ""}
       <div class="item-acoes"><button data-a="editar">Editar</button><button data-a="excluir" class="excluir">Excluir</button></div>`;
     div.querySelector('[data-a="editar"]').addEventListener("click", () => abrirModal("recebimento", r.id));
     div.querySelector('[data-a="excluir"]').addEventListener("click", () => excluirRecebimento(r.id));
@@ -1168,6 +1381,7 @@ function renderGastos(obra) {
         <span class="item-valor texto-vermelho">${formatarMoeda(g.valor)}</span>
       </div>
       ${g.observacao ? `<p class="item-meta" style="margin-top:6px">${proteger(g.observacao)}</p>` : ""}
+      ${g.fotoUrl ? `<a href="${proteger(g.fotoUrl)}" target="_blank" rel="noopener"><img class="foto-mini" src="${proteger(g.fotoUrl)}" alt="Nota" loading="lazy" /></a>` : ""}
       <div class="item-acoes"><button data-a="editar">Editar</button><button data-a="excluir" class="excluir">Excluir</button></div>`;
     div.querySelector('[data-a="editar"]').addEventListener("click", () => abrirModal("gasto", g.id));
     div.querySelector('[data-a="excluir"]').addEventListener("click", () => excluirGasto(g.id));
@@ -1984,6 +2198,11 @@ async function iniciar() {
     b.addEventListener("click", () => aplicarTema(b.dataset.tema))
   );
 
+  // Opções: exportar e imprimir
+  aoClicar("btn-csv-geral", exportarCSVGeral);
+  aoClicar("btn-csv-mes", exportarCSVMes);
+  aoClicar("btn-imprimir", () => window.print());
+
   // Obra: criar / editar / excluir / encerrar / reabrir
   aoEnviar("form-obra", salvarObra);
   aoClicar("btn-editar-obra", () => abrirFormObra(obraAbertaId));
@@ -2088,6 +2307,9 @@ async function iniciar() {
   // Prévia do total da mão de obra enquanto digita
   aoMudar("eq-diaria", "input", atualizarPreviaEquipe);
   aoMudar("eq-dias", "input", atualizarPreviaEquipe);
+
+  // Fila offline: tenta enviar pendências ao abrir (outbox.js)
+  try { if (typeof descarregarOutbox === "function") descarregarOutbox(); } catch (e) {}
 }
 
 // Roda quando a página carrega

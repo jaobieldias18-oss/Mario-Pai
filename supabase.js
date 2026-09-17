@@ -24,6 +24,40 @@ function exigirConexao() {
   if (!sb) throw new Error("sem-conexao");
 }
 
+// ---------- Fotos de comprovantes (Storage, bucket "anexos") ----------
+// Reduz para no máx. 1280px (JPEG 0.8) antes de enviar: rápido no 4G.
+function prepararFoto(arquivo) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(arquivo);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1280;
+      let w = img.width, h = img.height;
+      if (Math.max(w, h) > MAX) {
+        const k = MAX / Math.max(w, h);
+        w = Math.round(w * k); h = Math.round(h * k);
+      }
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = h;
+      cv.getContext("2d").drawImage(img, 0, 0, w, h);
+      cv.toBlob((b) => (b ? resolve(b) : reject(new Error("foto"))), "image/jpeg", 0.8);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("foto")); };
+    img.src = url;
+  });
+}
+
+async function enviarFoto(arquivo) {
+  exigirConexao();
+  const blob = await prepararFoto(arquivo);
+  const nome = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+  const { error } = await sb.storage.from("anexos").upload(nome, blob, { contentType: "image/jpeg" });
+  if (error) throw error;
+  const { data } = sb.storage.from("anexos").getPublicUrl(nome);
+  return data.publicUrl;
+}
+
 const dataOuNulo = (v) => (v ? v : null);
 
 // ---------- Conversão banco -> app ----------
@@ -47,6 +81,7 @@ function linhaParaObra(l) {
       descricao: r.descricao,
       formaPagamento: r.forma_pagamento || "PIX",
       observacao: r.observacao || "",
+      fotoUrl: r.foto_url || "",
     })),
     gastos: (l.gastos || []).map((g) => ({
       id: g.id,
@@ -57,6 +92,7 @@ function linhaParaObra(l) {
       formaPagamento: g.forma_pagamento || "",
       observacao: g.observacao || "",
       maoObraId: g.mao_obra_id || null, // elo LEGADO (ignorado nas listas/totais)
+      fotoUrl: g.foto_url || "",
     })),
     parcelas: (l.parcelas || []).map((p) => ({
       id: p.id,
@@ -110,8 +146,10 @@ function recebimentoParaLinha(obraId, d) {
     valor: d.valor || 0,
     data: d.data,
     descricao: d.descricao,
-    forma_pagamento: d.formaPagamento || "PIX",
+    forma_pagamento: d.formaPagamento || null,
     observacao: d.observacao || null,
+    // Só encosta na foto quando informada (editar sem foto nova preserva)
+    ...(d.fotoUrl !== undefined ? { foto_url: d.fotoUrl || null } : {}),
   };
 }
 
@@ -125,6 +163,8 @@ function gastoParaLinha(obraId, d) {
     forma_pagamento: d.formaPagamento || null,
     observacao: d.observacao || null,
     mao_obra_id: d.maoObraId || null,
+    // Só encosta na foto quando informada (editar sem foto nova preserva)
+    ...(d.fotoUrl !== undefined ? { foto_url: d.fotoUrl || null } : {}),
   };
 }
 
@@ -167,8 +207,8 @@ const DB = {
     const { data, error } = await sb
       .from("obras")
       .select("id,nome,cliente,endereco,valor_contratado,data_inicio,previsao_termino,status,data_encerramento,observacoes,created_at," +
-        "recebimentos(id,valor,data,descricao,forma_pagamento,observacao)," +
-        "gastos(id,categoria,descricao,valor,data,forma_pagamento,observacao,mao_obra_id)," +
+        "recebimentos(id,valor,data,descricao,forma_pagamento,observacao,foto_url)," +
+        "gastos(id,categoria,descricao,valor,data,forma_pagamento,observacao,mao_obra_id,foto_url)," +
         "trabalhadores(id,nome,funcao,diaria,dias_trabalhados,data,created_at)," +
         "parcelas(id,descricao,numero_parcela,total_parcelas,valor,vencimento,data_vencimento,status,data_recebimento,data_pagamento,recebimento_id,observacao)")
       .order("created_at", { ascending: true });

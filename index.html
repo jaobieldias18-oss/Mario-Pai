@@ -434,6 +434,16 @@
       </div>
 
       <div class="card">
+        <h3 class="opcoes-titulo">Exportar</h3>
+        <p class="texto-suave">Leve os dados para o contador (abre no Excel).</p>
+        <div class="form">
+          <button class="btn btn-primario" id="btn-csv-geral">Baixar CSV geral</button>
+          <button class="btn btn-primario" id="btn-csv-mes">Baixar CSV do mês</button>
+          <button class="btn btn-texto" id="btn-imprimir">Imprimir relatório</button>
+        </div>
+      </div>
+
+      <div class="card">
         <h3 class="opcoes-titulo">Sobre</h3>
         <p class="texto-suave">MARIO · Controle financeiro de obras.<br />Seus dados ficam salvos e sincronizados.</p>
       </div>
@@ -464,6 +474,9 @@
           </select>
         </label>
         <label class="campo"><span>Observação</span><textarea id="rec-obs" rows="2" maxlength="300"></textarea></label>
+        <label class="campo"><span>Foto do comprovante</span>
+          <input type="file" id="rec-foto" accept="image/*" capture="environment" />
+        </label>
         <div class="modal-botoes">
           <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
           <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
@@ -492,6 +505,9 @@
           </select>
         </label>
         <label class="campo"><span>Observação</span><textarea id="gasto-obs" rows="2" maxlength="300"></textarea></label>
+        <label class="campo"><span>Foto da nota</span>
+          <input type="file" id="gasto-foto" accept="image/*" capture="environment" />
+        </label>
         <div class="modal-botoes">
           <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
           <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
@@ -556,6 +572,9 @@
   <!-- Toast de confirmação -->
   <div class="toast" id="toast" hidden></div>
 
+  <!-- Sincronização offline (aparece só com pendências) -->
+  <button class="btn-sincronizar" id="btn-sincronizar" hidden>↑ Sincronizar</button>
+
   <!-- Tela de carregamento (buscando dados no Supabase) -->
   <div class="carregando" id="carregando" hidden>
     <div class="carregando-caixa">
@@ -588,6 +607,7 @@
   <!-- Supabase (CDN) + camada de banco + app. Sem frameworks. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js"></script>
+  <script src="outbox.js"></script>
   <script src="script.js"></script>
   <!-- PWA: registra o Service Worker (só funciona em http/https,
        abrindo como arquivo local o registro é ignorado sem erro) -->

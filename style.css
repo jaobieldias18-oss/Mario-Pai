@@ -798,6 +798,28 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
 #aba-recebimentos > .total-aba { margin: 14px 0 8px; }
 #aba-recebimentos > h3.titulo-secao { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--borda); }
 #lista-parcelas.parcelas-grid { margin-bottom: 4px; }
+.foto-mini { width: 100%; max-height: 180px; object-fit: cover; border-radius: 10px; margin-top: 8px; border: 1px solid var(--borda); }
+.btn-sincronizar {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--altura-nav) + 66px); z-index: 55;
+  background: #111111; color: #fff; border: none; border-radius: 999px;
+  padding: 12px 22px; font-weight: 800; font-size: 15px; cursor: pointer;
+  box-shadow: var(--sombra-forte);
+}
+.btn-sincronizar[hidden] { display: none; }
+.toast-acao {
+  background: #fff; color: #111; border: none; border-radius: 8px;
+  padding: 8px 14px; font-weight: 800; cursor: pointer; margin-left: 8px;
+}
+/* Impressão: só o conteúdo (vira PDF no celular) */
+@media print {
+  .topo, .nav-inferior, .nav-desktop, .modal-fundo, .toast,
+  .btn, .btn-sincronizar, .item-acoes, .acoes-rapidas, .acoes-obra,
+  .busca, .filtros, #btn-ver-encerradas { display: none !important; }
+  body { background: #fff; padding: 0; }
+  .tela { display: none; }
+  .tela.ativa { display: block; }
+}
 
 /* Anel de margem nos cards de obra (identidade do modelo) */
 .anel-box { margin-left: auto; display: grid; place-items: center; gap: 1px; flex-shrink: 0; }
