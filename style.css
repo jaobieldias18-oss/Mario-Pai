@@ -804,6 +804,29 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
 #aba-recebimentos > .total-aba { margin: 14px 0 8px; }
 #aba-recebimentos > h3.titulo-secao { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--borda); }
 #lista-parcelas.parcelas-grid { margin-bottom: 4px; }
+
+/* ===== Botões interativos (só sensação de toque, sem mudar função) ===== */
+.btn, .btn-pequeno, .btn-voltar, .btn-sincronizar, .modal-fechar,
+.nav-btn, .nav-item, .aba, .filtro, .tema-opcao, .mes-seta,
+.item-acoes button, .hist-item, .busca-item, .toast-acao {
+  transition: transform 0.1s ease, filter 0.15s ease, background-color 0.15s ease;
+}
+.btn:active, .btn-pequeno:active, .btn-voltar:active, .btn-sincronizar:active,
+.modal-fechar:active, .nav-item:active, .aba:active, .filtro:active,
+.tema-opcao:active, .mes-seta:active, .item-acoes button:active,
+.hist-item:active, .busca-item:active, .toast-acao:active {
+  transform: scale(0.96);
+  filter: brightness(0.92);
+}
+@media (hover: hover) {
+  .btn:hover, .btn-pequeno:hover, .btn-voltar:hover, .btn-sincronizar:hover,
+  .nav-btn:hover, .nav-item:hover, .aba:hover:not(.ativa), .filtro:hover:not(.ativo),
+  .tema-opcao:hover, .mes-seta:hover, .item-acoes button:hover,
+  .hist-item:hover, .busca-item:hover {
+    filter: brightness(1.07);
+  }
+  .nav-item.acao:hover .nav-mais, .btn-primario:hover { filter: brightness(1.1); }
+}
 .foto-mini { width: 100%; max-height: 180px; object-fit: cover; border-radius: 10px; margin-top: 8px; border: 1px solid var(--borda); }
 .btn-sincronizar {
   position: fixed; left: 50%; transform: translateX(-50%);
