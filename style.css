@@ -876,14 +876,21 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
   background: #fff; color: #111; border: none; border-radius: 8px;
   padding: 8px 14px; font-weight: 800; cursor: pointer; margin-left: 8px;
 }
-/* Impressão: só o conteúdo (vira PDF no celular) */
+/* Impressão: relatório próprio em todas as páginas (vira PDF no celular) */
+.somente-impressao { display: none; }
 @media print {
+  * { content-visibility: visible !important; animation: none !important; }
   .topo, .nav-inferior, .nav-desktop, .modal-fundo, .toast,
   .btn, .btn-sincronizar, .item-acoes, .acoes-rapidas, .acoes-obra,
   .busca, .filtros, #btn-ver-encerradas { display: none !important; }
-  body { background: #fff; padding: 0; }
-  .tela { display: none; }
-  .tela.ativa { display: block; }
+  body { background: #fff; padding: 0; color: #000; }
+  .tela { display: none !important; }
+  .somente-impressao { display: block !important; color: #000; }
+  .somente-impressao h2 { font-size: 20px; margin-bottom: 4px; }
+  .somente-impressao h3 { font-size: 16px; margin: 16px 0 6px; }
+  .somente-impressao table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .somente-impressao th, .somente-impressao td { border: 1px solid #999; padding: 5px 7px; text-align: left; }
+  .somente-impressao th { background: #eee; }
 }
 
 /* Anel de margem nos cards de obra (identidade do modelo) */

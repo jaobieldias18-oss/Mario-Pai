@@ -1004,8 +1004,36 @@ function exportarCSVGeral() {
   baixarArquivo("mario-geral.csv", "﻿" + L.map((l) => l.map(csvCelula).join(";")).join("\n"), "text/csv;charset=utf-8");
   mostrarToast("CSV geral baixado!");
 }
-function exportarCSVMes() {
+// Relatório de impressão: documento completo (todas as páginas)
+function imprimirRelatorio() {
   const chave = mesSelecionado || mesAtual();
+  const rm = calcularMes(chave);
+  let linhas = "";
+  for (const o of obras) {
+    const t = calcularTotais(o);
+    linhas += `<tr><td>${proteger(o.nome)}</td><td>${formatarMoeda(t.valorContratado)}</td><td>${formatarMoeda(t.totalRecebido)}</td><td>${formatarMoeda(t.totalGasto + t.totalMO)}</td><td>${formatarMoeda(t.lucro)}</td></tr>`;
+  }
+  let mov = "";
+  for (const e of rm.listaEntradas)
+    mov += `<tr><td>Entrada</td><td>${proteger(e.obra)} — ${proteger(e.descricao)}</td><td>${formatarData(e.data)}</td><td>${formatarMoeda(e.valor)}</td></tr>`;
+  for (const s of rm.listaSaidas)
+    mov += `<tr><td>Saída</td><td>${proteger(s.obra)} — ${proteger(s.descricao)}</td><td>${formatarData(s.data)}</td><td>${formatarMoeda(s.valor)}</td></tr>`;
+  const box = document.getElementById("relatorio-print");
+  box.innerHTML = `
+    <h2>MARIO — Relatório</h2>
+    <p>Emitido em ${formatarData(hojeISO())}</p>
+    <h3>Obras</h3>
+    <table><tr><th>Obra</th><th>Contratado</th><th>Recebido</th><th>Custos</th><th>Lucro</th></tr>${linhas}</table>
+    <h3>Financeiro — ${nomeMes(chave)} (resultado ${formatarMoeda(rm.resultado)})</h3>
+    <table><tr><th>Tipo</th><th>Descrição</th><th>Data</th><th>Valor</th></tr>${mov}</table>`;
+  box.hidden = false;
+  window.print();
+}
+window.addEventListener("afterprint", () => {
+  const box = document.getElementById("relatorio-print");
+  if (box) box.hidden = true;
+});
+function exportarCSVMes() {  const chave = mesSelecionado || mesAtual();
   const rm = calcularMes(chave);
   const L = [[`FINANCEIRO ${chave}`], ["Tipo", "Obra", "Descricao", "Data", "Valor"]];
   for (const e of rm.listaEntradas) L.push(["Entrada", e.obra, e.descricao, e.data, br(e.valor)]);
@@ -2203,7 +2231,7 @@ async function iniciar() {
   // Opções: exportar e imprimir
   aoClicar("btn-csv-geral", exportarCSVGeral);
   aoClicar("btn-csv-mes", exportarCSVMes);
-  aoClicar("btn-imprimir", () => window.print());
+  aoClicar("btn-imprimir", imprimirRelatorio);
 
   // Obra: criar / editar / excluir / encerrar / reabrir
   aoEnviar("form-obra", salvarObra);
