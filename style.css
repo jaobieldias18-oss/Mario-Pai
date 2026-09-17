@@ -125,7 +125,9 @@
   border: none; background: rgba(255, 255, 255, 0.12);
   width: 46px; height: 46px; border-radius: 12px;
   font-size: 22px; cursor: pointer; flex-shrink: 0;
+  display: grid; place-items: center; color: #fff;
 }
+.btn-engrenagem svg { width: 26px; height: 26px; }
 
 /* ===== Tela Opções ===== */
 .opcoes-titulo { font-size: 16px; margin-bottom: 4px; }
