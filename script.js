@@ -957,9 +957,45 @@ async function excluirParcela(id) {
   });
 }
 
-// ---------- EXPORTAR (CSV abre no Excel; impressão gera PDF) ----------
+// ---------- EXPORTAR (planilha formatada abre no Excel; impressão gera PDF) ----------
 // Número no padrão BR (vírgula) para o Excel somar direto
 function br(v) { return numeroOuZero(v).toFixed(2).replace(".", ","); }
+// Escapa texto para XML do Excel
+function xlsTexto(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+// Monta .xls formatado: colunas largas, fonte 12, cabeçalho em negrito
+// secoes = [{ titulo, larguras:[n...], cabec:[...], linhas:[[{v, num?}] ] }]
+function gerarXLS(nomeArquivo, titulo, secoes) {
+  let corpo = "";
+  for (const s of secoes) {
+    corpo += `<Row><Cell ss:MergeAcross="${s.cabec.length - 1}" ss:StyleID="titulo"><Data ss:Type="String">${xlsTexto(s.titulo)}</Data></Cell></Row>`;
+    corpo += "<Row>";
+    s.cabec.forEach((c, i) => {
+      corpo += `<Cell ss:StyleID="cab"><Data ss:Type="String">${xlsTexto(c)}</Data></Cell>`;
+    });
+    corpo += "</Row>";
+    for (const lin of s.linhas) {
+      corpo += "<Row>";
+      for (const c of lin) {
+        if (c && c.num) corpo += `<Cell ss:StyleID="num"><Data ss:Type="Number">${Number(c.v) || 0}</Data></Cell>`;
+        else corpo += `<Cell><Data ss:Type="String">${xlsTexto(c && c.v !== undefined ? c.v : c)}</Data></Cell>`;
+      }
+      corpo += "</Row>";
+    }
+    corpo += `<Row><Cell><Data ss:Type="String"></Data></Cell></Row>`;
+  }
+  const larguras = secoes.length && secoes[0].larguras
+    ? secoes[0].larguras.map((w) => `<Column ss:Width="${w}"/>`).join("")
+    : "";
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>` +
+    `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">` +
+    `<Styles><Style ss:ID="titulo"><Font ss:Bold="1" ss:Size="14"/><Alignment ss:Horizontal="Left"/></Style>` +
+    `<Style ss:ID="cab"><Font ss:Bold="1" ss:Size="12"/><Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/></Style>` +
+    `<Style ss:ID="num"><NumberFormat ss:Format="#,##0.00"/><Font ss:Size="12"/></Style></Styles>` +
+    `<Worksheet ss:Name="${xlsTexto(titulo).slice(0, 31)}"><Table>${larguras}${corpo}</Table></Worksheet></Workbook>`;
+  baixarArquivo(nomeArquivo, "﻿" + xml, "application/vnd.ms-excel");
+}
 function csvCelula(v) {
   const s = String(v ?? "");
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -974,35 +1010,32 @@ function baixarArquivo(nome, conteudo, tipo) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
 function exportarCSVGeral() {
-  const L = [];
-  L.push(["OBRAS"]);
-  L.push(["Obra", "Cliente", "Status", "Contratado", "Recebido", "Gasto", "Mao de obra", "Lucro"]);
+  const N = (v) => ({ v: Number(numeroOuZero(v).toFixed(2)), num: true });
+  const secoes = [];
+  const lO = [];
   for (const o of obras) {
     const t = calcularTotais(o);
-    L.push([o.nome, o.cliente, o.status, br(t.valorContratado), br(t.totalRecebido), br(t.totalGasto), br(t.totalMO), br(t.lucro)]);
+    lO.push([o.nome, o.cliente, o.status, N(t.valorContratado), N(t.totalRecebido), N(t.totalGasto), N(t.totalMO), N(t.lucro)]);
   }
-  L.push([]);
-  L.push(["RECEBIMENTOS"]);
-  L.push(["Obra", "Descricao", "Data", "Valor"]);
+  secoes.push({ titulo: "OBRAS", larguras: [30, 28, 16, 16, 16, 14, 16, 16], cabec: ["Obra", "Cliente", "Status", "Contratado", "Recebido", "Gasto", "Mao de obra", "Lucro"], linhas: lO });
+  const lR = [];
   for (const o of obras) for (const r of o.recebimentos || [])
-    L.push([o.nome, r.descricao, r.data, br(r.valor)]);
-  L.push([]);
-  L.push(["GASTOS"]);
-  L.push(["Obra", "Categoria", "Descricao", "Data", "Valor"]);
+    lR.push([o.nome, r.descricao, r.data, N(r.valor)]);
+  secoes.push({ titulo: "RECEBIMENTOS", larguras: [30, 40, 14, 16], cabec: ["Obra", "Descricao", "Data", "Valor"], linhas: lR });
+  const lG = [];
   for (const o of obras) for (const g of o.gastos || [])
-    if (!g.maoObraId) L.push([o.nome, g.categoria, g.descricao, g.data, br(g.valor)]);
-  L.push([]);
-  L.push(["MAO DE OBRA"]);
-  L.push(["Obra", "Nome", "Funcao", "Diaria", "Dias", "Total", "Data"]);
+    if (!g.maoObraId) lG.push([o.nome, g.categoria, g.descricao, g.data, N(g.valor)]);
+  secoes.push({ titulo: "GASTOS", larguras: [30, 20, 40, 14, 16], cabec: ["Obra", "Categoria", "Descricao", "Data", "Valor"], linhas: lG });
+  const lM = [];
   for (const o of obras) for (const t of o.equipe || [])
-    L.push([o.nome, t.nome, t.funcao, br(t.valorDiaria), t.dias, br(t.total), t.data || ""]);
-  L.push([]);
-  L.push(["PARCELAS"]);
-  L.push(["Obra", "Parcela", "Valor", "Vencimento", "Status", "Pago em"]);
+    lM.push([o.nome, t.nome, t.funcao, N(t.valorDiaria), t.dias, N(t.total), t.data || ""]);
+  secoes.push({ titulo: "MAO DE OBRA", larguras: [30, 26, 20, 14, 10, 16, 14], cabec: ["Obra", "Nome", "Funcao", "Diaria", "Dias", "Total", "Data"], linhas: lM });
+  const lP = [];
   for (const o of obras) for (const p of o.parcelas || [])
-    L.push([o.nome, rotuloParcela(p), br(p.valor), p.vencimento || "", parcelaPaga(p) ? "Pago" : statusParcela(p).texto, p.dataRecebimento || ""]);
-  baixarArquivo("mario-geral.csv", "﻿" + L.map((l) => l.map(csvCelula).join(";")).join("\n"), "text/csv;charset=utf-8");
-  mostrarToast("CSV geral baixado!");
+    lP.push([o.nome, rotuloParcela(p), N(p.valor), p.vencimento || "", parcelaPaga(p) ? "Pago" : statusParcela(p).texto, p.dataRecebimento || ""]);
+  secoes.push({ titulo: "PARCELAS", larguras: [30, 18, 16, 14, 14, 14], cabec: ["Obra", "Parcela", "Valor", "Vencimento", "Status", "Pago em"], linhas: lP });
+  gerarXLS("mario-geral.xls", "MARIO geral", secoes);
+  mostrarToast("Planilha geral baixada!");
 }
 // Relatório de impressão: documento completo (todas as páginas)
 function imprimirRelatorio() {
@@ -1033,16 +1066,19 @@ window.addEventListener("afterprint", () => {
   const box = document.getElementById("relatorio-print");
   if (box) box.hidden = true;
 });
-function exportarCSVMes() {  const chave = mesSelecionado || mesAtual();
+function exportarCSVMes() {
+  const chave = mesSelecionado || mesAtual();
   const rm = calcularMes(chave);
-  const L = [[`FINANCEIRO ${chave}`], ["Tipo", "Obra", "Descricao", "Data", "Valor"]];
-  for (const e of rm.listaEntradas) L.push(["Entrada", e.obra, e.descricao, e.data, br(e.valor)]);
-  for (const s of rm.listaSaidas) L.push(["Saida", s.obra, s.descricao, s.data, br(s.valor)]);
-  L.push(["Resultado", "", "", "", br(rm.resultado)]);
-  baixarArquivo(`mario-${chave}.csv`, "﻿" + L.map((l) => l.map(csvCelula).join(";")).join("\n"), "text/csv;charset=utf-8");
-  mostrarToast("CSV do mês baixado!");
+  const N = (v) => ({ v: Number(numeroOuZero(v).toFixed(2)), num: true });
+  const linhas = [];
+  for (const e of rm.listaEntradas) linhas.push(["Entrada", e.obra, e.descricao, e.data, N(e.valor)]);
+  for (const s of rm.listaSaidas) linhas.push(["Saida", s.obra, s.descricao, s.data, N(s.valor)]);
+  linhas.push(["Resultado", "", "", "", N(rm.resultado)]);
+  gerarXLS(`mario-${chave}.xls`, `Financeiro ${chave}`, [
+    { titulo: `FINANCEIRO ${chave}`, larguras: [14, 30, 40, 14, 16], cabec: ["Tipo", "Obra", "Descricao", "Data", "Valor"], linhas },
+  ]);
+  mostrarToast("Planilha do mês baixada!");
 }
-
 // ---------- PESQUISA GLOBAL ----------
 // Busca nos dados JÁ carregados (sem consulta nova, com debounce).
 // Não toca no banco nem no localStorage.
