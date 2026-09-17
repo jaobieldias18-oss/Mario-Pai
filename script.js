@@ -958,6 +958,8 @@ async function excluirParcela(id) {
 }
 
 // ---------- EXPORTAR (CSV abre no Excel; impressão gera PDF) ----------
+// Número no padrão BR (vírgula) para o Excel somar direto
+function br(v) { return numeroOuZero(v).toFixed(2).replace(".", ","); }
 function csvCelula(v) {
   const s = String(v ?? "");
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -977,28 +979,28 @@ function exportarCSVGeral() {
   L.push(["Obra", "Cliente", "Status", "Contratado", "Recebido", "Gasto", "Mao de obra", "Lucro"]);
   for (const o of obras) {
     const t = calcularTotais(o);
-    L.push([o.nome, o.cliente, o.status, t.valorContratado.toFixed(2), t.totalRecebido.toFixed(2), t.totalGasto.toFixed(2), t.totalMO.toFixed(2), t.lucro.toFixed(2)]);
+    L.push([o.nome, o.cliente, o.status, br(t.valorContratado), br(t.totalRecebido), br(t.totalGasto), br(t.totalMO), br(t.lucro)]);
   }
   L.push([]);
   L.push(["RECEBIMENTOS"]);
   L.push(["Obra", "Descricao", "Data", "Valor"]);
   for (const o of obras) for (const r of o.recebimentos || [])
-    L.push([o.nome, r.descricao, r.data, numeroOuZero(r.valor).toFixed(2)]);
+    L.push([o.nome, r.descricao, r.data, br(r.valor)]);
   L.push([]);
   L.push(["GASTOS"]);
   L.push(["Obra", "Categoria", "Descricao", "Data", "Valor"]);
   for (const o of obras) for (const g of o.gastos || [])
-    if (!g.maoObraId) L.push([o.nome, g.categoria, g.descricao, g.data, numeroOuZero(g.valor).toFixed(2)]);
+    if (!g.maoObraId) L.push([o.nome, g.categoria, g.descricao, g.data, br(g.valor)]);
   L.push([]);
   L.push(["MAO DE OBRA"]);
   L.push(["Obra", "Nome", "Funcao", "Diaria", "Dias", "Total", "Data"]);
   for (const o of obras) for (const t of o.equipe || [])
-    L.push([o.nome, t.nome, t.funcao, numeroOuZero(t.valorDiaria).toFixed(2), t.dias, numeroOuZero(t.total).toFixed(2), t.data || ""]);
+    L.push([o.nome, t.nome, t.funcao, br(t.valorDiaria), t.dias, br(t.total), t.data || ""]);
   L.push([]);
   L.push(["PARCELAS"]);
   L.push(["Obra", "Parcela", "Valor", "Vencimento", "Status", "Pago em"]);
   for (const o of obras) for (const p of o.parcelas || [])
-    L.push([o.nome, rotuloParcela(p), numeroOuZero(p.valor).toFixed(2), p.vencimento || "", parcelaPaga(p) ? "Pago" : statusParcela(p).texto, p.dataRecebimento || ""]);
+    L.push([o.nome, rotuloParcela(p), br(p.valor), p.vencimento || "", parcelaPaga(p) ? "Pago" : statusParcela(p).texto, p.dataRecebimento || ""]);
   baixarArquivo("mario-geral.csv", "﻿" + L.map((l) => l.map(csvCelula).join(";")).join("\n"), "text/csv;charset=utf-8");
   mostrarToast("CSV geral baixado!");
 }
@@ -1006,9 +1008,9 @@ function exportarCSVMes() {
   const chave = mesSelecionado || mesAtual();
   const rm = calcularMes(chave);
   const L = [[`FINANCEIRO ${chave}`], ["Tipo", "Obra", "Descricao", "Data", "Valor"]];
-  for (const e of rm.listaEntradas) L.push(["Entrada", e.obra, e.descricao, e.data, numeroOuZero(e.valor).toFixed(2)]);
-  for (const s of rm.listaSaidas) L.push(["Saida", s.obra, s.descricao, s.data, numeroOuZero(s.valor).toFixed(2)]);
-  L.push(["Resultado", "", "", "", rm.resultado.toFixed(2)]);
+  for (const e of rm.listaEntradas) L.push(["Entrada", e.obra, e.descricao, e.data, br(e.valor)]);
+  for (const s of rm.listaSaidas) L.push(["Saida", s.obra, s.descricao, s.data, br(s.valor)]);
+  L.push(["Resultado", "", "", "", br(rm.resultado)]);
   baixarArquivo(`mario-${chave}.csv`, "﻿" + L.map((l) => l.map(csvCelula).join(";")).join("\n"), "text/csv;charset=utf-8");
   mostrarToast("CSV do mês baixado!");
 }
