@@ -10,16 +10,16 @@
       e atualiza em segundo plano (rápido + sempre novo).
    ===================================================== */
 
-const VERSAO_CACHE = "mario-v10";
+const VERSAO_CACHE = "mario-v11";
 
 // Arquivos do "esqueleto" do app (nada de dados financeiros aqui)
 const ESTATICOS = [
   "./",
   "index.html",
-  "style.css",
-  "script.js",
-  "supabase.js",
-  "outbox.js",
+  "style.css?v=11",
+  "script.js?v=11",
+  "supabase.js?v=11",
+  "outbox.js?v=11",
   "manifest.json",
   "assets/logo.svg",
   "assets/logo-claro.svg",
