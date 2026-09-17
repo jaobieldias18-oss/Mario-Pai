@@ -774,6 +774,21 @@ strong, b { font-variant-numeric: tabular-nums; }
 .forma-pagto { display: grid; gap: 8px; margin: 10px 0; }
 .forma-pagto label { display: flex; gap: 8px; align-items: center; background: #fff; border: 1.5px solid var(--borda); border-radius: 11px; padding: 12px; font-weight: 700; cursor: pointer; }
 .forma-pagto input { width: 20px; height: 20px; }
+
+/* ===== Otimização mobile (toque + rolagem + render) ===== */
+button, .nav-btn, .nav-item, .aba, .filtro, .tema-opcao {
+  touch-action: manipulation; /* sem atraso de toque */
+  -webkit-tap-highlight-color: transparent; /* sem flash cinza */
+}
+/* Listas longas: o celular só desenha o que está visível */
+.obra-card, .item, .parcela-card, .cat-linha, .hist-item, .busca-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 130px;
+}
+/* Modal não puxa a página de trás na rolagem */
+.modal { overscroll-behavior: contain; }
+/* Valores grandes nunca estouram o card em tela pequena */
+.obra-numeros b, .item-valor, .parcela-valor { overflow-wrap: anywhere; }
 /* Recebimentos organizado: plano dobrável + respiro entre blocos */
 .plano-sumario { font-size: 16px; font-weight: 800; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
 .plano-sumario::-webkit-details-marker { display: none; }
