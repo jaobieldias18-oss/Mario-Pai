@@ -998,7 +998,7 @@ function renderDashboard() {
         <div><small>Gastos</small><b class="texto-vermelho">${formatarMoeda(t.totalGasto)}</b></div>
         <div><small>${encerrada ? "Lucro final" : "Lucro atual"}</small><b class="texto-azul">${formatarMoeda(t.lucro)}</b></div>
       </div>
-      <p class="obra-status-linha"><span class="status-dot ${dotClasse}"></span>${proteger(obra.status || "Em andamento")}${encerrada && obra.dataEncerramento ? ` · ${formatarData(obra.dataEncerramento)}` : ""} · MO ${formatarMoeda(t.totalMO)}</p>
+      <p class="obra-status-linha"><span class="status-dot ${dotClasse}"></span>${proteger(obra.status || "Em andamento")}${encerrada && obra.dataEncerramento ? ` · ${formatarData(obra.dataEncerramento)}` : ""}</p>
       <p class="obra-status-linha">Margem: <strong>${mCard.texto}</strong>${mCard.rotulo ? ` · ${mCard.rotulo}` : ""}</p>
       <button class="btn btn-primario" style="margin-top:10px">Ver obra →</button>`;
     card.querySelector("button").addEventListener("click", () => abrirObra(obra.id));
