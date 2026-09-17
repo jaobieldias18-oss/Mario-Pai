@@ -975,12 +975,22 @@ function renderDashboard() {
     const card = document.createElement("article");
     card.className = "obra-card" + (encerrada ? " encerrada" : "");
     const mCard = margemInfo(t.lucro, t.totalRecebido);
+    const pctMargem = t.totalRecebido > 0 ? Math.max(0, Math.min(100, (t.lucro / t.totalRecebido) * 100)) : 0;
+    const anelCor = t.totalRecebido > 0 && t.lucro < 0 ? "anel-ruim" : pctMargem >= 30 ? "anel-bom" : pctMargem >= 15 ? "anel-medio" : "anel-ruim";
+    const anelTraco = (pctMargem / 100 * 119.4).toFixed(1);
     card.innerHTML = `
       <div class="obra-topo">
         <div class="obra-avatar" aria-hidden="true">${proteger(inicial)}</div>
         <div>
           <h3>${proteger(obra.nome)}</h3>
           <p class="obra-cliente">Cliente: ${proteger(obra.cliente)}</p>
+        </div>
+        <div class="anel-box" title="Margem: ${mCard.texto}">
+          <svg class="anel" viewBox="0 0 44 44" aria-hidden="true">
+            <circle class="anel-fundo" cx="22" cy="22" r="19"></circle>
+            <circle class="anel-valor ${anelCor}" cx="22" cy="22" r="19" stroke-dasharray="${anelTraco} 119.4"></circle>
+          </svg>
+          <span>${t.totalRecebido > 0 ? pctMargem.toFixed(0) + "%" : "—"}</span>
         </div>
       </div>
       <div class="obra-numeros">
@@ -1005,6 +1015,10 @@ function atualizarSaudacao() {
   const dias = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
   document.getElementById("saudacao-data").textContent =
     `${dias[agora.getDay()]}, ${agora.getDate()} de ${MESES[agora.getMonth()]}`;
+  const diaEl = document.getElementById("hoje-dia");
+  const mesEl = document.getElementById("hoje-mes");
+  if (diaEl) diaEl.textContent = String(agora.getDate()).padStart(2, "0");
+  if (mesEl) mesEl.textContent = MESES[agora.getMonth()].slice(0, 3) + " " + agora.getFullYear();
 }
 
 // Indicador visual de margem (USA A MESMA fórmula: lucro / recebido).

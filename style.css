@@ -15,11 +15,12 @@
    favicon-32.png e icone-180.png. Mesma paleta do sistema.
    ===================================================== */
 :root {
-  --cor-principal: #1a2433;
-  --cor-principal-2: #26374f;
-  --cor-secundaria: #1450a0;
-  --cor-destaque: #e8a020;
-  --cor-destaque-escuro: #a86e06;
+  --cor-principal: #2a1658;
+  --cor-principal-2: #7b2ff7;
+  --cor-secundaria: #6a11cb;
+  --cor-destaque: #ff2e93;
+  --cor-destaque-escuro: #c2146a;
+  --gradiente: linear-gradient(135deg, #6a11cb 0%, #ff2e93 100%);
   --fundo: #edf0f4;
   --card: #ffffff;
   --texto: #182233;
@@ -163,7 +164,7 @@ strong, b { font-variant-numeric: tabular-nums; }
 
 /* ===== Cabeçalho ===== */
 .topo {
-  background: linear-gradient(135deg, var(--cor-principal) 60%, var(--cor-principal-2));
+  background: linear-gradient(120deg, #3b0f80 0%, #a31386 55%, #ff2e93 100%);
   color: #fff;
   position: sticky;
   top: 0;
@@ -217,6 +218,15 @@ strong, b { font-variant-numeric: tabular-nums; }
 
 /* ===== Boas-vindas (dashboard) ===== */
 .hero { margin: 2px 0 4px; }
+.hero-topo { display: flex; gap: 12px; align-items: center; }
+.data-hoje {
+  flex-shrink: 0; min-width: 72px; text-align: center;
+  background: var(--gradiente); color: #fff;
+  border-radius: var(--raio-p); padding: 10px 8px; box-shadow: var(--sombra);
+  display: grid; gap: 0;
+}
+.data-hoje strong { font-size: 26px; line-height: 1; }
+.data-hoje span { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.9; }
 .saudacao { font-size: 16px; font-weight: 700; }
 .saudacao strong { color: var(--cor-destaque-escuro); }
 .saudacao-sub { font-size: 13.5px; color: var(--texto-sec); margin-top: 1px; }
@@ -244,7 +254,7 @@ strong, b { font-variant-numeric: tabular-nums; }
 .mini-card.azul { border-top-color: var(--cor-secundaria); }
 .mini-card.destaque-lucro {
   grid-column: span 2;
-  background: linear-gradient(135deg, var(--cor-principal), var(--cor-principal-2));
+  background: var(--gradiente);
   color: #fff; border: none;
 }
 .mini-card.destaque-lucro .mini-label { color: #ffd98a; }
@@ -307,7 +317,7 @@ strong, b { font-variant-numeric: tabular-nums; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
 }
 .btn:active { transform: scale(0.98); filter: brightness(0.96); }
-.btn-primario { background: var(--cor-destaque); color: #2a1f02; box-shadow: 0 3px 10px rgba(232, 160, 32, 0.35); }
+.btn-primario { background: linear-gradient(135deg, var(--cor-principal-2), var(--cor-destaque)); color: #fff; box-shadow: 0 3px 10px rgba(255, 46, 147, 0.35); }
 .btn-perigo { background: var(--erro); color: #fff; }
 .btn-texto { background: transparent; color: var(--texto-sec); min-height: 44px; }
 .btn-grande { font-size: 17px; }
@@ -368,7 +378,7 @@ strong, b { font-variant-numeric: tabular-nums; }
 .numero-card strong { display: block; font-size: 19px; margin-top: 3px; letter-spacing: -0.3px; overflow-wrap: break-word; }
 .numero-card.verde { background: var(--sucesso-fundo); border-color: #bfe3cd; }
 .numero-card.vermelho { background: var(--erro-fundo); border-color: #f0c4c0; }
-.numero-card.azul { background: linear-gradient(135deg, var(--cor-principal), var(--cor-principal-2)); color: #fff; border: none; }
+.numero-card.azul { background: var(--gradiente); color: #fff; border: none; }
 .numero-card.azul span { color: #ffd98a; }
 .numero-card.amarelo { background: var(--alerta-fundo); border-color: #ecd9a8; }
 /* Mão de obra: faixa própria (separada dos gastos), largura total */
@@ -391,7 +401,7 @@ strong, b { font-variant-numeric: tabular-nums; }
   padding: 12px 14px; font-size: 13.5px; font-weight: 800;
   color: var(--texto-sec); cursor: pointer; min-height: 48px;
 }
-.aba.ativa { background: var(--cor-principal); color: #fff; }
+.aba.ativa { background: var(--gradiente); color: #fff; }
 .painel-aba { display: none; }
 .painel-aba.ativo { display: block; }
 .painel-aba .btn { margin-bottom: 12px; }
@@ -452,7 +462,7 @@ strong, b { font-variant-numeric: tabular-nums; }
 .cat-linha { background: #fff; border: 1px solid var(--borda); border-radius: var(--raio-p); box-shadow: var(--sombra); padding: 12px 14px; margin-bottom: 9px; }
 .cat-topo { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; font-weight: 800; margin-bottom: 7px; }
 .barra { height: 10px; background: #edf0f4; border-radius: 6px; overflow: hidden; }
-.barra > div { height: 100%; background: linear-gradient(90deg, var(--cor-destaque), #f4c14f); border-radius: 6px; min-width: 3px; }
+.barra > div { height: 100%; background: linear-gradient(90deg, var(--cor-principal-2), var(--cor-destaque)); border-radius: 6px; min-width: 3px; }
 .dica { border-left: 5px solid var(--cor-secundaria); font-size: 14px; }
 
 /* ===== Financeiro ===== */
@@ -515,7 +525,7 @@ strong, b { font-variant-numeric: tabular-nums; }
   text-align: center;
   color: var(--texto-sec); cursor: pointer; min-height: 48px;
 }
-.filtro.ativo { background: var(--cor-principal); color: #fff; }
+.filtro.ativo { background: var(--gradiente); color: #fff; }
 
 /* ===== Modal bottom-sheet ===== */
 .modal-fundo {
@@ -607,13 +617,14 @@ strong, b { font-variant-numeric: tabular-nums; }
 @media (min-width: 700px) {
   body { padding-bottom: 26px; }
   .nav-inferior { display: none; }
-  .nav-desktop { display: flex; gap: 8px; padding: 0 16px 12px; max-width: 1080px; margin: 0 auto; }
+  .nav-desktop { display: flex; gap: 4px; padding: 8px 16px; max-width: 1080px; margin: 0 auto 10px; background: var(--card); border-radius: 0 0 16px 16px; box-shadow: var(--sombra); }
   .nav-btn {
-    border: 1px solid rgba(255, 255, 255, 0.25); background: rgba(255, 255, 255, 0.1); color: #fff;
-    border-radius: 10px; padding: 10px 17px; font-weight: 800; cursor: pointer; font-size: 14px;
+    border: none; background: transparent; color: var(--texto-sec);
+    border-radius: 10px; padding: 10px 15px; font-weight: 800; cursor: pointer; font-size: 12.5px;
+    text-transform: uppercase; letter-spacing: 0.5px;
   }
-  .nav-btn.ativo { background: #fff; color: var(--cor-principal); }
-  .nav-btn.destaque { background: var(--cor-destaque); border-color: var(--cor-destaque); color: #2a1f02; }
+  .nav-btn.ativo { background: var(--gradiente); color: #fff; }
+  .nav-btn.destaque { background: var(--gradiente); color: #fff; }
   .grid-resumo { grid-template-columns: repeat(4, 1fr); }
   .mini-card.destaque-lucro { grid-column: auto; }
   .lista-obras { grid-template-columns: repeat(2, 1fr); }
@@ -705,9 +716,10 @@ strong, b { font-variant-numeric: tabular-nums; }
 .busca {
   display: flex; align-items: center; gap: 8px;
   background: var(--card); border: 1px solid var(--borda);
-  border-radius: 12px; padding: 0 12px; margin-top: 10px;
+  border-radius: 999px; padding: 0 16px; margin-top: 12px;
   box-shadow: var(--sombra);
 }
+.busca:focus-within { border-color: var(--cor-destaque); box-shadow: 0 0 0 3px rgba(255, 46, 147, 0.15); }
 .busca-icone { font-size: 17px; flex-shrink: 0; }
 .busca input {
   border: none; background: transparent; outline: none;
@@ -768,3 +780,14 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
 #aba-recebimentos > .total-aba { margin: 14px 0 8px; }
 #aba-recebimentos > h3.titulo-secao { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--borda); }
 #lista-parcelas.parcelas-grid { margin-bottom: 4px; }
+
+/* Anel de margem nos cards de obra (identidade do modelo) */
+.anel-box { margin-left: auto; display: grid; place-items: center; gap: 1px; flex-shrink: 0; }
+.anel-box span { font-size: 11px; font-weight: 800; color: var(--texto-sec); }
+.anel { width: 46px; height: 46px; transform: rotate(-90deg); }
+.anel circle { fill: none; stroke-width: 5; }
+.anel-fundo { stroke: var(--borda); }
+.anel-valor { stroke-linecap: round; }
+.anel-valor.anel-bom { stroke: var(--cor-principal-2); }
+.anel-valor.anel-medio { stroke: #e8a020; }
+.anel-valor.anel-ruim { stroke: var(--erro); }

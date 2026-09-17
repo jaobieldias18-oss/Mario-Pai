@@ -58,9 +58,14 @@
     <section id="tela-dashboard" class="tela ativa">
       <!-- Boas-vindas -->
       <div class="hero">
-        <p class="saudacao" id="saudacao">👋 Resumo das suas obras</p>
-        <p class="saudacao-sub">Como estão os negócios hoje?</p>
-        <p class="hero-data"><span id="saudacao-data"></span> · <span id="dash-mes-titulo">Financeiro do mês</span></p>
+        <div class="hero-topo">
+          <div class="data-hoje" aria-hidden="true"><strong id="hoje-dia">--</strong><span id="hoje-mes">---</span></div>
+          <div>
+            <p class="saudacao" id="saudacao">👋 Resumo das suas obras</p>
+            <p class="saudacao-sub">Como estão os negócios hoje?</p>
+            <p class="hero-data"><span id="saudacao-data"></span> · <span id="dash-mes-titulo">Financeiro do mês</span></p>
+          </div>
+        </div>
         <div class="busca">
           <span class="busca-icone" aria-hidden="true">🔎</span>
           <input type="search" id="busca-global" placeholder="Pesquisar obra, gasto, trabalhador..." autocomplete="off" aria-label="Pesquisa global" />
