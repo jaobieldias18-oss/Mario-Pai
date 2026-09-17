@@ -358,7 +358,8 @@ strong, b { font-variant-numeric: tabular-nums; }
   font-size: 17px; /* evita zoom automático no iPhone */
   padding: 14px 13px; border-radius: 11px;
   border: 1.5px solid var(--borda); background: #fff;
-  width: 100%; font-family: inherit; color: var(--texto);
+  width: 100%; max-width: 100%; min-width: 0;
+  font-family: inherit; color: var(--texto);
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 .campo input:focus, .campo select:focus, .campo textarea:focus {
