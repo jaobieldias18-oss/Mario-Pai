@@ -320,7 +320,7 @@ function listarMesesComMovimento() {
 }
 
 // ---------- 6. NAVEGAÇÃO ----------
-const telas = ["dashboard", "nova-obra", "obra", "financeiro", "visao-geral", "opcoes"];
+const telas = ["dashboard", "nova-obra", "obra", "financeiro", "visao-geral", "opcoes", "planta", "plantas"];
 
 function mostrarTela(nome) {
   // Mostra só a tela pedida
@@ -331,6 +331,8 @@ function mostrarTela(nome) {
     financeiro: "tela-financeiro",
     "visao-geral": "tela-visao-geral",
     opcoes: "tela-opcoes",
+    planta: "tela-planta",
+    plantas: "tela-plantas",
   };
   document.querySelectorAll(".tela").forEach((el) => el.classList.remove("ativa"));
   document.getElementById(mapa[nome]).classList.add("ativa");
@@ -357,6 +359,8 @@ function irPara(destino) {
   else if (destino === "financeiro") mostrarTela("financeiro");
   else if (destino === "visao-geral") mostrarTela("visao-geral");
   else if (destino === "opcoes") mostrarTela("opcoes");
+  else if (destino === "planta") mostrarTela("planta");
+  else if (destino === "plantas") mostrarTela("plantas");
   else if (destino === "obras") {
     mostrarTela("dashboard");
     setTimeout(() => document.getElementById("ancora-obras").scrollIntoView({ behavior: "smooth" }), 50);

@@ -23,7 +23,7 @@
   <!-- Acelera o carregamento: conecta antes nos servidores externos -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="preconnect" href="https://wmcrbjlzsqveekwifded.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=11" />
+  <link rel="stylesheet" href="style.css?v=12" />
 </head>
 <body>
 
@@ -43,6 +43,7 @@
       <button class="nav-btn ativo" data-ir="dashboard">Início</button>
       <button class="nav-btn" data-ir="financeiro">Financeiro</button>
       <button class="nav-btn" data-ir="visao-geral">Visão Geral</button>
+      <button class="nav-btn" data-ir="planta">Planta</button>
       <button class="nav-btn destaque" data-ir="nova-obra">+ Nova obra</button>
     </nav>
   </header>
@@ -88,6 +89,7 @@
         </div>
       </div>
       <button class="btn btn-texto" data-ir="financeiro">Ver financeiro →</button>
+      <button class="btn btn-texto" data-ir="planta">Ler planta da obra →</button>
 
       <!-- Totais gerais (compacto) -->
       <div class="faixa-totais" aria-label="Resumo geral">
@@ -414,6 +416,29 @@
       <div id="vg-lista" class="lista"></div>
     </section>
 
+    <!-- ===== TELA: LER PLANTA ===== -->
+    <section id="tela-planta" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Ler planta</h2>
+      <p class="texto-suave">Envie a planta para identificar medidas e ambientes com IA.</p>
+      <div class="card">
+        <div id="planta-drop" style="border:2px dashed var(--borda);border-radius:12px;padding:24px;text-align:center;cursor:pointer">
+          Arraste a planta aqui ou clique para selecionar (PNG/JPG)
+        </div>
+        <input type="file" id="planta-arq" accept=".png,.jpg,.jpeg" hidden />
+        <p class="texto-suave" id="planta-info"></p>
+        <img id="planta-prev" alt="Prévia da planta" style="display:none;max-width:100%;border-radius:12px;margin-top:8px" />
+        <br />
+        <button class="btn btn-primario btn-grande" id="planta-btn" disabled>Analisar planta</button>
+        <div id="planta-prog"></div>
+      </div>
+      <div class="card" id="planta-saida-card" hidden>
+        <h3 class="titulo-secao" style="margin-top:0">Dados encontrados</h3>
+        <div id="planta-saida"></div>
+        <button class="btn btn-primario" id="planta-copiar" hidden>Copiar resumo</button>
+      </div>
+    </section>
+
     <!-- ===== TELA: OPÇÕES ===== -->
     <section id="tela-opcoes" class="tela">
       <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
@@ -442,6 +467,28 @@
         <h3 class="opcoes-titulo">Sobre</h3>
         <p class="texto-suave">MARIO · Controle financeiro de obras.<br />Seus dados ficam salvos e sincronizados.</p>
       </div>
+    </section>
+    <!-- ===== TELA: PLANTAS (leitura de medidas) ===== -->
+    <section id="tela-plantas" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Plantas</h2>
+      <p class="texto-suave">Fotografe a planta baixa e receba as medidas e áreas.</p>
+      <div class="card">
+        <div class="form">
+          <label class="campo"><span>Foto da planta</span>
+            <input type="file" id="planta-foto" accept="image/*" capture="environment" />
+          </label>
+          <img id="planta-previa" class="foto-mini" alt="Prévia da planta" hidden />
+          <label class="campo"><span>Obra (opcional)</span>
+            <select id="planta-obra"><option value="">Sem obra vinculada</option></select>
+          </label>
+          <button class="btn btn-primario btn-grande" id="btn-analisar">Ler planta</button>
+          <p class="texto-suave" id="planta-status"></p>
+        </div>
+      </div>
+      <div id="planta-resultado"></div>
+      <h3 class="titulo-secao">Leituras anteriores</h3>
+      <div id="lista-plantas" class="lista"></div>
     </section>
   </main>
 
@@ -598,14 +645,18 @@
     <button class="nav-item" data-ir="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Início</span></button>
     <button class="nav-item" data-ir="financeiro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg><span>Financeiro</span></button>
     <button class="nav-item" data-ir="visao-geral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span>Visão Geral</span></button>
+    <button class="nav-item" data-ir="plantas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg><span>Plantas</span></button>
     <button class="nav-item acao" data-ir="nova-obra"><span class="nav-mais">＋</span><span>Nova obra</span></button>
   </nav>
 
   <!-- Supabase (CDN) + camada de banco + app. Sem frameworks. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase.js?v=11"></script>
-  <script src="outbox.js?v=11"></script>
-  <script src="script.js?v=11"></script>
+  <script src="supabase.js?v=12"></script>
+  <script src="outbox.js?v=12"></script>
+  <script src="script.js?v=12"></script>
+  <script src="plant-reader.js?v=1"></script>
+  <script src="planta.js?v=1"></script>
+  <script src="plantas.js?v=1"></script>
   <!-- PWA: registra o Service Worker (só funciona em http/https,
        abrindo como arquivo local o registro é ignorado sem erro) -->
   <script>
