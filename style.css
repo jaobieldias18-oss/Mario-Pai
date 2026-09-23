@@ -114,6 +114,13 @@
   border-color: var(--borda);
 }
 [data-theme="escuro"] .barra { background: #2b3a4f; }
+/* Componentes novos no escuro */
+[data-theme="escuro"] .parcela-card,
+[data-theme="escuro"] .forma-pagto label { background: var(--card); color: var(--texto); }
+[data-theme="escuro"] .parcela-status { background: #2b3a4f; color: var(--texto); }
+[data-theme="escuro"] .parcela-status.pago { background: var(--sucesso); color: #fff; }
+[data-theme="escuro"] .parcela-status.vencido { background: var(--erro); color: #fff; }
+[data-theme="escuro"] .btn-sincronizar { background: #f2f2f2; color: #111111; }
 [data-theme="escuro"] .badge-status.concluida { background: #2b3a4f; color: #c7d0db; }
 [data-theme="escuro"] .hist-item.selecionado,
 [data-theme="escuro"] .vg-linha.selecionada { background: #1b2c47; }
