@@ -598,7 +598,7 @@ html, body { overflow-x: clip; }
 .nav-inferior {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
   background: #fff; border-top: 1px solid var(--borda);
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid; grid-template-columns: repeat(4, 1fr);
   padding-bottom: env(safe-area-inset-bottom);
   min-height: var(--altura-nav);
   box-shadow: 0 -4px 18px rgba(24, 34, 51, 0.1);
