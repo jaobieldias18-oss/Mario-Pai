@@ -26,12 +26,12 @@ function exigirConexao() {
 
 // ---------- Fotos de comprovantes (Storage, bucket "anexos") ----------
 // Reduz para no máx. 1280px (JPEG 0.8) antes de enviar: rápido no 4G.
-function prepararFoto(arquivo) {
+function prepararFoto(arquivo, maxDim) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(arquivo);
     const desenhar = (fonte, w, h) => {
       URL.revokeObjectURL(url);
-      const MAX = 1280;
+      const MAX = maxDim || 1280;
       let dw = w, dh = h;
       if (Math.max(dw, dh) > MAX) {
         const k = MAX / Math.max(dw, dh);

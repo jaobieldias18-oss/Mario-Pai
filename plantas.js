@@ -45,7 +45,7 @@ async function analisarPlanta() {
   const chave = chaveGroq();
   if (!chave) { mostrarToast("Sem chave, sem leitura.", false); btn.disabled = false; btn.textContent = "Ler planta"; return; }
   try {
-    const blob = await prepararFoto(arq);
+    const blob = await prepararFoto(arq, 2048); // plantas vão em alta p/ ler as cotas miúdas
     const dataUrl = await blobParaDataURL(blob);
     // Tenta até 3x (a IA às vezes falha 1x com limite/instabilidade e passa na seguinte)
     let resp = null, ultimoErro = "";
@@ -67,14 +67,17 @@ async function analisarPlanta() {
               {
                 role: "user",
                 content: [
-                  {
-                    type: "text",
-                    text: "Analise esta planta baixa de obra. Extraia as medidas e áreas. " +
-                      "Responda SOMENTE com JSON válido, sem texto fora dele, neste formato: " +
-                      '{"comodos": [{"nome": "Sala", "area_m2": 12.5, "perimetro_m": 14}], ' +
-                      '"area_total_m2": 0, "observacao": "texto curto se algo estiver ilegível"}. ' +
-                      "Se não for uma planta, use observacao para dizer e comodos vazio.",
-                  },
+              {
+                type: "text",
+                text: "Analise esta planta baixa de obra com MÁXIMA precisão. " +
+                  "Transcreva as COTAS exatamente como estão escritas no desenho " +
+                  "(não arredonde, não estime, não invente número). " +
+                  "Calcule cada área a partir das cotas transcritas. " +
+                  "Responda SOMENTE com JSON válido, sem texto fora dele, neste formato: " +
+                  '{"comodos": [{"nome": "Sala", "area_m2": 12.5, "perimetro_m": 14, "cotas": "4,00 x 3,10"}], ' +
+                  '"area_total_m2": 0, "observacao": "liste aqui TUDO que estiver ilegível ou duvidoso"}. ' +
+                  "Se não for uma planta, use observacao para dizer e comodos vazio.",
+              },
                   { type: "image_url", image_url: { url: dataUrl } },
                 ],
               },
@@ -120,8 +123,13 @@ function desenharLeitura(d) {
     html += `<div class="item"><div class="item-topo">` +
       `<span class="item-icone" aria-hidden="true">P</span>` +
       `<div class="item-conteudo"><strong>${proteger(c.nome || "Cômodo")}</strong>` +
-      `<span class="item-meta">Área ${c.area_m2 ?? "—"} m²${c.perimetro_m ? " • Perímetro " + c.perimetro_m + " m" : ""}</span></div>` +
+      `<span class="item-meta">Área ${c.area_m2 ?? "—"} m²${c.perimetro_m ? " • Perímetro " + c.perimetro_m + " m" : ""}${c.cotas ? " • Cotas " + proteger(c.cotas) : ""}</span></div>` +
       `</div></div>`;
+  }
+  // Conferência matemática no aparelho: soma dos cômodos x total informado
+  const soma = comodos.reduce((s, c) => s + (Number(c.area_m2) || 0), 0);
+  if (d.area_total_m2 && soma > 0 && Math.abs(soma - Number(d.area_total_m2)) / Number(d.area_total_m2) > 0.02) {
+    html += `<div class="card dica"><p><strong>Confira:</strong> a soma dos cômodos (${soma.toFixed(2).replace(".", ",")} m²) difere do total informado (${Number(d.area_total_m2).toFixed(2).replace(".", ",")} m²). Valide na trena antes de comprar material.</p></div>`;
   }
   if (d.observacao) html += `<div class="card dica"><p>${proteger(d.observacao)}</p></div>`;
   if (!html) html = `<div class="lista-vazia">Nada legível nesta imagem.</div>`;
