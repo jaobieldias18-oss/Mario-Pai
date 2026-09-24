@@ -28,23 +28,34 @@ function exigirConexao() {
 // Reduz para no máx. 1280px (JPEG 0.8) antes de enviar: rápido no 4G.
 function prepararFoto(arquivo) {
   return new Promise((resolve, reject) => {
-    const img = new Image();
     const url = URL.createObjectURL(arquivo);
-    img.onload = () => {
+    const desenhar = (fonte, w, h) => {
       URL.revokeObjectURL(url);
       const MAX = 1280;
-      let w = img.width, h = img.height;
-      if (Math.max(w, h) > MAX) {
-        const k = MAX / Math.max(w, h);
-        w = Math.round(w * k); h = Math.round(h * k);
+      let dw = w, dh = h;
+      if (Math.max(dw, dh) > MAX) {
+        const k = MAX / Math.max(dw, dh);
+        dw = Math.round(dw * k); dh = Math.round(dh * k);
       }
       const cv = document.createElement("canvas");
-      cv.width = w; cv.height = h;
-      cv.getContext("2d").drawImage(img, 0, 0, w, h);
+      cv.width = dw; cv.height = dh;
+      cv.getContext("2d").drawImage(fonte, 0, 0, dw, dh);
+      if (fonte.close) { try { fonte.close(); } catch (e) {} }
       cv.toBlob((b) => (b ? resolve(b) : reject(new Error("foto"))), "image/jpeg", 0.8);
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("foto")); };
-    img.src = url;
+    // Caminho moderno: respeita a orientação EXIF (foto de celular não sai girada)
+    if (typeof createImageBitmap === "function") {
+      createImageBitmap(arquivo, { imageOrientation: "fromImage" }).then(
+        (bmp) => desenhar(bmp, bmp.width, bmp.height),
+        () => fallbackImg()
+      );
+    } else fallbackImg();
+    function fallbackImg() {
+      const img = new Image();
+      img.onload = () => desenhar(img, img.width, img.height);
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("foto")); };
+      img.src = url;
+    }
   });
 }
 

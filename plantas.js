@@ -58,10 +58,11 @@ async function analisarPlanta() {
             "Content-Type": "application/json",
             Authorization: "Bearer " + chave,
           },
-          body: JSON.stringify({
-            model: GROQ_MODEL,
-            temperature: 0.1,
-            max_tokens: 1500,
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        temperature: 0,
+        seed: 7,
+        max_tokens: 1500,
             messages: [
               {
                 role: "user",
