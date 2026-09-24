@@ -47,38 +47,50 @@ async function analisarPlanta() {
   try {
     const blob = await prepararFoto(arq);
     const dataUrl = await blobParaDataURL(blob);
-    const resp = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + chave,
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        temperature: 0.1,
-        max_tokens: 1500,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Analise esta planta baixa de obra. Extraia as medidas e áreas. " +
-                  "Responda SOMENTE com JSON válido, sem texto fora dele, neste formato: " +
-                  '{"comodos": [{"nome": "Sala", "area_m2": 12.5, "perimetro_m": 14}], ' +
-                  '"area_total_m2": 0, "observacao": "texto curto se algo estiver ilegível"}. ' +
-                  "Se não for uma planta, use observacao para dizer e comodos vazio.",
-              },
-              { type: "image_url", image_url: { url: dataUrl } },
-            ],
+    // Tenta até 3x (a IA às vezes falha 1x com limite/instabilidade e passa na seguinte)
+    let resp = null, ultimoErro = "";
+    for (let tent = 1; tent <= 3; tent++) {
+      status.textContent = tent > 1 ? `Tentando de novo (${tent}/3)...` : "Enviando para análise...";
+      try {
+        resp = await fetch(GROQ_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + chave,
           },
-        ],
-      }),
-    });
-    if (!resp.ok) {
-      const t = await resp.text();
-      throw new Error("Groq " + resp.status + ": " + t.slice(0, 120));
+          body: JSON.stringify({
+            model: GROQ_MODEL,
+            temperature: 0.1,
+            max_tokens: 1500,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "Analise esta planta baixa de obra. Extraia as medidas e áreas. " +
+                      "Responda SOMENTE com JSON válido, sem texto fora dele, neste formato: " +
+                      '{"comodos": [{"nome": "Sala", "area_m2": 12.5, "perimetro_m": 14}], ' +
+                      '"area_total_m2": 0, "observacao": "texto curto se algo estiver ilegível"}. ' +
+                      "Se não for uma planta, use observacao para dizer e comodos vazio.",
+                  },
+                  { type: "image_url", image_url: { url: dataUrl } },
+                ],
+              },
+            ],
+          }),
+        });
+        if (resp.ok) break;
+        ultimoErro = "Groq " + resp.status + ": " + (await resp.text()).slice(0, 120);
+        resp = null;
+        if (resp === null && tent < 3) await new Promise((r) => setTimeout(r, 2000 * tent));
+      } catch (e) {
+        ultimoErro = e.message || "rede";
+        resp = null;
+        if (tent < 3) await new Promise((r) => setTimeout(r, 2000 * tent));
+      }
     }
+    if (!resp) throw new Error(ultimoErro || "falha temporária");
     const j = await resp.json();
     const texto = (((j.choices || [])[0] || {}).message || {}).content || "";
     const ini = texto.indexOf("{");
