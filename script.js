@@ -359,7 +359,7 @@ function irPara(destino) {
   else if (destino === "financeiro") mostrarTela("financeiro");
   else if (destino === "visao-geral") mostrarTela("visao-geral");
   else if (destino === "opcoes") mostrarTela("opcoes");
-  else if (destino === "planta") mostrarTela("planta");
+  else if (destino === "planta") mostrarTela("plantas"); // temporário: tela antiga depende de função não publicada; usa a que funciona
   else if (destino === "plantas") mostrarTela("plantas");
   else if (destino === "obras") {
     mostrarTela("dashboard");
