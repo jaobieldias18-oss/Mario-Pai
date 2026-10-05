@@ -831,6 +831,17 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
 #aba-recebimentos > .total-aba { margin: 14px 0 8px; }
 #aba-recebimentos > h3.titulo-secao { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--borda); }
 #lista-parcelas.parcelas-grid { margin-bottom: 4px; }
+/* Ações grandes do início (dedão, ícone + texto) */
+.acoes-inicio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0 4px; }
+.acao-grande {
+  border: 2px solid var(--borda); background: var(--card); color: var(--texto);
+  border-radius: var(--raio); padding: 16px 6px; min-height: 96px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  font-size: 15px; font-weight: 800; cursor: pointer; box-shadow: var(--sombra);
+}
+.acao-grande svg { width: 30px; height: 30px; }
+.acao-grande.destaque { background: #111111; color: #fff; border-color: #111111; }
+.acao-grande.destaque .nav-mais { background: var(--cor-destaque); border-radius: 10px; width: 40px; height: 28px; display: grid; place-items: center; font-size: 18px; }
 
 /* Entrada suave dos cards (sensação de rapidez, sem travar nada) */
 .lista-obras .obra-card, .lista .item, #lista-parcelas .parcela-card,

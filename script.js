@@ -1398,8 +1398,8 @@ function renderDashboard() {
 function atualizarSaudacao() {
   const agora = new Date();
   const hora = agora.getHours();
-  const cumprimento = hora >= 5 && hora < 12 ? "Bom dia" : hora >= 12 && hora < 18 ? "Boa tarde" : "Boa noite";
-  document.getElementById("saudacao").innerHTML = `${cumprimento}, <strong>Mario Dias</strong>!`;
+  const parte = hora >= 5 && hora < 12 ? "BOM DIA" : hora >= 12 && hora < 18 ? "BOA TARDE" : "BOA NOITE";
+  document.getElementById("saudacao").innerHTML = `${parte}, <strong>MÁRIO</strong>`;
   const dias = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
   document.getElementById("saudacao-data").textContent =
     `${dias[agora.getDay()]}, ${agora.getDate()} de ${MESES[agora.getMonth()]}`;
@@ -2368,6 +2368,14 @@ async function iniciar() {
   document.querySelectorAll(".aba").forEach((b) =>
     b.addEventListener("click", () => trocarAba(b.dataset.aba))
   );
+
+  // Início simples: 3 botões grandes (Minhas obras, Dinheiro, Nova obra)
+  aoClicar("qa-ver-obras", () => {
+    mostrarTela("dashboard");
+    setTimeout(() => document.getElementById("ancora-obras").scrollIntoView({ behavior: "smooth" }), 50);
+  });
+  aoClicar("qa-dinheiro", () => mostrarTela("financeiro"));
+  aoClicar("qa-nova-obra", () => abrirFormObra(null));
 
   // Opções: escolha do tema (claro / escuro)
   document.querySelectorAll(".tema-opcao").forEach((b) =>
