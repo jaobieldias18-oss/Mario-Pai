@@ -858,6 +858,27 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
 .ia-msg.voce { background: var(--info-fundo); justify-self: end; max-width: 90%; }
 .ia-msg.ia { background: var(--card); border: 1px solid var(--borda); box-shadow: var(--sombra); }
 .ia-painel-voltar { margin-bottom: 10px; }
+/* Conversa principal estilo chat */
+.ia-chat-card { padding: 14px; }
+#ia-chat { max-height: 46vh; overflow-y: auto; display: grid; gap: 8px; align-content: start; }
+.ia-msg.digitando { display: flex; gap: 5px; align-items: center; min-height: 44px; }
+.ia-msg.digitando span { width: 8px; height: 8px; border-radius: 50%; background: var(--texto-sec); animation: ia-pisca 1s ease infinite; }
+.ia-msg.digitando span:nth-child(2) { animation-delay: 0.15s; }
+.ia-msg.digitando span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ia-pisca { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+.ia-sugestoes { display: grid; gap: 8px; margin: 10px 0; }
+.ia-composer { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.ia-composer input {
+  font-size: 17px; padding: 14px; border-radius: 999px;
+  border: 1.5px solid var(--borda); background: var(--fundo);
+  width: 100%; font-family: inherit; color: var(--texto);
+}
+.ia-composer input:focus { outline: none; border-color: #111111; }
+.ia-composer button {
+  width: 54px; height: 54px; border-radius: 50%; border: none;
+  background: #111111; color: #fff; font-size: 22px; font-weight: 800;
+  cursor: pointer; flex-shrink: 0;
+}
 .ajustes-linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--borda); font-size: 15px; }
 .ajustes-linha:first-of-type { border-top: none; }
 

@@ -328,43 +328,34 @@ function ferramentaMensagem() {
   });
 }
 
-// ---------- Ferramenta: Perguntar (conversa com os dados) ----------
+// ---------- Ferramenta: Perguntar (conversa estilo chat) ----------
+async function enviarPerguntaChat(texto) {
+  const pergunta = (texto || (elIA("ia-pergunta") || {}).value || "").trim();
+  if (!pergunta) return;
+  const box = elIA("ia-chat");
+  if (!box) return;
+  box.innerHTML += `<div class="ia-msg voce">${proteger(pergunta)}</div><div class="ia-msg ia digitando" id="ia-digitando"><span></span><span></span><span></span></div>`;
+  box.scrollTop = box.scrollHeight;
+  const campo = elIA("ia-pergunta");
+  if (campo) campo.value = "";
+  try {
+    const resp = await iaConversar(pergunta, contextoEscopo());
+    const d = document.getElementById("ia-digitando");
+    if (d) { d.textContent = resp; d.classList.remove("digitando"); d.removeAttribute("id"); }
+    box.scrollTop = box.scrollHeight;
+    contarUso("pergunta");
+    guardarHistoricoIA("Pergunta: " + pergunta.slice(0, 60), nomeEscopo(),
+      `<div class="card"><p><strong>${proteger(pergunta)}</strong></p><p>${proteger(resp)}</p></div>`);
+  } catch (e) {
+    const d = document.getElementById("ia-digitando");
+    if (d) { d.textContent = "Não consegui responder: " + (e.message || "erro"); d.classList.remove("digitando"); d.removeAttribute("id"); }
+  }
+}
 function ferramentaPerguntar() {
-  const sugestoes = ["Quanto gastamos nesta obra?", "Qual foi o maior gasto?", "Quanto ainda precisamos receber?", "O que está pendente?"];
-  let html = `<div class="card"><h3 class="titulo-secao" style="margin-top:0">Perguntar</h3>
-    <div class="ia-conversa" id="ia-conversa"></div>
-    <div class="form">
-      <label class="campo"><span>Sua pergunta</span><input type="text" id="ia-pergunta" maxlength="300" placeholder="Ex: quanto gastamos este mês?" /></label>
-      <button class="btn btn-primario" id="ia-enviar">Perguntar</button>
-    </div>
-    <p class="texto-suave" style="margin-top:8px">Sugestões:</p>
-    <div class="lista">`;
-  sugestoes.forEach((s, i) => { html += `<button class="busca-item" data-s="${i}"><div class="item-conteudo"><strong>${proteger(s)}</strong></div></button>`; });
-  html += `</div></div>`;
-  painelVoltar(html);
-  const enviar = async (texto) => {
-    const pergunta = (texto || elIA("ia-pergunta").value || "").trim();
-    if (!pergunta) return;
-    const box = elIA("ia-conversa");
-    box.innerHTML += `<div class="ia-msg voce">${proteger(pergunta)}</div><div class="ia-msg ia" id="ia-digitando">Pensando...</div>`;
-    elIA("ia-pergunta").value = "";
-    try {
-      const resp = await iaConversar(pergunta, contextoEscopo());
-      const d = elIA("ia-digitando");
-      if (d) { d.textContent = resp; d.removeAttribute("id"); }
-      contarUso("pergunta");
-      guardarHistoricoIA("Pergunta: " + pergunta.slice(0, 60), nomeEscopo(),
-        `<div class="card"><p><strong>${proteger(pergunta)}</strong></p><p>${proteger(resp)}</p></div>`);
-    } catch (e) {
-      const d = elIA("ia-digitando");
-      if (d) { d.textContent = "Não consegui responder: " + (e.message || "erro"); d.removeAttribute("id"); }
-    }
-  };
-  elIA("ia-enviar").addEventListener("click", () => enviar());
-  elIA("ia-pergunta").addEventListener("keydown", (e) => { if (e.key === "Enter") enviar(); });
-  elIA("ia-painel").querySelectorAll("[data-s]").forEach((b) =>
-    b.addEventListener("click", () => enviar(sugestoes[Number(b.dataset.s)]))
-  );
+  const c = elIA("ia-pergunta");
+  if (c) c.focus();
+  const chat = elIA("ia-chat");
+  if (chat) chat.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 // ---------- Liga a tela ----------
@@ -406,6 +397,17 @@ function ligarIA() {
     sel.addEventListener("change", () => { elIA("ia-painel").innerHTML = ""; atualizarBannerAtencao(); });
   }
   ao("ia-atencao", () => { mostrarTela("ia"); setTimeout(ferramentaAlertas, 100); });
+  const form = elIA("ia-form");
+  if (form && !form.dataset.iaLigado) {
+    form.dataset.iaLigado = "1";
+    form.addEventListener("submit", (e) => { e.preventDefault(); enviarPerguntaChat(); });
+  }
+  document.querySelectorAll("[data-sug]").forEach((b) => {
+    if (!b.dataset.iaLigado) {
+      b.dataset.iaLigado = "1";
+      b.addEventListener("click", () => enviarPerguntaChat(b.dataset.sug));
+    }
+  });
   document.querySelectorAll('[data-ir="ia"]').forEach((b) => {
     if (!b.dataset.iaLigado) {
       b.dataset.iaLigado = "1";

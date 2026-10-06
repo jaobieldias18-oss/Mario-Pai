@@ -518,16 +518,31 @@
           <select id="ia-obra"><option value="">Todas as obras</option></select>
         </label>
       </div>
+      <div class="card ia-chat-card">
+        <div class="ia-conversa" id="ia-chat">
+          <div class="ia-msg ia">Olá, Mário! Pergunte sobre suas obras ou toque numa opção abaixo.</div>
+        </div>
+        <div class="ia-sugestoes">
+          <button class="busca-item" data-sug="Quanto gastamos este mês?"><div class="item-conteudo"><strong>Quanto gastamos este mês?</strong></div></button>
+          <button class="busca-item" data-sug="Quanto ainda precisamos receber?"><div class="item-conteudo"><strong>Quanto ainda precisamos receber?</strong></div></button>
+          <button class="busca-item" data-sug="O que está pendente?"><div class="item-conteudo"><strong>O que está pendente?</strong></div></button>
+        </div>
+        <form id="ia-form" class="ia-composer">
+          <input type="text" id="ia-pergunta" maxlength="300" placeholder="Digite sua pergunta..." autocomplete="off" />
+          <button type="submit" id="ia-enviar" aria-label="Enviar">↑</button>
+        </form>
+      </div>
       <div class="ia-grade">
         <button class="acao-grande" data-ia="gastos"><span class="item-icone" aria-hidden="true">R</span><span>Analisar gastos</span></button>
         <button class="acao-grande" data-ia="alertas"><span class="item-icone" aria-hidden="true">!</span><span>Alertas</span></button>
         <button class="acao-grande" data-ia="relatorio"><span class="item-icone" aria-hidden="true">R</span><span>Relatório</span></button>
         <button class="acao-grande" data-ia="mensagem"><span class="item-icone" aria-hidden="true">M</span><span>Mensagem</span></button>
-        <button class="acao-grande destaque" data-ia="perguntar"><span class="item-icone" aria-hidden="true">?</span><span>Perguntar</span></button>
       </div>
       <div id="ia-painel"></div>
-      <h3 class="titulo-secao">Últimas análises</h3>
-      <div id="lista-ia-historico" class="lista"></div>
+      <details class="card">
+        <summary class="plano-sumario">Últimas análises</summary>
+        <div id="lista-ia-historico" class="lista" style="margin-top:10px"></div>
+      </details>
     </section>
   </main>
 
