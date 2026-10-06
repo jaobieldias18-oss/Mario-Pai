@@ -10,19 +10,20 @@
       e atualiza em segundo plano (rápido + sempre novo).
    ===================================================== */
 
-const VERSAO_CACHE = "mario-v13";
+const VERSAO_CACHE = "mario-v14";
 
 // Arquivos do "esqueleto" do app (nada de dados financeiros aqui)
 const ESTATICOS = [
   "./",
   "index.html",
-  "style.css?v=13",
-  "script.js?v=13",
-  "supabase.js?v=13",
-  "outbox.js?v=13",
+  "style.css?v=14",
+  "script.js?v=14",
+  "supabase.js?v=14",
+  "outbox.js?v=14",
   "plant-reader.js?v=1",
   "planta.js?v=1",
-  "plantas.js?v=13",
+  "plantas.js?v=14",
+  "ia.js?v=14",
   "manifest.json",
   "assets/logo.svg",
   "assets/logo-claro.svg",
