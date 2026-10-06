@@ -111,7 +111,9 @@ serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
     const authHeader = req.headers.get("Authorization") || "";
     let userId: string | null = null;
-    if (authHeader) {
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    // Chave pública (anon) = uso sem login, liberado. Só valida se for JWT de usuário.
+    if (token && token !== anonKey) {
       const sbUser = createClient(supabaseUrl, anonKey, {
         global: { headers: { Authorization: authHeader } },
       });
