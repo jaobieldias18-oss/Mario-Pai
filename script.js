@@ -2470,14 +2470,6 @@ async function iniciar() {
     b.addEventListener("click", () => trocarAba(b.dataset.aba))
   );
 
-  // Início simples: 3 botões grandes (Minhas obras, Dinheiro, Nova obra)
-  aoClicar("qa-ver-obras", () => {
-    mostrarTela("dashboard");
-    setTimeout(() => document.getElementById("ancora-obras").scrollIntoView({ behavior: "smooth" }), 50);
-  });
-  aoClicar("qa-dinheiro", () => mostrarTela("financeiro"));
-  aoClicar("qa-nova-obra", () => abrirFormObra(null));
-
   // Opções: escolha do tema (claro / escuro)
   document.querySelectorAll(".tema-opcao").forEach((b) =>
     b.addEventListener("click", () => aplicarTema(b.dataset.tema))
