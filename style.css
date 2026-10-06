@@ -869,14 +869,14 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
 .ia-sugestoes { display: grid; gap: 8px; margin: 10px 0; }
 .ia-composer { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
 .ia-composer input {
-  font-size: 17px; padding: 14px; border-radius: 999px;
+  font-size: 18px; padding: 18px 20px; border-radius: 22px;
   border: 1.5px solid var(--borda); background: var(--fundo);
-  width: 100%; font-family: inherit; color: var(--texto);
+  width: 100%; min-height: 62px; font-family: inherit; color: var(--texto);
 }
 .ia-composer input:focus { outline: none; border-color: #111111; }
 .ia-composer button {
-  width: 54px; height: 54px; border-radius: 50%; border: none;
-  background: #111111; color: #fff; font-size: 22px; font-weight: 800;
+  width: 62px; height: 62px; border-radius: 50%; border: none;
+  background: #111111; color: #fff; font-size: 24px; font-weight: 800;
   cursor: pointer; flex-shrink: 0;
 }
 .ajustes-linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--borda); font-size: 15px; }
