@@ -331,6 +331,7 @@ function mostrarTela(nome) {
     financeiro: "tela-financeiro",
     "visao-geral": "tela-visao-geral",
     opcoes: "tela-opcoes",
+    ia: "tela-ia",
     planta: "tela-planta",
     plantas: "tela-plantas",
   };
@@ -359,6 +360,7 @@ function irPara(destino) {
   else if (destino === "financeiro") mostrarTela("financeiro");
   else if (destino === "visao-geral") mostrarTela("visao-geral");
   else if (destino === "opcoes") mostrarTela("opcoes");
+  else if (destino === "ia") mostrarTela("ia");
   else if (destino === "planta") mostrarTela("plantas"); // temporário: tela antiga depende de função não publicada; usa a que funciona
   else if (destino === "plantas") mostrarTela("plantas");
   else if (destino === "obras") {
@@ -1493,6 +1495,7 @@ function renderDashboard() {
     card.querySelector("button").addEventListener("click", () => abrirObra(obra.id));
     lista.appendChild(card);
   }
+  try { if (typeof atualizarBannerAtencao === "function") atualizarBannerAtencao(); } catch (e) {}
 }
 
 // Saudação do topo (só visual: cumprimento por horário + nome)
@@ -2587,6 +2590,9 @@ async function iniciar() {
 
   // Fila offline: tenta enviar pendências ao abrir (outbox.js)
   try { if (typeof descarregarOutbox === "function") descarregarOutbox(); } catch (e) {}
+
+  // IA da Obra: liga botões e banner (ia.js)
+  try { if (typeof ligarIA === "function") ligarIA(); } catch (e) {}
 }
 
 // Roda quando a página carrega

@@ -831,6 +831,33 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
 #aba-recebimentos > .total-aba { margin: 14px 0 8px; }
 #aba-recebimentos > h3.titulo-secao { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--borda); }
 #lista-parcelas.parcelas-grid { margin-bottom: 4px; }
+/* IA da Obra: banner, grade de ações e conversa */
+.ia-banner {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  background: #111111; color: #fff; border: none; border-radius: var(--raio);
+  padding: 15px 16px; margin-top: 12px; cursor: pointer; box-shadow: var(--sombra);
+  text-align: left;
+}
+.ia-banner-icone { width: 46px; height: 46px; flex-shrink: 0; border-radius: 14px; background: var(--cor-destaque); display: grid; place-items: center; color: #fff; }
+.ia-banner-icone svg { width: 26px; height: 26px; }
+.ia-banner-texto { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.ia-banner-texto strong { font-size: 16px; }
+.ia-banner-texto small { font-size: 13px; opacity: 0.85; }
+.ia-banner-ir { font-size: 22px; font-weight: 800; }
+.ia-grade { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 12px 0; }
+.acao-grande {
+  border: 2px solid var(--borda); background: var(--card); color: var(--texto);
+  border-radius: var(--raio); padding: 16px 6px; min-height: 104px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  font-size: 15px; font-weight: 800; cursor: pointer; box-shadow: var(--sombra);
+}
+.acao-grande.destaque { background: #111111; color: #fff; border-color: #111111; grid-column: span 2; }
+.acao-grande .item-icone { font-size: 15px; font-weight: 800; }
+.ia-conversa { display: grid; gap: 8px; margin: 10px 0; }
+.ia-msg { border-radius: 12px; padding: 12px 14px; font-size: 15px; }
+.ia-msg.voce { background: var(--info-fundo); justify-self: end; max-width: 90%; }
+.ia-msg.ia { background: var(--card); border: 1px solid var(--borda); box-shadow: var(--sombra); }
+.ia-painel-voltar { margin-bottom: 10px; }
 .ajustes-linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--borda); font-size: 15px; }
 .ajustes-linha:first-of-type { border-top: none; }
 

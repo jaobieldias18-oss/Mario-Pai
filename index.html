@@ -43,6 +43,7 @@
       <button class="nav-btn ativo" data-ir="dashboard">Início</button>
       <button class="nav-btn" data-ir="financeiro">Financeiro</button>
       <button class="nav-btn" data-ir="visao-geral">Visão Geral</button>
+      <button class="nav-btn" data-ir="ia">IA da Obra</button>
       <button class="nav-btn" data-ir="planta">Planta</button>
       <button class="nav-btn destaque" data-ir="nova-obra">+ Nova obra</button>
     </nav>
@@ -67,6 +68,12 @@
           <input type="search" id="busca-global" placeholder="Pesquisar obra, gasto, trabalhador..." autocomplete="off" aria-label="Pesquisa global" />
         </div>
         <div id="busca-resultados" class="lista" hidden></div>
+        <button class="ia-banner" id="qa-ia-obra" aria-label="Abrir IA da Obra">
+          <span class="ia-banner-icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V4M8 4h8"/><circle cx="9.5" cy="13" r="1" fill="currentColor"/><circle cx="14.5" cy="13" r="1" fill="currentColor"/><path d="M9.5 16.5h5"/></svg></span>
+          <span class="ia-banner-texto"><strong>IA da Obra</strong><small>Olá, Mário! O que você precisa fazer hoje?</small></span>
+          <span class="ia-banner-ir" aria-hidden="true">→</span>
+        </button>
+        <button class="btn btn-texto" id="ia-atencao" hidden></button>
       </div>
 
       <!-- Indicadores principais: só o essencial -->
@@ -501,6 +508,27 @@
       <h3 class="titulo-secao">Leituras anteriores</h3>
       <div id="lista-plantas" class="lista"></div>
     </section>
+    <!-- ===== TELA: IA DA OBRA (assistente) ===== -->
+    <section id="tela-ia" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">IA da Obra</h2>
+      <p class="texto-suave">Olá, Mário! O que você precisa fazer hoje?</p>
+      <div class="card">
+        <label class="campo"><span>Obra atual</span>
+          <select id="ia-obra"><option value="">Todas as obras</option></select>
+        </label>
+      </div>
+      <div class="ia-grade">
+        <button class="acao-grande" data-ia="gastos"><span class="item-icone" aria-hidden="true">R</span><span>Analisar gastos</span></button>
+        <button class="acao-grande" data-ia="alertas"><span class="item-icone" aria-hidden="true">!</span><span>Alertas</span></button>
+        <button class="acao-grande" data-ia="relatorio"><span class="item-icone" aria-hidden="true">R</span><span>Relatório</span></button>
+        <button class="acao-grande" data-ia="mensagem"><span class="item-icone" aria-hidden="true">M</span><span>Mensagem</span></button>
+        <button class="acao-grande destaque" data-ia="perguntar"><span class="item-icone" aria-hidden="true">?</span><span>Perguntar</span></button>
+      </div>
+      <div id="ia-painel"></div>
+      <h3 class="titulo-secao">Últimas análises</h3>
+      <div id="lista-ia-historico" class="lista"></div>
+    </section>
   </main>
 
   <!-- ===== MODAL GENÉRICO (bottom-sheet no celular) ===== -->
@@ -668,6 +696,7 @@
   <script src="plant-reader.js?v=1"></script>
   <script src="planta.js?v=1"></script>
   <script src="plantas.js?v=13"></script>
+  <script src="ia.js?v=1"></script>
   <!-- PWA: registra o Service Worker (só funciona em http/https,
        abrindo como arquivo local o registro é ignorado sem erro) -->
   <script>
