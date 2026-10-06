@@ -113,9 +113,18 @@ async function analisarPlanta() {
   } catch (e) {
     console.error("Planta:", e);
     status.textContent = "";
-    mostrarToast("Não foi possível ler: " + (e.message || "erro"), false);
+    mostrarToast(erroSimplesPlanta(e), false);
   }
   btn.disabled = false; btn.textContent = "Ler planta";
+}
+
+function erroSimplesPlanta(e) {
+  const m = String((e && e.message) || "");
+  if (/401/.test(m)) return "Chave não aceita. Toque em Ler planta de novo e cole a chave atual.";
+  if (/429/.test(m)) return "Muito uso agora. Aguarde uns minutos e tente de novo.";
+  if (/404|model/.test(m)) return "Modelo em atualização. Avise o suporte.";
+  if (/rede|fetch|Failed/.test(m)) return "Sem internet. Confira o sinal e tente de novo.";
+  return "Não foi possível ler. Tente de novo com a foto mais nítida.";
 }
 
 function desenharLeitura(d) {
