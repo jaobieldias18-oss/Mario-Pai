@@ -134,6 +134,12 @@
       <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
       <h2 class="titulo-secao" id="titulo-form-obra">Nova obra</h2>
 
+      <!-- Assistente simples (criar): uma pergunta por vez -->
+      <div id="passo-obra" class="card" hidden>
+        <p class="texto-suave" id="passo-num">Passo 1 de 6</p>
+        <div id="passo-corpo" style="margin-top:10px"></div>
+      </div>
+
       <form id="form-obra" class="card form" novalidate>
         <label class="campo">
           <span>Nome da obra *</span>
@@ -150,6 +156,10 @@
         <label class="campo">
           <span>Valor contratado (R$) *</span>
           <input type="number" id="obra-valor" placeholder="Ex: 150000" min="0" step="0.01" inputmode="decimal" required />
+        </label>
+        <label class="campo">
+          <span>Área da casa (m²)</span>
+          <input type="number" id="obra-area" placeholder="Ex: 100" min="0" step="0.01" inputmode="decimal" />
         </label>
         <div class="linha-2">
           <label class="campo">

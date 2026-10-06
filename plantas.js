@@ -86,6 +86,11 @@ async function analisarPlanta() {
         });
         if (resp.ok) break;
         ultimoErro = "Groq " + resp.status + ": " + (await resp.text()).slice(0, 120);
+        // Chave trocada/recusada: apaga a guardada e pede a nova na próxima
+        if (resp.status === 401) {
+          try { localStorage.removeItem("mario_groq_key"); } catch (e) {}
+          throw new Error("Chave recusada. Toque em Ler planta de novo e cole a chave atual.");
+        }
         resp = null;
         if (resp === null && tent < 3) await new Promise((r) => setTimeout(r, 2000 * tent));
       } catch (e) {

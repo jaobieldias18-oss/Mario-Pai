@@ -382,6 +382,8 @@ function abrirFormObra(id) {
   form.reset();
 
   if (id) {
+    document.getElementById("passo-obra").hidden = true;
+    document.getElementById("form-obra").hidden = false;
     const obra = pegarObra(id);
     if (!obra) return;
     document.getElementById("titulo-form-obra").textContent = "Editar obra";
@@ -390,6 +392,7 @@ function abrirFormObra(id) {
     document.getElementById("obra-cliente").value = obra.cliente || "";
     document.getElementById("obra-endereco").value = obra.endereco || "";
     document.getElementById("obra-valor").value = obra.valorContratado || "";
+    document.getElementById("obra-area").value = obra.areaM2 || "";
     document.getElementById("obra-inicio").value = obra.dataInicio || "";
     document.getElementById("obra-fim").value = obra.previsaoTermino || "";
     document.getElementById("obra-status").value = obra.status || "Em andamento";
@@ -397,8 +400,105 @@ function abrirFormObra(id) {
   } else {
     document.getElementById("titulo-form-obra").textContent = "Nova obra";
     document.getElementById("btn-salvar-obra").textContent = "Criar obra";
+    document.getElementById("form-obra").hidden = true;
+    document.getElementById("passo-obra").hidden = false;
+    iniciarAssistente();
   }
   mostrarTela("nova-obra");
+}
+
+// ---------- ASSISTENTE DE NOVA OBRA (uma pergunta por vez) ----------
+let passoAtual = 1;
+let rascunhoObra = null; // volta da aba Plantas sem perder o digitado
+
+function campoPasso(rotulo, id, tipo, exemplo, valor) {
+  return `<label class="campo"><span>${rotulo}</span>` +
+    `<input type="${tipo}" id="${id}" value="${valor !== undefined && valor !== null ? valor : ""}" ` +
+    `placeholder="${exemplo}" ${(tipo === "number") ? 'min="0" step="0.01" inputmode="decimal"' : 'maxlength="60"'} /></label>`;
+}
+
+function desenharPasso() {
+  const r = rascunhoObra || { nome: "", cliente: "", cidade: "", area: "", valor: "" };
+  const corpo = document.getElementById("passo-corpo");
+  document.getElementById("passo-num").textContent = `Passo ${passoAtual} de 6`;
+  const btn = (id, texto, primario) =>
+    `<button class="btn ${primario ? "btn-primario btn-grande" : "btn-texto"}" id="${id}">${texto}</button>`;
+  if (passoAtual === 1) {
+    corpo.innerHTML = campoPasso("Nome da obra", "p-nome", "text", 'Ex: Casa do João', r.nome) +
+      `<p class="texto-suave">Exemplo: "Casa do João"</p>` + btn("p-ok", "Continuar", true);
+    document.getElementById("p-ok").addEventListener("click", () => {
+      const v = document.getElementById("p-nome").value.trim();
+      if (!v) { mostrarToast("Diga o nome da obra.", false); return; }
+      rascunhoObra = { ...r, nome: v }; passoAtual = 2; desenharPasso();
+    });
+  } else if (passoAtual === 2) {
+    corpo.innerHTML = campoPasso("Cliente", "p-cliente", "text", "Ex: João Silva", r.cliente) +
+      btn("p-ok", "Continuar", true) + btn("p-volta", "Voltar", false);
+    document.getElementById("p-ok").addEventListener("click", () => {
+      const v = document.getElementById("p-cliente").value.trim();
+      if (!v) { mostrarToast("Diga o nome do cliente.", false); return; }
+      rascunhoObra = { ...r, cliente: v }; passoAtual = 3; desenharPasso();
+    });
+    document.getElementById("p-volta").addEventListener("click", () => { passoAtual = 1; desenharPasso(); });
+  } else if (passoAtual === 3) {
+    corpo.innerHTML = campoPasso("Cidade", "p-cidade", "text", "Ex: Registro - SP", r.cidade) +
+      btn("p-ok", "Continuar", true) + btn("p-volta", "Voltar", false);
+    document.getElementById("p-ok").addEventListener("click", () => {
+      rascunhoObra = { ...r, cidade: document.getElementById("p-cidade").value.trim() };
+      passoAtual = 4; desenharPasso();
+    });
+    document.getElementById("p-volta").addEventListener("click", () => { passoAtual = 2; desenharPasso(); });
+  } else if (passoAtual === 4) {
+    corpo.innerHTML = `<label class="campo"><span>Área da casa (m²)</span>` +
+      `<input type="number" id="p-area" value="${r.area || ""}" placeholder="Ex: 100" min="0" step="0.01" inputmode="decimal" /></label>` +
+      btn("p-ok", "Continuar", true) + btn("p-volta", "Voltar", false);
+    document.getElementById("p-ok").addEventListener("click", () => {
+      rascunhoObra = { ...r, area: numeroOuZero(document.getElementById("p-area").value) };
+      passoAtual = 5; desenharPasso();
+    });
+    document.getElementById("p-volta").addEventListener("click", () => { passoAtual = 3; desenharPasso(); });
+  } else if (passoAtual === 5) {
+    corpo.innerHTML = `<p><strong>Tem planta?</strong></p>` +
+      btn("p-planta", "Enviar planta", true) + btn("p-ok", "Continuar sem planta", true) + btn("p-volta", "Voltar", false);
+    document.getElementById("p-planta").addEventListener("click", () => {
+      mostrarToast("Leia a planta; depois volte aqui que continuamos.");
+      mostrarTela("plantas");
+    });
+    document.getElementById("p-ok").addEventListener("click", () => { passoAtual = 6; desenharPasso(); });
+    document.getElementById("p-volta").addEventListener("click", () => { passoAtual = 4; desenharPasso(); });
+  } else {
+    const areaTx = r.area ? `${Number(r.area).toFixed(0)} m²` : "—";
+    corpo.innerHTML = `<p><strong>Confira as informações</strong></p>` +
+      `<div class="ajustes-linha"><span>Obra</span><strong>${proteger(r.nome)}</strong></div>` +
+      `<div class="ajustes-linha"><span>Cliente</span><strong>${proteger(r.cliente)}</strong></div>` +
+      `<div class="ajustes-linha"><span>Cidade</span><strong>${proteger(r.cidade || "—")}</strong></div>` +
+      `<div class="ajustes-linha"><span>Área</span><strong>${areaTx}</strong></div>` +
+      campoPasso("Valor combinado em R$ (pode deixar zero)", "p-valor", "number", "Ex: 150000", r.valor) +
+      btn("p-ok", "Confirmar", true) + btn("p-volta", "Voltar", false);
+    document.getElementById("p-ok").addEventListener("click", async () => {
+      const valor = numeroOuZero(document.getElementById("p-valor").value);
+      rascunhoObra = { ...r, valor };
+      const dados = {
+        nome: r.nome, cliente: r.cliente, endereco: r.cidade || "",
+        valorContratado: valor, areaM2: numeroOuZero(r.area),
+        dataInicio: "", previsaoTermino: "", status: "Em andamento",
+        observacoes: "", dataEncerramento: null,
+      };
+      editandoObraId = null;
+      rascunhoObra = null; passoAtual = 1;
+      await salvarObraNoBanco(dados);
+      if (!valor) mostrarToast("Obra criada! Informe o valor em Editar.");
+    });
+    document.getElementById("p-volta").addEventListener("click", () => { passoAtual = 5; desenharPasso(); });
+  }
+  const primeiro = corpo.querySelector("input");
+  if (primeiro) primeiro.focus();
+}
+
+function iniciarAssistente() {
+  if (!rascunhoObra) { rascunhoObra = { nome: "", cliente: "", cidade: "", area: "", valor: "" }; passoAtual = 1; }
+  else passoAtual = 6;
+  desenharPasso();
 }
 
 function salvarObra(event) {
@@ -422,6 +522,7 @@ function salvarObra(event) {
     cliente,
     endereco: document.getElementById("obra-endereco").value.trim(),
     valorContratado: valor,
+    areaM2: numeroOuZero(document.getElementById("obra-area").value),
     dataInicio: document.getElementById("obra-inicio").value,
     previsaoTermino: document.getElementById("obra-fim").value,
     status: statusSel || statusAntigo || "Em andamento",
@@ -1371,7 +1472,7 @@ function renderDashboard() {
         <div class="obra-avatar" aria-hidden="true">${proteger(inicial)}</div>
         <div>
           <h3>${proteger(obra.nome)}</h3>
-          <p class="obra-cliente">Cliente: ${proteger(obra.cliente)}</p>
+          <p class="obra-cliente">Cliente: ${proteger(obra.cliente)}${obra.endereco ? " • " + proteger(obra.endereco) : ""}${obra.areaM2 ? " • " + Number(obra.areaM2) + " m²" : ""}</p>
         </div>
         <div class="anel-box" title="Margem: ${mCard.texto}">
           <svg class="anel" viewBox="0 0 44 44" aria-hidden="true">

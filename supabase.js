@@ -81,6 +81,7 @@ function linhaParaObra(l) {
     cliente: l.cliente,
     endereco: l.endereco || "",
     valorContratado: Number(l.valor_contratado) || 0,
+    areaM2: Number(l.area_m2) || 0,
     dataInicio: l.data_inicio || "",
     previsaoTermino: l.previsao_termino || "",
     status: l.status || "Em andamento",
@@ -145,6 +146,7 @@ function obraParaLinha(o) {
     cliente: o.cliente,
     endereco: o.endereco || null,
     valor_contratado: o.valorContratado || 0,
+    area_m2: o.areaM2 || 0,
     data_inicio: dataOuNulo(o.dataInicio),
     previsao_termino: dataOuNulo(o.previsaoTermino),
     status: o.status || "Em andamento",
@@ -219,7 +221,7 @@ const DB = {
     exigirConexao();
     const { data, error } = await sb
       .from("obras")
-      .select("id,nome,cliente,endereco,valor_contratado,data_inicio,previsao_termino,status,data_encerramento,observacoes,created_at," +
+      .select("id,nome,cliente,endereco,valor_contratado,area_m2,data_inicio,previsao_termino,status,data_encerramento,observacoes,created_at," +
         "recebimentos(id,valor,data,descricao,forma_pagamento,observacao,foto_url)," +
         "gastos(id,categoria,descricao,valor,data,forma_pagamento,observacao,mao_obra_id,foto_url)," +
         "trabalhadores(id,nome,funcao,diaria,dias_trabalhados,data,created_at)," +
