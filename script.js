@@ -1279,6 +1279,61 @@ window.addEventListener("afterprint", () => {
   const box = document.getElementById("relatorio-print");
   if (box) box.hidden = true;
 });
+function obraAberta() { return pegarObra(obraAbertaId); }
+function exportarXLSObra() {
+  const o = obraAberta();
+  if (!o) return;
+  const t = calcularTotais(o);
+  const N = (v) => ({ v: Number(numeroOuZero(v).toFixed(2)), num: true });
+  const secoes = [
+    { titulo: `OBRA ${o.nome}`, larguras: [22, 30],
+      cabec: ["Campo", "Valor"],
+      linhas: [
+        ["Obra", o.nome], ["Cliente", o.cliente], ["Status", o.status || ""],
+        ["Contratado", N(t.valorContratado)], ["Recebido", N(t.totalRecebido)],
+        ["Gasto", N(t.totalGasto)], ["Mão de obra", N(t.totalMO)],
+        ["Lucro", N(t.lucro)], ["A receber", N(t.aReceber)],
+      ] },
+    { titulo: "RECEBIMENTOS", larguras: [40, 14, 16],
+      cabec: ["Descrição", "Data", "Valor"],
+      linhas: (o.recebimentos || []).map((r) => [r.descricao, r.data, N(r.valor)]) },
+    { titulo: "GASTOS", larguras: [24, 40, 14, 16],
+      cabec: ["Categoria", "Descrição", "Data", "Valor"],
+      linhas: (o.gastos || []).filter((g) => !g.maoObraId)
+        .map((g) => [g.categoria, g.descricao, g.data, N(g.valor)]) },
+    { titulo: "MÃO DE OBRA", larguras: [26, 20, 14, 10, 16],
+      cabec: ["Nome", "Função", "Diária", "Dias", "Total"],
+      linhas: (o.equipe || []).map((x) => [x.nome, x.funcao, N(x.valorDiaria), x.dias, N(x.total)]) },
+    { titulo: "PARCELAS", larguras: [18, 16, 14, 14, 14],
+      cabec: ["Parcela", "Valor", "Vencimento", "Status", "Pago em"],
+      linhas: (o.parcelas || []).map((p) => [rotuloParcela(p), N(p.valor), p.vencimento || "",
+        parcelaPaga(p) ? "Pago" : statusParcela(p).texto, p.dataRecebimento || ""]) },
+  ];
+  gerarXLS(`mario-obra-${o.nome.slice(0, 20)}.xlsx`, `Obra ${o.nome}`.slice(0, 31), secoes);
+}
+function imprimirRelatorioObra() {
+  const o = obraAberta();
+  if (!o) return;
+  const t = calcularTotais(o);
+  const lin = (arr, cols) => arr.map((x) =>
+    `<tr>${cols.map((c) => `<td>${proteger(String(c(x) ?? ""))}</td>`).join("")}</tr>`).join("");
+  const box = document.getElementById("relatorio-print");
+  box.innerHTML = `
+    <h2>MARIO — ${proteger(o.nome)}</h2>
+    <p>Cliente: ${proteger(o.cliente)} · Emitido em ${formatarData(hojeISO())}</p>
+    <h3>Resumo</h3>
+    <table><tr><th>Contratado</th><th>Recebido</th><th>Custos</th><th>Lucro</th><th>A receber</th></tr>
+    <tr><td>${formatarMoeda(t.valorContratado)}</td><td>${formatarMoeda(t.totalRecebido)}</td>
+    <td>${formatarMoeda(t.totalGasto + t.totalMO)}</td><td>${formatarMoeda(t.lucro)}</td><td>${formatarMoeda(t.aReceber)}</td></tr></table>
+    <h3>Recebimentos</h3>
+    <table><tr><th>Descrição</th><th>Data</th><th>Valor</th></tr>${lin(o.recebimentos || [], [(r) => r.descricao, (r) => formatarData(r.data), (r) => formatarMoeda(r.valor)])}</table>
+    <h3>Gastos</h3>
+    <table><tr><th>Descrição</th><th>Data</th><th>Valor</th></tr>${lin((o.gastos || []).filter((g) => !g.maoObraId), [(g) => `${g.categoria} — ${g.descricao}`, (g) => formatarData(g.data), (g) => formatarMoeda(g.valor)])}</table>
+    <h3>Mão de obra</h3>
+    <table><tr><th>Nome</th><th>Dias</th><th>Total</th></tr>${lin(o.equipe || [], [(x) => `${x.nome} (${x.funcao})`, (x) => x.dias, (x) => formatarMoeda(x.total)])}</table>`;
+  box.hidden = false;
+  window.print();
+}
 function exportarCSVMes() {
   const chave = mesSelecionado || mesAtual();
   const rm = calcularMes(chave);
@@ -2485,6 +2540,8 @@ async function iniciar() {
   aoClicar("btn-csv-geral", exportarCSVGeral);
   aoClicar("btn-csv-mes", exportarCSVMes);
   aoClicar("btn-imprimir", imprimirRelatorio);
+  aoClicar("btn-xls-obra", exportarXLSObra);
+  aoClicar("btn-print-obra", imprimirRelatorioObra);
 
   // Obra: criar / editar / excluir / encerrar / reabrir
   aoEnviar("form-obra", salvarObra);
