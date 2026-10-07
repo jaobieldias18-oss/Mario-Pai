@@ -11,6 +11,7 @@
    ===================================================== */
 
 const IA_HIST_KEY = "ia_historico_v1";
+const IA_CHAT_KEY = "ia_chat_v1";
 const IA_USOS_KEY = "ia_usos_v1";
 const IA_MODEL = (typeof GROQ_MODEL !== "undefined" && GROQ_MODEL) || "qwen/qwen3.8-27b";
 const IA_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -329,6 +330,39 @@ function ferramentaMensagem() {
 }
 
 // ---------- Ferramenta: Perguntar (conversa estilo chat) ----------
+function lerChatIA() {
+  try { return JSON.parse(localStorage.getItem(IA_CHAT_KEY)) || []; } catch (e) { return []; }
+}
+function renderChatHistorico() {
+  const box = elIA("lista-ia-chat");
+  if (!box) return;
+  const h = lerChatIA();
+  box.innerHTML = "";
+  if (!h.length) {
+    box.innerHTML = `<div class="lista-vazia">Nenhuma conversa salva.</div>`;
+    return;
+  }
+  for (const item of h) {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="item-conteudo">
+        <strong>${proteger(item.p)}</strong>
+        <span class="item-meta">${formatarData(item.data)} • ${proteger(item.obra || "")}</span>
+        <p class="texto-suave" style="margin-top:6px">${proteger((item.r || "").slice(0, 160))}${(item.r || "").length > 160 ? "..." : ""}</p>
+      </div>
+      <div class="item-acoes"><button data-a="ver">Abrir</button></div>`;
+    div.querySelector('[data-a="ver"]').addEventListener("click", () => {
+      const chat = elIA("ia-chat");
+      if (chat) {
+        chat.innerHTML += `<div class="ia-msg voce">${proteger(item.p)}</div><div class="ia-msg ia">${proteger(item.r)}</div>`;
+        chat.scrollTop = chat.scrollHeight;
+        chat.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+    box.appendChild(div);
+  }
+}
 async function enviarPerguntaChat(texto) {
   const pergunta = (texto || (elIA("ia-pergunta") || {}).value || "").trim();
   if (!pergunta) return;
@@ -344,6 +378,12 @@ async function enviarPerguntaChat(texto) {
     if (d) { d.textContent = resp; d.classList.remove("digitando"); d.removeAttribute("id"); }
     box.scrollTop = box.scrollHeight;
     contarUso("pergunta");
+    try {
+      const hc = lerChatIA();
+      hc.unshift({ p: pergunta.slice(0, 300), r: resp.slice(0, 2000), obra: nomeEscopo(), data: hojeISO() });
+      localStorage.setItem(IA_CHAT_KEY, JSON.stringify(hc.slice(0, 30)));
+    } catch (e) {}
+    renderChatHistorico();
     guardarHistoricoIA("Pergunta: " + pergunta.slice(0, 60), nomeEscopo(),
       `<div class="card"><p><strong>${proteger(pergunta)}</strong></p><p>${proteger(resp)}</p></div>`);
   } catch (e) {
@@ -397,6 +437,18 @@ function ligarIA() {
     sel.addEventListener("change", () => { elIA("ia-painel").innerHTML = ""; atualizarBannerAtencao(); });
   }
   ao("ia-atencao", () => { mostrarTela("ia"); setTimeout(ferramentaAlertas, 100); });
+  renderChatHistorico();
+  const limpar = elIA("ia-limpar");
+  if (limpar && !limpar.dataset.iaLigado) {
+    limpar.dataset.iaLigado = "1";
+    limpar.addEventListener("click", async () => {
+      const ok = await pedirConfirmacao("Limpar conversas?", "Apaga o histórico de conversas com a IA.", "Apagar");
+      if (!ok) return;
+      try { localStorage.removeItem(IA_CHAT_KEY); } catch (e) {}
+      renderChatHistorico();
+      mostrarToast("Conversas apagadas.");
+    });
+  }
   const form = elIA("ia-form");
   if (form && !form.dataset.iaLigado) {
     form.dataset.iaLigado = "1";
