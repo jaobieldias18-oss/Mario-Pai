@@ -55,6 +55,12 @@ async function analisarPlanta() {
       status.textContent = "";
     }
     desenharLeitura(dados);
+    try {
+      if (typeof montarRaioX === "function") {
+        const sel = document.getElementById("planta-obra");
+        montarRaioX(dados, (sel || {}).value || null);
+      }
+    } catch (e) { console.error("raio-x:", e); }
     await salvarLeitura(arq, dados);
     mostrarToast("Planta lida!");
   } catch (e) {
