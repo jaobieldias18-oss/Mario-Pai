@@ -42,73 +42,20 @@ async function analisarPlanta() {
   btn.disabled = true; btn.textContent = "Lendo planta...";
   status.textContent = "Enviando para análise...";
   elPlanta2("planta-resultado").innerHTML = "";
-  const chave = chaveGroq();
-  if (!chave) { mostrarToast("Sem chave, sem leitura.", false); btn.disabled = false; btn.textContent = "Ler planta"; return; }
   try {
     const blob = await prepararFoto(arq, 2048); // plantas vão em alta p/ ler as cotas miúdas
-    const dataUrl = await blobParaDataURL(blob);
-    // Tenta até 3x (a IA às vezes falha 1x com limite/instabilidade e passa na seguinte)
-    let resp = null, ultimoErro = "";
-    for (let tent = 1; tent <= 3; tent++) {
-      status.textContent = tent > 1 ? `Tentando de novo (${tent}/3)...` : "Enviando para análise...";
-      try {
-        resp = await fetch(GROQ_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + chave,
-          },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        temperature: 0,
-        seed: 7,
-        max_tokens: 1500,
-            messages: [
-              {
-                role: "user",
-                content: [
-              {
-                type: "text",
-                text: "Analise esta planta baixa de obra com MÁXIMA precisão. " +
-                  "Transcreva as COTAS exatamente como estão escritas no desenho " +
-                  "(não arredonde, não estime, não invente número). " +
-                  "Calcule cada área a partir das cotas transcritas. " +
-                  "Responda SOMENTE com JSON válido, sem texto fora dele, neste formato: " +
-                  '{"comodos": [{"nome": "Sala", "area_m2": 12.5, "perimetro_m": 14, "cotas": "4,00 x 3,10"}], ' +
-                  '"area_total_m2": 0, "observacao": "liste aqui TUDO que estiver ilegível ou duvidoso"}. ' +
-                  "Se não for uma planta, use observacao para dizer e comodos vazio.",
-              },
-                  { type: "image_url", image_url: { url: dataUrl } },
-                ],
-              },
-            ],
-          }),
-        });
-        if (resp.ok) break;
-        ultimoErro = "Groq " + resp.status + ": " + (await resp.text()).slice(0, 120);
-        // Chave trocada/recusada: apaga a guardada e pede a nova na próxima
-        if (resp.status === 401) {
-          try { localStorage.removeItem("mario_groq_key"); } catch (e) {}
-          throw new Error("Chave recusada. Toque em Ler planta de novo e cole a chave atual.");
-        }
-        resp = null;
-        if (resp === null && tent < 3) await new Promise((r) => setTimeout(r, 2000 * tent));
-      } catch (e) {
-        ultimoErro = e.message || "rede";
-        resp = null;
-        if (tent < 3) await new Promise((r) => setTimeout(r, 2000 * tent));
-      }
+    // 1) Servidor (sem chave no aparelho)
+    let dados = null;
+    try {
+      dados = await analisarViaServidor(blob, arq.type || "image/jpeg");
+      status.textContent = "";
+    } catch (e) {
+      console.error("servidor falhou, tentando direto:", e);
+      dados = await analisarViaGroqDireto(arq);
+      status.textContent = "";
     }
-    if (!resp) throw new Error(ultimoErro || "falha temporária");
-    const j = await resp.json();
-    const texto = (((j.choices || [])[0] || {}).message || {}).content || "";
-    const ini = texto.indexOf("{");
-    const fim = texto.lastIndexOf("}");
-    if (ini < 0 || fim <= ini) throw new Error("resposta inválida");
-    const dados = JSON.parse(texto.slice(ini, fim + 1));
     desenharLeitura(dados);
     await salvarLeitura(arq, dados);
-    status.textContent = "";
     mostrarToast("Planta lida!");
   } catch (e) {
     console.error("Planta:", e);
@@ -116,6 +63,103 @@ async function analisarPlanta() {
     mostrarToast(erroSimplesPlanta(e), false);
   }
   btn.disabled = false; btn.textContent = "Ler planta";
+}
+
+// Caminho principal: Edge Function (chave no servidor, nada a digitar)
+async function analisarViaServidor(blob, mime) {
+  const dataUrl = await blobParaDataURL(blob);
+  const base64 = (dataUrl.split(",")[1] || "");
+  const resp = await fetch(
+    "https://wmcrbjlzsqveekwifded.supabase.co/functions/v1/analisar-planta",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome_arquivo: "planta", mime, imagem_base64: base64 }),
+    }
+  );
+  if (!resp.ok) throw new Error("servidor " + resp.status);
+  const j = await resp.json();
+  const a = j.analise || j;
+  const comodos = ((a.ambientes || []).map((x) => ({
+    nome: x.nome, area_m2: x.area, perimetro_m: null,
+    cotas: null,
+  }))).filter((x) => x.nome);
+  const total = (a.area_construida && a.area_construida.valor) || null;
+  const obs = []
+    .concat(a.observacoes || [])
+    .concat(a.informacoes_incertas || [])
+    .join(" ");
+  if (!comodos.length && !total) throw new Error("vazia");
+  return { comodos, area_total_m2: total, observacao: obs };
+}
+
+// Reserva: Groq direto (pede a chave 1x e guarda no aparelho). Devolve os dados.
+async function analisarViaGroqDireto(arq) {
+  const chave = chaveGroq();
+  if (!chave) throw new Error("cancelado");
+  const status = elPlanta2("planta-status");
+  const blob = await prepararFoto(arq, 2048);
+  const dataUrl = await blobParaDataURL(blob);
+  // Tenta até 3x (a IA às vezes falha 1x com limite/instabilidade e passa na seguinte)
+  let resp = null, ultimoErro = "";
+  for (let tent = 1; tent <= 3; tent++) {
+    if (status) status.textContent = tent > 1 ? `Tentando de novo (${tent}/3)...` : "Enviando para análise...";
+    try {
+      resp = await fetch(GROQ_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + chave,
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          temperature: 0,
+          seed: 7,
+          max_tokens: 1500,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "Analise esta planta baixa de obra com MÁXIMA precisão. " +
+                    "Transcreva as COTAS exatamente como estão escritas no desenho " +
+                    "(não arredonde, não estime, não invente número). " +
+                    "Calcule cada área a partir das cotas transcritas. " +
+                    "Responda SOMENTE com JSON válido, sem texto fora dele, neste formato: " +
+                    '{"comodos": [{"nome": "Sala", "area_m2": 12.5, "perimetro_m": 14, "cotas": "4,00 x 3,10"}], ' +
+                    '"area_total_m2": 0, "observacao": "liste aqui TUDO que estiver ilegível ou duvidoso"}. ' +
+                    "Se não for uma planta, use observacao para dizer e comodos vazio.",
+                },
+                { type: "image_url", image_url: { url: dataUrl } },
+              ],
+            },
+          ],
+        }),
+      });
+      if (resp.ok) break;
+      ultimoErro = "Groq " + resp.status + ": " + (await resp.text()).slice(0, 120);
+      // Chave trocada/recusada: apaga a guardada e pede a nova na próxima
+      if (resp.status === 401) {
+        try { localStorage.removeItem("mario_groq_key"); } catch (e) {}
+        throw new Error("Chave recusada. Toque em Ler planta de novo e cole a chave atual.");
+      }
+      resp = null;
+      if (tent < 3) await new Promise((r) => setTimeout(r, 2000 * tent));
+    } catch (e) {
+      if (/Chave recusada|cancelado/.test(e.message || "")) throw e;
+      ultimoErro = e.message || "rede";
+      resp = null;
+      if (tent < 3) await new Promise((r) => setTimeout(r, 2000 * tent));
+    }
+  }
+  if (!resp) throw new Error(ultimoErro || "falha temporária");
+  const j = await resp.json();
+  const texto = (((j.choices || [])[0] || {}).message || {}).content || "";
+  const ini = texto.indexOf("{");
+  const fim = texto.lastIndexOf("}");
+  if (ini < 0 || fim <= ini) throw new Error("resposta inválida");
+  return JSON.parse(texto.slice(ini, fim + 1));
 }
 
 function erroSimplesPlanta(e) {
