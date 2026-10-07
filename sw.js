@@ -20,8 +20,6 @@ const ESTATICOS = [
   "script.js?v=14",
   "supabase.js?v=14",
   "outbox.js?v=14",
-  "plant-reader.js?v=1",
-  "planta.js?v=1",
   "plantas.js?v=14",
   "ia.js?v=14",
   "manifest.json",

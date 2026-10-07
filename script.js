@@ -320,7 +320,7 @@ function listarMesesComMovimento() {
 }
 
 // ---------- 6. NAVEGAÇÃO ----------
-const telas = ["dashboard", "nova-obra", "obra", "financeiro", "visao-geral", "opcoes", "planta", "plantas"];
+const telas = ["dashboard", "nova-obra", "obra", "financeiro", "visao-geral", "opcoes", "plantas"];
 
 function mostrarTela(nome) {
   // Mostra só a tela pedida
@@ -332,7 +332,6 @@ function mostrarTela(nome) {
     "visao-geral": "tela-visao-geral",
     opcoes: "tela-opcoes",
     ia: "tela-ia",
-    planta: "tela-planta",
     plantas: "tela-plantas",
   };
   document.querySelectorAll(".tela").forEach((el) => el.classList.remove("ativa"));
@@ -361,7 +360,7 @@ function irPara(destino) {
   else if (destino === "visao-geral") mostrarTela("visao-geral");
   else if (destino === "opcoes") mostrarTela("opcoes");
   else if (destino === "ia") mostrarTela("ia");
-  else if (destino === "planta") mostrarTela("plantas"); // temporário: tela antiga depende de função não publicada; usa a que funciona
+  else if (destino === "plantas") mostrarTela("plantas");
   else if (destino === "plantas") mostrarTela("plantas");
   else if (destino === "obras") {
     mostrarTela("dashboard");
@@ -2449,7 +2448,11 @@ async function iniciar() {
   } catch (e) {
     console.error("Erro ao carregar do banco:", e);
     obras = [];
-    mostrarToast("Sem conexão com o banco. Verifique a internet e recarregue.", false);
+    if (!navigator.onLine) {
+      mostrarToast("Sem internet no momento. Mostrando tela vazia — conecte para ver suas obras.", false);
+    } else {
+      mostrarToast("Não consegui buscar os dados. Tente recarregar.", false);
+    }
   }
   mostrarCarregando(false);
 

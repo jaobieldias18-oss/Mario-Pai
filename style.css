@@ -460,7 +460,7 @@ html, body { overflow-x: clip; }
 .item-conteudo strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item-valor { font-size: 16px; font-weight: 800; white-space: nowrap; }
 .item-desc { font-size: 14px; margin-top: 2px; }
-.item-meta { font-size: 12.5px; color: var(--texto-sec); }
+.item-meta { font-size: 14px; color: var(--texto-sec); }
 .item-acoes { display: flex; gap: 8px; margin-top: 10px; }
 .item-acoes button {
   flex: 1; min-height: 44px; border-radius: 10px;
@@ -795,7 +795,7 @@ html, body { overflow-x: clip; }
 .parcela-card.vencido { border-left-color: var(--erro); background: var(--erro-fundo); }
 .parcela-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 800; }
 .parcela-valor { font-size: 19px; font-weight: 800; }
-.parcela-meta { font-size: 13px; color: var(--texto-sec); }
+.parcela-meta { font-size: 14px; color: var(--texto-sec); }
 .parcela-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; padding: 5px 11px; border-radius: 20px; background: #eef1f6; white-space: nowrap; }
 .parcela-status.pago { background: var(--sucesso); color: #fff; }
 .parcela-status.pendente { background: var(--alerta-fundo); color: var(--alerta); }

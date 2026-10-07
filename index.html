@@ -44,7 +44,7 @@
       <button class="nav-btn" data-ir="financeiro">Financeiro</button>
       <button class="nav-btn" data-ir="visao-geral">Visão Geral</button>
       <button class="nav-btn" data-ir="ia">IA da Obra</button>
-      <button class="nav-btn" data-ir="planta">Planta</button>
+      <button class="nav-btn" data-ir="plantas">Plantas</button>
       <button class="nav-btn destaque" data-ir="nova-obra">+ Nova obra</button>
     </nav>
   </header>
@@ -97,7 +97,7 @@
       </div>
       <button class="btn btn-texto" data-ir="financeiro">Ver financeiro →</button>
       <button class="btn btn-texto" data-ir="financeiro">Ver financeiro →</button>
-      <button class="btn btn-texto" data-ir="planta">Ler planta da obra →</button>
+      <button class="btn btn-texto" data-ir="plantas">Ler planta da obra →</button>
 
       <!-- Totais gerais (compacto) -->
       <div class="faixa-totais" aria-label="Resumo geral">
@@ -434,29 +434,6 @@
       <div id="vg-lista" class="lista"></div>
     </section>
 
-    <!-- ===== TELA: LER PLANTA ===== -->
-    <section id="tela-planta" class="tela">
-      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
-      <h2 class="titulo-secao">Ler planta</h2>
-      <p class="texto-suave">Envie a planta para identificar medidas e ambientes com IA.</p>
-      <div class="card">
-        <div id="planta-drop" style="border:2px dashed var(--borda);border-radius:12px;padding:24px;text-align:center;cursor:pointer">
-          Arraste a planta aqui ou clique para selecionar (PNG/JPG)
-        </div>
-        <input type="file" id="planta-arq" accept=".png,.jpg,.jpeg" hidden />
-        <p class="texto-suave" id="planta-info"></p>
-        <img id="planta-prev" alt="Prévia da planta" style="display:none;max-width:100%;border-radius:12px;margin-top:8px" />
-        <br />
-        <button class="btn btn-primario btn-grande" id="planta-btn" disabled>Analisar planta</button>
-        <div id="planta-prog"></div>
-      </div>
-      <div class="card" id="planta-saida-card" hidden>
-        <h3 class="titulo-secao" style="margin-top:0">Dados encontrados</h3>
-        <div id="planta-saida"></div>
-        <button class="btn btn-primario" id="planta-copiar" hidden>Copiar resumo</button>
-      </div>
-    </section>
-
     <!-- ===== TELA: OPÇÕES ===== -->
     <section id="tela-opcoes" class="tela">
       <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
@@ -697,8 +674,6 @@
   <script src="supabase.js?v=14"></script>
   <script src="outbox.js?v=14"></script>
   <script src="script.js?v=14"></script>
-  <script src="plant-reader.js?v=1"></script>
-  <script src="planta.js?v=1"></script>
   <script src="plantas.js?v=14"></script>
   <script src="orcamento.js?v=1"></script>
   <script src="ia.js?v=14"></script>
