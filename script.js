@@ -1208,7 +1208,7 @@ function gerarXLS(nomeArquivo, titulo, secoes) {
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
-  mostrarToast("Planilha baixada!");
+  mostrarToast("Planilha baixada! Abra com o app Planilhas.");
 }
 function csvCelula(v) {
   const s = String(v ?? "");
