@@ -90,7 +90,28 @@ function chaveIAGroq() {
   } catch (e) { return ""; }
 }
 async function iaConversar(pergunta, contexto) {
-  // 1) Servidor (sem chave no aparelho)
+  // 1) IA Financeira no servidor (contas feitas lá, sem chave no aparelho)
+  try {
+    const sel = document.getElementById("ia-periodo");
+    const periodo = sel && sel.value === "mes" ? mesAtual() : null;
+    const obraId = (document.getElementById("ia-obra") || {}).value || null;
+    const resp = await fetch(
+      "https://wmcrbjlzsqveekwifded.supabase.co/functions/v1/ia-financeira",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pergunta, obra_id: obraId, periodo }),
+      }
+    );
+    if (resp.ok) {
+      const j = await resp.json();
+      if (j.resposta) {
+        window._ultimosCalculos = j.calculos || null;
+        return String(j.resposta).trim();
+      }
+    }
+  } catch (e) { console.error("ia-financeira:", e); }
+  // 2) Reserva: modo conversa da função de plantas
   try {
     const resp = await fetch(
       "https://wmcrbjlzsqveekwifded.supabase.co/functions/v1/analisar-planta",
@@ -393,6 +414,13 @@ async function enviarPerguntaChat(texto) {
     const resp = await iaConversar(pergunta, contextoEscopo());
     const d = document.getElementById("ia-digitando");
     if (d) { d.textContent = resp; d.classList.remove("digitando"); d.removeAttribute("id"); }
+    const calc = window._ultimosCalculos;
+    window._ultimosCalculos = null;
+    if (calc && (calc.recebido || calc.gastos || calc.maoDeObra)) {
+      const fmt = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+      box.innerHTML += `<div class="ia-msg ia"><strong>Contas usadas:</strong><br>` +
+        `Recebido: ${fmt(calc.recebido)} • Gastos: ${fmt(calc.gastos)} • Mão de obra: ${fmt(calc.maoDeObra)} • Resultado: ${fmt(calc.resultado)}</div>`;
+    }
     box.scrollTop = box.scrollHeight;
     contarUso("pergunta");
     atualizarStatusChaveIA();
