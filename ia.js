@@ -378,6 +378,7 @@ async function enviarPerguntaChat(texto) {
     if (d) { d.textContent = resp; d.classList.remove("digitando"); d.removeAttribute("id"); }
     box.scrollTop = box.scrollHeight;
     contarUso("pergunta");
+    atualizarStatusChaveIA();
     try {
       const hc = lerChatIA();
       hc.unshift({ p: pergunta.slice(0, 300), r: resp.slice(0, 2000), obra: nomeEscopo(), data: hojeISO() });
@@ -399,6 +400,15 @@ function ferramentaPerguntar() {
 }
 
 // ---------- Liga a tela ----------
+function atualizarStatusChaveIA() {
+  const el = elIA("ia-chave-status");
+  if (!el) return;
+  let tem = false;
+  try { tem = !!(localStorage.getItem("mario_groq_key") || ""); } catch (e) {}
+  el.textContent = tem
+    ? "IA pronta para conversar."
+    : "Na primeira pergunta, cole a chave quando pedir (só desta vez neste aparelho).";
+}
 function atualizarObrasIA() {
   const sel = elIA("ia-obra");
   if (!sel) return;
@@ -463,7 +473,7 @@ function ligarIA() {
   document.querySelectorAll('[data-ir="ia"]').forEach((b) => {
     if (!b.dataset.iaLigado) {
       b.dataset.iaLigado = "1";
-      b.addEventListener("click", () => { setTimeout(() => { atualizarObrasIA(); renderHistoricoIA(); atualizarBannerAtencao(); }, 100); });
+      b.addEventListener("click", () => { setTimeout(() => { atualizarObrasIA(); renderHistoricoIA(); atualizarBannerAtencao(); atualizarStatusChaveIA(); }, 100); });
     }
   });
 }
