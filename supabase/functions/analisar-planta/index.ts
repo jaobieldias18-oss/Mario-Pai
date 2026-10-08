@@ -136,6 +136,51 @@ serve(async (req) => {
 
     // ---- Entrada: base64 (recomendado) ou caminho no Storage ----
     const corpo = await req.json().catch(() => ({}));
+
+    // ---- MODO CONVERSA (IA da Obra): pergunta + contexto, sem imagem ----
+    if (corpo.modo === "chat") {
+      const pergunta = String(corpo.pergunta || "").slice(0, 2000);
+      const contexto = String(corpo.contexto || "").slice(0, 12000);
+      if (!pergunta) return json({ erro: "Pergunta vazia." }, 400);
+      let chatResp: Response;
+      try {
+        chatResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + groqApiKey,
+          },
+          body: JSON.stringify({
+            model: modelo,
+            temperature: 0.2,
+            max_tokens: 800,
+            messages: [
+              {
+                role: "system",
+                content: "Você é o assistente do Mário, chefe de obra. Fale simples e curto, " +
+                  "como quem explica na obra, sem termos técnicos. Use SOMENTE os dados " +
+                  "fornecidos abaixo. Se algo não estiver nos dados, diga exatamente: " +
+                  "'Essa informação ainda não foi cadastrada.' Nunca invente valores, " +
+                  "datas, nomes ou materiais.",
+              },
+              { role: "user", content: "DADOS REAIS DO SISTEMA:\n" + contexto + "\n\nPERGUNTA: " + pergunta },
+            ],
+          }),
+        });
+      } catch {
+        return json({ erro: "Não foi possível conectar ao serviço de análise." }, 504);
+      }
+      if (!chatResp.ok) {
+        if (chatResp.status === 429)
+          return json({ erro: "Limite de uso da IA atingido. Aguarde um minuto e tente novamente." }, 502);
+        return json({ erro: "Não foi possível responder agora.", detalhe: "HTTP " + chatResp.status }, 502);
+      }
+      const chatDados = await chatResp.json();
+      const resposta: string = chatDados?.choices?.[0]?.message?.content || "";
+      if (!resposta.trim()) return json({ erro: "Resposta vazia. Tente de novo." }, 502);
+      return json({ resposta: resposta.trim() });
+    }
+
     let base64 = corpo.imagem_base64 || "";
     let mime = corpo.mime || "image/png";
     const arquivoPath: string | null = corpo.arquivo_path || null;

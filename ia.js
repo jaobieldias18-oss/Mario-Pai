@@ -90,6 +90,22 @@ function chaveIAGroq() {
   } catch (e) { return ""; }
 }
 async function iaConversar(pergunta, contexto) {
+  // 1) Servidor (sem chave no aparelho)
+  try {
+    const resp = await fetch(
+      "https://wmcrbjlzsqveekwifded.supabase.co/functions/v1/analisar-planta",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modo: "chat", pergunta, contexto }),
+      }
+    );
+    if (resp.ok) {
+      const j = await resp.json();
+      if (j.resposta) return String(j.resposta).trim();
+    }
+  } catch (e) { console.error("chat servidor:", e); }
+  // 2) Reserva: Groq direto com a chave do aparelho
   const chave = chaveIAGroq();
   if (!chave) throw new Error("sem-chave");
   let resp = null, ultimo = "";
