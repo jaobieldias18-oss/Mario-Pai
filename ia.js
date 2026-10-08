@@ -160,6 +160,7 @@ function contextoEscopo() {
   const chave = mesAtual();
   const rm = calcularMes(chave);
   L.push(`Mês atual (${chave}): entradas ${rm.entradas}, gastos ${rm.gastos}, resultado ${rm.resultado}.`);
+  L.push(`Se algum valor acima for zero ou não houver lançamentos, diga de forma simples quais lançamentos faltam fazer (ex: "cadastre os gastos da obra").`);
   return L.join("\n");
 }
 function painelVoltar(html) {
