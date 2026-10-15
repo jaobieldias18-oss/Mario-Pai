@@ -91,26 +91,33 @@ function chaveIAGroq() {
 }
 async function iaConversar(pergunta, contexto) {
   // 1) IA Financeira no servidor (contas feitas lá, sem chave no aparelho)
-  try {
-    const sel = document.getElementById("ia-periodo");
-    const periodo = sel && sel.value === "mes" ? mesAtual() : null;
-    const obraId = (document.getElementById("ia-obra") || {}).value || null;
-    const resp = await fetch(
-      "https://wmcrbjlzsqveekwifded.supabase.co/functions/v1/ia-financeira",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pergunta, obra_id: obraId, periodo }),
+  // Tenta 2x: o limite gratuito da IA às vezes recusa 1 chamada seguida
+  for (let tent = 1; tent <= 2; tent++) {
+    try {
+      const sel = document.getElementById("ia-periodo");
+      const periodo = sel && sel.value === "mes" ? mesAtual() : null;
+      const obraId = (document.getElementById("ia-obra") || {}).value || null;
+      const resp = await fetch(
+        "https://wmcrbjlzsqveekwifded.supabase.co/functions/v1/ia-financeira",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pergunta, obra_id: obraId, periodo }),
+        }
+      );
+      if (resp.ok) {
+        const j = await resp.json();
+        if (j.resposta) {
+          window._ultimosCalculos = j.calculos || null;
+          return String(j.resposta).trim();
+        }
       }
-    );
-    if (resp.ok) {
-      const j = await resp.json();
-      if (j.resposta) {
-        window._ultimosCalculos = j.calculos || null;
-        return String(j.resposta).trim();
-      }
+      if (tent < 2) await new Promise((r) => setTimeout(r, 3000));
+    } catch (e) {
+      console.error("ia-financeira:", e);
+      if (tent < 2) await new Promise((r) => setTimeout(r, 3000));
     }
-  } catch (e) { console.error("ia-financeira:", e); }
+  }
   // 2) Reserva: modo conversa da função de plantas
   try {
     const resp = await fetch(
