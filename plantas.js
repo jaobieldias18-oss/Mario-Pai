@@ -221,6 +221,7 @@ async function salvarLeitura(arquivo, dados) {
 }
 
 async function carregarHistoricoPlantas() {
+  try { if (typeof renderOrcamentosSalvos === "function") renderOrcamentosSalvos(); } catch (e) {}
   const box = elPlanta2("lista-plantas");
   if (!box || typeof sb === "undefined" || !sb) return;
   box.innerHTML = "";
