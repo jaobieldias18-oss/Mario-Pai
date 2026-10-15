@@ -2493,7 +2493,6 @@ async function iniciar() {
   if (!usuario) {
     try { if (typeof mostrarTelaLogin === "function") mostrarTelaLogin(); } catch (e) {}
   } else {
-    try { if (typeof adotarSemDono === "function") await adotarSemDono(); } catch (e) {}
     try { if (typeof carregarPerfilAuth === "function") await carregarPerfilAuth(); } catch (e) {}
     // 1. Carrega tudo do Supabase (com tela de "Carregando...")
   mostrarCarregando(true);

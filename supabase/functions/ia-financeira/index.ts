@@ -81,11 +81,14 @@ serve(async (req) => {
     }
     const groqApiKey = Deno.env.get("GROQ_API_KEY");
     if (!groqApiKey) return json({ erro: "GROQ_API_KEY não configurada no servidor." }, 500);
-    const modelo = Deno.env.get("GROQ_FIN_MODEL") || MODELO_PADRAO;
+    const modelo = Deno.env.get("GROQ_FIN_MODEL") || "openai/gpt-oss-120b";
 
     const corpo = await req.json().catch(() => ({}));
     const pergunta = String(corpo.pergunta || "").slice(0, MAX_PERGUNTA).trim();
     if (!pergunta) return json({ erro: "Pergunta vazia." }, 400);
+    if (pergunta.length > MAX_PERGUNTA) {
+      return json({ erro: "Pergunta muito longa. Reduza e tente novamente." }, 400);
+    }
     const obraId = typeof corpo.obra_id === "string" && corpo.obra_id ? corpo.obra_id : null;
     const periodo = /^\d{4}-\d{2}$/.test(String(corpo.periodo || "")) ? String(corpo.periodo) : null;
 

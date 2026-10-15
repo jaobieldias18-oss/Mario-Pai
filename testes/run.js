@@ -66,6 +66,7 @@ vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(path.join(BASE, "composicoes.js"), "utf-8"), sandbox);
 vm.runInContext(fs.readFileSync(path.join(BASE, "materiais.js"), "utf-8"), sandbox);
 vm.runInContext(fs.readFileSync(path.join(BASE, "orcamento.js"), "utf-8"), sandbox);
+vm.runInContext(fs.readFileSync(path.join(BASE, "supabase.js"), "utf-8"), sandbox);
 const rF = vm.runInContext(`(function () {
   const c = { insumos: [
     { nome: "A", qtd: 2, unidade: "un", preco: 5 },
@@ -133,5 +134,50 @@ const rP = vm.runInContext(`(function () {
 t("parede geometria 112-2.88=109.12", rP[0]);
 t("parede inválida -> null", rP[1] && rP[2] && rP[3]);
 t("sync honesto difere", rP[4]);
+
+// ---- Sync seguro (supabase.js) ----
+// diffSync preserva multiplicidade; classificarErroSync distingue motivos;
+// SyncOrc.mensagem nunca afirma "sincronizado" quando falhou.
+const rS = vm.runInContext(`(function () {
+  const out = [];
+  const chave = (x) => (x.nome ? x.nome + "|" + x.quantidade : "L|" + x.quantidade);
+  // existentes: dois itens idênticos (L, qtd 1). desejados: dois L e um X.
+  const d = diffSync([{ id: "a", quantidade: 1 }, { id: "b", quantidade: 1 }],
+                     [{ nome: "L", quantidade: 1 }, { nome: "L", quantidade: 1 }, { nome: "X", quantidade: 2 }], chave);
+  out.push(d.inserir.length === 1 && d.inserir[0].nome === "X");   // só X é novo
+  out.push(d.remover.length === 0);                                // os dois L casam
+  // desejados: um único L. existentes: dois L -> sobra 1 para remover.
+  const d2 = diffSync([{ id: "a", quantidade: 1 }, { id: "b", quantidade: 1 }], [{ quantidade: 1 }], chave);
+  out.push(d2.inserir.length === 0);
+  out.push(d2.remover.length === 1);
+  out.push(classificarErroSync({ code: "42P01", message: "relation does not exist" }) === "sem-tabela");
+  out.push(classificarErroSync({ code: "42501", message: "permission denied" }) === "permissao");
+  out.push(classificarErroSync(new TypeError("Failed to fetch")) === "rede");
+  out.push(classificarErroSync("sem-conexao") === "sem-conexao");
+  out.push(classificarErroSync({ code: "23505" }) === "duplicado");
+  out.push(classificarErroSync({ code: "23503" }) === "referencia");
+  out.push(classificarErroSync({ code: "XX000", message: "boom" }) === "gravacao");
+  out.push(/sincronizado/.test(SyncOrc.mensagem({ ok: true }, "Material")));
+  out.push(!/sincronizado/.test(SyncOrc.mensagem({ ok: false, status: "rede" }, "Material")));
+  out.push(!/sincronizado/.test(SyncOrc.mensagem({ ok: false, status: "permissao" })));
+  out.push(!/sincronizado/.test(SyncOrc.mensagem({ ok: false, status: "sem-tabela" })));
+  return out;
+})()`, sandbox);
+t("diff preserva mult: insere so o novo (X)", rS[0]);
+t("diff preserva mult: sem sobra quando casa", rS[1]);
+t("diff remove sobra: nada a inserir", rS[2]);
+t("diff remove sobra: uma sobra", rS[3]);
+t("erro 42P01 -> sem-tabela", rS[4]);
+t("erro 42501 -> permissao", rS[5]);
+t("fetch -> rede", rS[6]);
+t("sem-conexao literal", rS[7]);
+t("23505 -> duplicado", rS[8]);
+t("23503 -> referencia", rS[9]);
+t("desconhecido -> gravacao", rS[10]);
+t("mensagem ok diz sincronizado", rS[11]);
+t("mensagem rede NAO diz sincronizado", rS[12]);
+t("mensagem permissao NAO diz sincronizado", rS[13]);
+t("mensagem sem-tabela NAO diz sincronizado", rS[14]);
+
 console.log(`\nRESULTADO: ${pass} PASS, ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

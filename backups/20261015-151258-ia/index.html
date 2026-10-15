@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#111111" />
+  <meta name="description" content="Controle financeiro de obras — simples, mobile-first, sem login." />
+  <title>MARIO · Controle de Obras</title>
+  <!-- Identidade MARIO em assets/: logo.svg (fundo claro),
+       logo-claro.svg (fundo escuro), icone.svg (símbolo),
+       favicon-32.png e icone-180.png (gerados do SVG). -->
+  <link rel="icon" type="image/svg+xml" href="assets/icone.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/icone-180.png" />
+  <!-- PWA: instalável como aplicativo no Chrome -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MARIO" />
+  <!-- Tema salvo (claro/escuro) aplicado antes do CSS: evita flash branco -->
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("mario-tema")==="escuro"?"escuro":"claro"}catch(e){}</script>
+  <!-- Acelera o carregamento: conecta antes nos servidores externos -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="preconnect" href="https://wmcrbjlzsqveekwifded.supabase.co" crossorigin />
+  <link rel="stylesheet" href="style.css?v=16" />
+</head>
+<body>
+
+  <!-- ===== TOPO ===== -->
+  <header class="topo">
+    <div class="topo-inner">
+      <!-- Logo MARIO (versão clara, para o cabeçalho escuro).
+           Se o SVG falhar, mantém o emoji — nada quebra. -->
+      <div class="logo-slot" id="logo-slot">
+        <img src="assets/logo-claro.svg" alt="MARIO — Gestão de Obras" id="logo-img" fetchpriority="high" decoding="async" />
+        <span class="logo-fallback" aria-hidden="true">M</span>
+      </div>
+      <button class="btn-engrenagem" data-ir="opcoes" aria-label="Opções" title="Opções"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+    </div>
+    <!-- Navegação desktop (no celular aparece a barra inferior) -->
+    <nav class="nav-desktop">
+      <button class="nav-btn ativo" data-ir="dashboard">Início</button>
+      <button class="nav-btn" data-ir="financeiro">Financeiro</button>
+      <button class="nav-btn" data-ir="visao-geral">Visão Geral</button>
+      <button class="nav-btn" data-ir="ia">IA da Obra</button>
+      <button class="nav-btn" data-ir="plantas">Plantas</button>
+      <button class="nav-btn" data-ir="orcamento">Orçamento</button>
+      <button class="nav-btn destaque" data-ir="nova-obra">+ Nova obra</button>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- ===== TELA: ENTRAR ===== -->
+    <section id="tela-login" class="tela">
+      <div class="login-card">
+        <div style="font-size:40px" aria-hidden="true">M</div>
+        <h2>MARIO</h2>
+        <p class="login-sub">Gestão de Obras</p>
+        <form id="form-login" class="form" novalidate>
+          <label class="campo"><span>Usuário</span>
+            <input type="text" id="login-nome" value="mario" autocomplete="username" maxlength="30" required />
+          </label>
+          <label class="campo"><span>Senha</span>
+            <input type="password" id="login-senha" placeholder="••••••" autocomplete="current-password" required />
+          </label>
+          <div class="login-erro" id="login-erro" hidden></div>
+          <button type="submit" class="btn btn-primario btn-grande" id="btn-entrar">Entrar</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===== TELA: DASHBOARD ===== -->
+    <section id="tela-dashboard" class="tela ativa">
+      <!-- Boas-vindas -->
+      <div class="hero">
+        <div class="hero-topo">
+          <div class="data-hoje" aria-hidden="true"><strong id="hoje-dia">--</strong><span id="hoje-mes">---</span></div>
+          <div>
+            <p class="saudacao" id="saudacao">Resumo das suas obras</p>
+            <p class="saudacao-sub">Como estão os negócios hoje?</p>
+            <p class="hero-data"><span id="saudacao-data"></span> · <span id="dash-mes-titulo">Financeiro do mês</span></p>
+          </div>
+        </div>
+        <div class="busca">
+          <span class="busca-icone" aria-hidden="true">⌕</span>
+          <input type="search" id="busca-global" placeholder="Pesquisar obra, gasto, trabalhador..." autocomplete="off" aria-label="Pesquisa global" />
+        </div>
+        <div id="busca-resultados" class="lista" hidden></div>
+        <button class="ia-banner" id="qa-ia-obra" aria-label="Abrir IA da Obra">
+          <span class="ia-banner-icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 8V4M8 4h8"/><circle cx="9.5" cy="13" r="1" fill="currentColor"/><circle cx="14.5" cy="13" r="1" fill="currentColor"/><path d="M9.5 16.5h5"/></svg></span>
+          <span class="ia-banner-texto"><strong>IA da Obra</strong><small>Olá, Mário! O que você precisa fazer hoje?</small></span>
+          <span class="ia-banner-ir" aria-hidden="true">→</span>
+        </button>
+        <button class="btn btn-texto" id="ia-atencao" hidden></button>
+        <button class="ia-banner" id="qa-orc-ia" aria-label="Abrir orçamento guiado">
+          <span class="ia-banner-icone" aria-hidden="true"><span class="item-icone" aria-hidden="true">R</span></span>
+          <span class="ia-banner-texto"><strong>Orçamento da obra</strong><small>Responda e descubra quanto vai custar.</small></span>
+          <span class="ia-banner-ir" aria-hidden="true">→</span>
+        </button>
+      </div>
+
+      <!-- Indicadores principais: só o essencial -->
+      <div class="grid-resumo hero-kpis">
+        <div class="mini-card">
+          <span class="mini-label">Obras em andamento</span>
+          <strong id="res-ativas">0</strong>
+        </div>
+        <div class="mini-card verde">
+          <span class="mini-label">Recebido este mês</span>
+          <strong id="dash-mes-entradas">R$ 0,00</strong>
+        </div>
+        <div class="mini-card vermelho">
+          <span class="mini-label">Gastos este mês</span>
+          <strong id="dash-mes-gastos">R$ 0,00</strong>
+        </div>
+        <div class="mini-card azul destaque-lucro">
+          <span class="mini-label">Resultado</span>
+          <strong id="dash-mes-resultado">R$ 0,00</strong>
+        </div>
+      </div>
+      <button class="btn btn-texto" data-ir="financeiro">Ver financeiro →</button>
+      <button class="btn btn-texto" data-ir="plantas">Ler planta da obra →</button>
+
+      <!-- Totais gerais (dobrável) -->
+      <details class="faixa-totais" aria-label="Resumo geral">
+        <summary class="plano-sumario">Totais gerais</summary>
+        <span>Obras encerradas: <strong id="res-encerradas">0</strong></span>
+        <span>Valor total: <strong id="res-valor-total">R$ 0,00</strong></span>
+        <span>Recebido: <strong id="res-recebido">R$ 0,00</strong></span>
+        <span>Gasto: <strong id="res-gasto">R$ 0,00</strong></span>
+        <span>Mão de obra: <strong id="res-mo">R$ 0,00</strong></span>
+        <span>Lucro: <strong id="res-lucro">R$ 0,00</strong></span>
+      </details>
+
+      <!-- Lista de obras -->
+      <div class="linha-secao" id="ancora-obras">
+        <h2 class="titulo-secao">Minhas obras</h2>
+        <span class="contador" id="contador-obras"></span>
+      </div>
+      <!-- Filtros: em andamento / encerradas / todas -->
+      <div class="filtros" role="tablist" aria-label="Filtrar obras">
+        <button class="filtro ativo" data-filtro="ativas">Em andamento</button>
+        <button class="filtro" data-filtro="encerradas">Encerradas</button>
+        <button class="filtro" data-filtro="concluidas">Concluídas</button>
+        <button class="filtro" data-filtro="todas">Todas</button>
+      </div>
+      <button class="btn btn-texto" id="btn-ver-encerradas" hidden>Ver obras encerradas →</button>
+      <div id="lista-obras" class="lista-obras"></div>
+
+      <!-- Estado vazio -->
+      <div id="estado-vazio" class="estado-vazio" hidden>
+        <p><strong>Nenhuma obra cadastrada</strong></p>
+        <p class="texto-suave">Toque em <strong>+ Nova obra</strong> para começar.</p>
+        <button class="btn btn-primario btn-grande" data-ir="nova-obra">+ Nova obra</button>
+      </div>
+    </section>
+
+    <!-- ===== TELA: NOVA OBRA / EDITAR OBRA ===== -->
+    <section id="tela-nova-obra" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao" id="titulo-form-obra">Nova obra</h2>
+
+      <!-- Assistente simples (criar): uma pergunta por vez -->
+      <div id="passo-obra" class="card" hidden>
+        <p class="texto-suave" id="passo-num">Passo 1 de 6</p>
+        <div id="passo-corpo" style="margin-top:10px"></div>
+      </div>
+
+      <form id="form-obra" class="card form" novalidate>
+        <label class="campo">
+          <span>Nome da obra *</span>
+          <input type="text" id="obra-nome" placeholder="Ex: Casa João" required maxlength="60" />
+        </label>
+        <label class="campo">
+          <span>Cliente *</span>
+          <input type="text" id="obra-cliente" placeholder="Ex: João Silva" required maxlength="60" />
+        </label>
+        <label class="campo">
+          <span>Endereço</span>
+          <input type="text" id="obra-endereco" placeholder="Ex: Registro - SP" maxlength="120" />
+        </label>
+        <label class="campo">
+          <span>Valor contratado (R$) *</span>
+          <input type="number" id="obra-valor" placeholder="Ex: 150000" min="0" step="0.01" inputmode="decimal" required />
+        </label>
+        <label class="campo">
+          <span>Área da casa (m²)</span>
+          <input type="number" id="obra-area" placeholder="Ex: 100" min="0" step="0.01" inputmode="decimal" />
+        </label>
+        <div class="linha-2">
+          <label class="campo">
+            <span>Início</span>
+            <input type="date" id="obra-inicio" />
+          </label>
+          <label class="campo">
+            <span>Previsão término</span>
+            <input type="date" id="obra-fim" />
+          </label>
+        </div>
+        <label class="campo">
+          <span>Status</span>
+          <select id="obra-status">
+            <option value="Em andamento">Em andamento</option>
+            <option value="Concluída">Concluída</option>
+            <option value="Encerrada">Encerrada</option>
+          </select>
+        </label>
+        <label class="campo">
+          <span>Observações</span>
+          <textarea id="obra-obs" rows="3" placeholder="Ex: Pagamento em 4 etapas..." maxlength="500"></textarea>
+        </label>
+        <button type="submit" class="btn btn-primario btn-grande" id="btn-salvar-obra">Criar obra</button>
+        <button type="button" class="btn btn-texto" data-ir="dashboard">Cancelar</button>
+      </form>
+    </section>
+
+    <!-- ===== TELA: DETALHE DA OBRA ===== -->
+    <section id="tela-obra" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <div class="obra-cabecalho">
+        <div class="obra-avatar" id="obra-avatar" aria-hidden="true">?</div>
+        <div>
+          <h2 id="obra-titulo">—</h2>
+          <p class="texto-suave" id="obra-cliente-linha">—</p>
+        </div>
+      </div>
+      <div class="obra-acoes-topo">
+        <span class="badge-status" id="obra-status-badge">—</span>
+        <div class="acoes-icones">
+          <button class="btn-pequeno" id="btn-editar-obra" title="Editar obra">Editar</button>
+          <button class="btn-pequeno perigo" id="btn-excluir-obra" title="Excluir obra">Excluir</button>
+        </div>
+      </div>
+
+      <!-- Números principais -->
+      <div class="grid-numeros">
+        <div class="numero-card"><span>Valor da obra</span><strong id="d-valor">R$ 0,00</strong></div>
+        <div class="numero-card verde"><span>Recebido</span><strong id="d-recebido">R$ 0,00</strong></div>
+        <div class="numero-card vermelho"><span>Total gasto</span><strong id="d-gasto">R$ 0,00</strong></div>
+        <div class="numero-card azul"><span>Lucro atual</span><strong id="d-lucro">R$ 0,00</strong></div>
+        <div class="numero-card amarelo"><span>A receber</span><strong id="d-areceber">R$ 0,00</strong></div>
+        <div class="numero-card"><span>Margem</span><strong id="d-margem">—</strong></div>
+        <div class="numero-card mo"><span>Mão de obra</span><strong id="d-mo">R$ 0,00</strong></div>
+        <div class="numero-card custos"><span>Custos totais</span><strong id="d-custos">R$ 0,00</strong></div>
+      </div>
+
+      <!-- Ações da obra: encerrar / reabrir (logo após os números) -->
+      <div class="card acoes-obra">
+        <button class="btn btn-perigo" id="btn-encerrar-obra">Encerrar obra</button>
+        <button class="btn btn-primario" id="btn-reabrir-obra" hidden>Reabrir obra</button>
+      </div>
+
+      <!-- Resultado final (aparece só em obra encerrada) -->
+      <div class="card resultado-final" id="obra-resultado-final" hidden></div>
+
+      <!-- Aviso de somente-leitura (aparece só em obra encerrada) -->
+      <div class="card aviso-encerrada" id="obra-aviso-encerrada" hidden>
+        Obra encerrada em <strong id="obra-data-encerramento">—</strong>.
+        Os dados estão aqui só para consulta. Para lançar algo novo, reabra a obra.
+      </div>
+
+      <!-- Abas internas da obra (navegação única) -->
+      <nav class="abas" role="tablist">
+        <button class="aba ativa" data-aba="resumo">Resumo</button>
+        <button class="aba" data-aba="recebimentos">Recebimentos</button>
+        <button class="aba" data-aba="gastos">Gastos</button>
+        <button class="aba" data-aba="equipe">Mão de obra</button>
+      </nav>
+
+      <!-- Aba: Resumo -->
+      <div class="painel-aba ativo" id="aba-resumo">
+        <div class="card mo-destaque">
+          <p>Custo de mão de obra: <strong id="resumo-mo-valor">R$ 0,00</strong>
+          <span class="texto-suave" id="resumo-mo-qtd"></span></p>
+        </div>
+        <h3 class="titulo-secao">Resumo dos gastos</h3>
+        <div id="resumo-categorias"></div>
+        <div class="card dica">
+          <p><strong>Dica:</strong> valores da aba <strong>Mão de obra</strong> entram sozinhos no total. Não lance de novo em Gastos.</p>
+        </div>
+        <div class="card" id="obra-info-extra"></div>
+        <div class="card">
+          <h3 class="opcoes-titulo">Exportar esta obra</h3>
+          <div class="form">
+            <button class="btn btn-primario" id="btn-xls-obra">Baixar planilha da obra</button>
+            <button class="btn btn-texto" id="btn-print-obra">Imprimir obra (A4)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aba: Recebimentos (parcelas + avulsos) -->
+      <div class="painel-aba" id="aba-recebimentos">
+        <details class="card" id="card-plano" open>
+          <summary class="plano-sumario">Forma de pagamento</summary>
+          <div class="forma-pagto">
+            <label><input type="radio" name="forma-pagto" value="unico" checked /> Pagamento único</label>
+            <label><input type="radio" name="forma-pagto" value="parcelado" /> Pagamento parcelado</label>
+          </div>
+          <div id="plano-campos" hidden>
+            <div class="form">
+              <label class="campo"><span>Número de parcelas</span>
+                <input type="number" id="plano-num" min="2" max="120" step="1" value="12" />
+              </label>
+              <label class="campo"><span>Valor total (R$)</span>
+                <input type="number" id="plano-total" min="0" step="0.01" inputmode="decimal" />
+              </label>
+              <label class="campo"><span>Data da primeira parcela</span>
+                <input type="date" id="plano-primeira" />
+              </label>
+              <p class="texto-suave" id="plano-previa">—</p>
+              <button class="btn btn-primario" id="btn-gerar-plano">Gerar parcelas</button>
+            </div>
+          </div>
+        </details>
+        <div class="card" id="card-resumo-plano" hidden>
+          <h3 class="titulo-secao" style="margin-top:0">Parcelamento</h3>
+          <div class="parcelas-resumo">
+            <div class="numero-card"><span>Valor total</span><strong id="plc-total">R$ 0,00</strong></div>
+            <div class="numero-card"><span>Total de parcelas</span><strong id="plc-qtd">—</strong></div>
+            <div class="numero-card"><span>Valor por parcela</span><strong id="plc-valor">—</strong></div>
+            <div class="numero-card"><span>Parcelas pagas</span><strong id="plc-pagas">—</strong></div>
+            <div class="numero-card verde"><span>Total recebido</span><strong id="plc-recebido">R$ 0,00</strong></div>
+            <div class="numero-card amarelo"><span>Total pendente</span><strong id="plc-pendente">R$ 0,00</strong></div>
+          </div>
+          <p class="texto-suave" style="margin-top:8px">Próximo vencimento: <strong id="plc-prox">—</strong></p>
+        </div>
+        <div id="bloco-parcelas" hidden>
+          <p class="total-aba">Total pendente: <strong id="total-parcelas">R$ 0,00</strong></p>
+          <button class="btn btn-primario btn-grande" id="btn-nova-parcela">+ Adicionar parcela</button>
+          <div id="lista-parcelas" class="parcelas-grid"></div>
+        </div>
+        <h3 class="titulo-secao" id="titulo-avulsos">Outros recebimentos</h3>
+        <p class="total-aba">Total recebido: <strong id="total-recebimentos">R$ 0,00</strong></p>
+        <button class="btn btn-primario btn-grande" id="btn-novo-recebimento">+ Adicionar recebimento</button>
+        <div id="lista-recebimentos" class="lista"></div>
+      </div>
+
+      <!-- Aba: Gastos -->
+      <div class="painel-aba" id="aba-gastos">
+        <p class="total-aba">Total gasto: <strong id="total-gastos">R$ 0,00</strong></p>
+        <button class="btn btn-primario btn-grande" id="btn-novo-gasto">+ Adicionar gasto</button>
+        <div id="lista-gastos" class="lista"></div>
+      </div>
+
+      <!-- Aba: Mão de obra -->
+      <div class="painel-aba" id="aba-equipe">
+        <p class="total-aba">Total de mão de obra: <strong id="total-equipe">R$ 0,00</strong></p>
+        <button class="btn btn-primario btn-grande" id="btn-novo-trabalhador">+ Adicionar trabalhador</button>
+        <div id="lista-equipe" class="lista"></div>
+      </div>
+    </section>
+
+    <!-- ===== TELA: FINANCEIRO MENSAL ===== -->
+    <section id="tela-financeiro" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Financeiro</h2>
+      <p class="texto-suave">Entradas e gastos do mês, somando todas as obras.</p>
+
+      <!-- Seletor de mês -->
+      <div class="card seletor-mes">
+        <button class="mes-seta" id="mes-anterior" aria-label="Mês anterior">‹</button>
+        <div class="mes-atual">
+          <strong id="fin-mes-titulo">—</strong>
+          <span class="texto-suave">toque nas setas para trocar de mês</span>
+        </div>
+        <button class="mes-seta" id="mes-proximo" aria-label="Próximo mês">›</button>
+      </div>
+
+      <!-- Resumo do mês selecionado -->
+      <div class="grid-resumo">
+        <div class="mini-card verde">
+          <span class="mini-label">Entradas</span>
+          <strong id="fin-entradas">R$ 0,00</strong>
+        </div>
+        <div class="mini-card vermelho">
+          <span class="mini-label">Gastos</span>
+          <strong id="fin-gastos">R$ 0,00</strong>
+        </div>
+        <div class="mini-card azul destaque-lucro">
+          <span class="mini-label">Resultado do mês</span>
+          <strong id="fin-resultado">R$ 0,00</strong>
+        </div>
+      </div>
+
+      <!-- Gráfico simples (CSS puro) -->
+      <h3 class="titulo-secao">Últimos meses</h3>
+      <div class="card">
+        <div class="grafico" id="fin-grafico"></div>
+        <div class="legenda">
+          <span class="leg-item"><i class="cor cor-entradas"></i>Entradas</span>
+          <span class="leg-item"><i class="cor cor-gastos"></i>Gastos</span>
+          <span class="leg-item"><i class="cor cor-resultado"></i>Resultado</span>
+        </div>
+      </div>
+
+      <!-- Detalhe do mês selecionado -->
+      <h3 class="titulo-secao">Detalhe do mês</h3>
+      <div id="fin-detalhe" class="lista"></div>
+
+      <!-- Histórico mensal -->
+      <h3 class="titulo-secao">Histórico mensal</h3>
+      <div id="fin-historico" class="lista"></div>
+    </section>
+
+    <!-- ===== TELA: VISÃO GERAL ===== -->
+    <section id="tela-visao-geral" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Visão geral financeira</h2>
+      <p class="texto-suave">Resultado mês a mês, somando todas as obras (mesma fonte do Financeiro).</p>
+
+      <!-- Filtro de período -->
+      <div class="card vg-filtro">
+        <label class="campo">
+          <span>Ano</span>
+          <select id="vg-ano"></select>
+        </label>
+      </div>
+
+      <!-- Resumo do período -->
+      <div class="grid-resumo">
+        <div class="mini-card verde">
+          <span class="mini-label">Entradas no período</span>
+          <strong id="vg-entradas">R$ 0,00</strong>
+        </div>
+        <div class="mini-card vermelho">
+          <span class="mini-label">Gastos no período</span>
+          <strong id="vg-gastos">R$ 0,00</strong>
+        </div>
+        <div class="mini-card azul destaque-lucro">
+          <span class="mini-label">Resultado no período</span>
+          <strong id="vg-resultado">R$ 0,00</strong>
+        </div>
+      </div>
+
+      <!-- Gráfico: evolução do resultado (toque numa barra p/ detalhar) -->
+      <h3 class="titulo-secao">Evolução mensal</h3>
+      <div class="card">
+        <div class="vg-grafico" id="vg-grafico"></div>
+        <div class="legenda">
+          <span class="leg-item"><i class="cor cor-entradas"></i>Resultado positivo</span>
+          <span class="leg-item"><i class="cor cor-gastos"></i>Resultado negativo</span>
+        </div>
+      </div>
+
+      <!-- Detalhe do mês tocado -->
+      <div class="card vg-detalhe" id="vg-detalhe" hidden></div>
+
+      <!-- Melhor e pior mês do período -->
+      <div class="grid-resumo" id="vg-extremos" hidden>
+        <div class="mini-card verde">
+          <span class="mini-label">Melhor mês</span>
+          <strong id="vg-melhor-nome">—</strong>
+          <span class="texto-suave" id="vg-melhor-valor"></span>
+        </div>
+        <div class="mini-card vermelho">
+          <span class="mini-label">Menor resultado</span>
+          <strong id="vg-pior-nome">—</strong>
+          <span class="texto-suave" id="vg-pior-valor"></span>
+        </div>
+      </div>
+
+      <!-- Meses do período (toque p/ detalhar) -->
+      <h3 class="titulo-secao">Meses</h3>
+      <div id="vg-lista" class="lista"></div>
+    </section>
+
+    <!-- ===== TELA: OPÇÕES ===== -->
+    <section id="tela-opcoes" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Opções</h2>
+
+      <div class="card">
+        <h3 class="opcoes-titulo">Minha conta</h3>
+        <div class="ajustes-linha"><span>Nome</span><strong id="aj-nome">Mário</strong></div>
+        <form id="form-senha" class="form" style="margin-top:10px" novalidate>
+          <label class="campo"><span>Senha atual</span><input type="password" id="senha-atual" autocomplete="current-password" required /></label>
+          <label class="campo"><span>Senha nova (6 ou mais)</span><input type="password" id="senha-nova" autocomplete="new-password" required /></label>
+          <label class="campo"><span>Repita a senha nova</span><input type="password" id="senha-conf" autocomplete="new-password" required /></label>
+          <button type="submit" class="btn btn-primario">Trocar senha</button>
+        </form>
+        <div style="margin-top:10px"><button class="btn btn-perigo" id="btn-sair">Sair da conta</button></div>
+      </div>
+
+      <div class="card">
+        <h3 class="opcoes-titulo">Aparência</h3>
+        <p class="texto-suave">Escolha como o MARIO aparece na tela.</p>
+        <div class="opcoes-tema">
+          <button class="tema-opcao" data-tema="claro"><span>Claro</span></button>
+          <button class="tema-opcao" data-tema="escuro"><span>Escuro</span></button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="opcoes-titulo">Exportar</h3>
+        <p class="texto-suave">Leve os dados para o contador (abre no Excel).</p>
+        <div class="form">
+          <button class="btn btn-primario" id="btn-csv-geral">Baixar planilha geral</button>
+          <button class="btn btn-primario" id="btn-csv-mes">Baixar planilha do mês</button>
+          <button class="btn btn-texto" id="btn-imprimir">Imprimir relatório</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="opcoes-titulo">Materiais e preços</h3>
+        <p class="texto-suave">Catálogo com histórico para o orçamento usar.</p>
+        <button class="btn btn-primario" data-ir="materiais">Abrir materiais</button>
+      </div>
+
+      <div class="card">
+        <h3 class="opcoes-titulo">Composições</h3>
+        <p class="texto-suave">Serviços com insumos para o orçamento.</p>
+        <button class="btn btn-primario" data-ir="composicoes">Abrir composições</button>
+      </div>
+
+      <div class="card">
+        <h3 class="opcoes-titulo">Sobre</h3>
+        <p class="texto-suave">MARIO · Controle financeiro de obras.<br />Seus dados ficam salvos e sincronizados.</p>
+      </div>
+    </section>
+    <!-- ===== TELA: PLANTAS (leitura de medidas) ===== -->
+    <section id="tela-plantas" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Plantas</h2>
+      <p class="texto-suave">Fotografe a planta baixa e receba as medidas e áreas.</p>
+      <div class="card">
+        <div class="form">
+          <label class="campo"><span>Foto da planta</span>
+            <input type="file" id="planta-foto" accept="image/*" />
+          </label>
+          <img id="planta-previa" class="foto-mini" alt="Prévia da planta" hidden />
+          <label class="campo"><span>Obra (opcional)</span>
+            <select id="planta-obra"><option value="">Sem obra vinculada</option></select>
+          </label>
+          <button class="btn btn-primario btn-grande" id="btn-analisar">Ler planta</button>
+          <p class="texto-suave" id="planta-status"></p>
+        </div>
+      </div>
+      <div id="planta-resultado"></div>
+      <div id="orcamento-area" hidden></div>
+      <h3 class="titulo-secao">Meus orçamentos</h3>
+      <div id="lista-orcamentos" class="lista"></div>
+      <h3 class="titulo-secao">Leituras anteriores</h3>
+      <div id="lista-plantas" class="lista"></div>
+    </section>
+    <!-- ===== TELA: IA DA OBRA (assistente) ===== -->
+    <section id="tela-ia" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">IA da Obra</h2>
+      <p class="texto-suave">Olá, Mário! O que você precisa fazer hoje?</p>
+      <p class="texto-suave" id="ia-chave-status"></p>
+      <div class="card">
+        <label class="campo"><span>Obra atual</span>
+          <select id="ia-obra"><option value="">Todas as obras</option></select>
+        </label>
+        <label class="campo"><span>Período</span>
+          <select id="ia-periodo">
+            <option value="">Tudo (geral)</option>
+            <option value="mes">Este mês</option>
+          </select>
+        </label>
+      </div>
+      <div class="card ia-chat-card">
+        <div class="ia-conversa" id="ia-chat">
+          <div class="ia-msg ia">Olá, Mário! Pergunte sobre suas obras.</div>
+        </div>
+        <form id="ia-form" class="ia-composer">
+          <input type="text" id="ia-pergunta" maxlength="300" placeholder="Digite sua pergunta..." autocomplete="off" />
+          <button type="submit" id="ia-enviar" aria-label="Enviar">↑</button>
+        </form>
+      </div>
+      <div id="ia-painel"></div>
+      <h3 class="titulo-secao">Conversas</h3>
+      <div id="lista-ia-chat" class="lista"></div>
+      <button class="btn btn-texto" id="ia-limpar">Limpar conversas</button>
+    </section>
+    <!-- ===== TELA: MATERIAIS E PREÇOS ===== -->
+    <section id="tela-materiais" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Materiais e preços</h2>
+      <p class="texto-suave">Cadastre preços do fornecedor. O orçamento usa daqui.</p>
+      <div class="busca">
+        <span class="busca-icone" aria-hidden="true">⌕</span>
+        <input type="search" id="mat-busca" placeholder="Pesquisar material..." autocomplete="off" aria-label="Pesquisar material" />
+      </div>
+      <div style="margin:10px 0"><button class="btn btn-primario btn-grande" id="btn-novo-material">+ Novo material</button></div>
+      <form id="form-material" class="card form" hidden novalidate>
+        <input type="hidden" id="mat-id" />
+        <label class="campo"><span>Nome *</span><input type="text" id="mat-nome" required maxlength="80" /></label>
+        <div class="linha-2">
+          <label class="campo"><span>Categoria</span><select id="mat-categoria"></select></label>
+          <label class="campo"><span>Unidade</span><input type="text" id="mat-unidade" maxlength="10" /></label>
+        </div>
+        <label class="campo"><span>Marca / fornecedor</span><input type="text" id="mat-marca" maxlength="60" /></label>
+        <div class="linha-2">
+          <label class="campo"><span>Preço (R$)</span><input type="number" id="mat-preco" min="0" step="0.01" inputmode="decimal" /></label>
+          <label class="campo"><span>Fonte do preço</span><input type="text" id="mat-fonte" maxlength="60" placeholder="Ex: Loja X" /></label>
+        </div>
+        <div class="linha-2">
+          <label class="campo"><span>Perda prevista (%)</span><input type="number" id="mat-perda" min="0" step="0.1" inputmode="decimal" /></label>
+          <label class="campo"><span>Consumo de referência</span><input type="number" id="mat-consumo" min="0" step="0.01" inputmode="decimal" /></label>
+        </div>
+        <label class="campo"><span>Observação</span><textarea id="mat-obs" rows="2" maxlength="300"></textarea></label>
+        <label class="forma-pagto"><span style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="mat-ativo" checked style="width:20px;height:20px" /> Material ativo</span></label>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" id="mat-cancelar">Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
+        </div>
+      </form>
+      <div id="mat-historico" hidden></div>
+      <div id="lista-materiais" class="lista"></div>
+    </section>
+    <!-- ===== TELA: ORÇAMENTO GUIADO ===== -->
+    <section id="tela-orcamento-ia" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Orçamento da obra</h2>
+      <p class="texto-suave">Passo 1: confira os preços. Passo 2: informe a casa.</p>
+      <div class="card">
+        <h3 class="titulo-secao" style="margin-top:0">Preços dos materiais (R$)</h3>
+        <div id="orc-precos-lista"></div>
+        <button class="btn btn-primario" id="orc-precos-salvar">Salvar preços</button>
+      </div>
+      <div class="card">
+        <h3 class="titulo-secao" style="margin-top:0">Dados da casa</h3>
+        <div class="form">
+          <label class="campo"><span>Área (m²) *</span>
+            <input type="number" id="og-area" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 100" /></label>
+          <div class="linha-2">
+            <label class="campo"><span>Quartos</span>
+              <input type="number" id="og-quartos" min="0" step="1" inputmode="numeric" value="3" /></label>
+            <label class="campo"><span>Banheiros</span>
+              <input type="number" id="og-banheiros" min="0" step="1" inputmode="numeric" value="2" /></label>
+          </div>
+          <label class="campo"><span>Parede</span>
+            <select id="og-sistema">
+              <option value="bloco">Bloco de concreto</option>
+              <option value="tijolo">Tijolo cerâmico</option>
+            </select></label>
+          <div class="linha-2">
+            <label class="campo"><span>Perímetro (m)</span>
+              <input type="number" id="og-perimetro" min="0" step="0.1" inputmode="decimal" placeholder="Auto" /></label>
+            <label class="campo"><span>Telhado (m²)</span>
+              <input type="number" id="og-telhado" min="0" step="0.1" inputmode="decimal" placeholder="Auto" /></label>
+          </div>
+          <div class="card" style="margin-top:10px">
+            <h3 class="titulo-secao" style="margin-top:0">Paredes (opcional — cálculo exato)</h3>
+            <div class="linha-2">
+              <label class="campo"><span>Comprimento total (m)</span>
+                <input type="number" id="og-par-comp" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 40" /></label>
+              <label class="campo"><span>Altura (m)</span>
+                <input type="number" id="og-par-alt" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 2,8" /></label>
+            </div>
+            <label class="campo"><span>Vãos (portas/janelas: larg×alt separados por ; )</span>
+              <input type="text" id="og-par-vaos" maxlength="120" placeholder="Ex: 0,8x2,1; 1,2x1" /></label>
+          </div>
+          <div class="linha-2">
+            <label class="campo"><span>Pontos elétricos</span>
+              <input type="number" id="og-peletricos" min="0" step="1" inputmode="numeric" placeholder="Ex: 20" /></label>
+            <label class="campo"><span>Pontos hidráulicos</span>
+              <input type="number" id="og-phidraulicos" min="0" step="1" inputmode="numeric" placeholder="Ex: 12" /></label>
+          </div>
+          <div class="linha-2">
+            <label class="campo"><span>Dias de obra (MO)</span>
+              <input type="number" id="og-mo-dias" min="0" step="1" inputmode="numeric" placeholder="Ex: 60" /></label>
+            <label class="campo"><span>Valor da diária (R$)</span>
+              <input type="number" id="og-mo-diaria" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 150" /></label>
+          </div>
+          <div class="linha-2">
+            <label class="campo"><span>Transporte (R$)</span>
+              <input type="number" id="og-transporte" min="0" step="0.01" inputmode="decimal" placeholder="0" /></label>
+            <label class="campo"><span>Outros (R$)</span>
+              <input type="number" id="og-outros" min="0" step="0.01" inputmode="decimal" placeholder="0" /></label>
+          </div>
+          <button class="btn btn-primario btn-grande" id="og-calcular">Calcular quanto vai custar</button>
+        </div>
+      </div>
+      <div id="og-resultado"></div>
+    </section>
+    <!-- ===== TELA: COMPOSIÇÕES ===== -->
+    <section id="tela-composicoes" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Composições</h2>
+      <p class="texto-suave">Serviços com insumos e rendimentos. Base do cálculo.</p>
+      <div id="lista-composicoes" class="lista"></div>
+    </section>
+  </main>
+
+  <!-- ===== MODAL GENÉRICO (bottom-sheet no celular) ===== -->
+  <div class="modal-fundo" id="modal-fundo" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-topo">
+        <h3 id="modal-titulo">Adicionar</h3>
+        <button class="modal-fechar" id="modal-fechar" aria-label="Fechar">✕</button>
+      </div>
+
+      <!-- Form recebimento -->
+      <form id="form-recebimento" class="form" hidden novalidate>
+        <label class="campo"><span>Valor (R$) *</span>
+          <input type="number" id="rec-valor" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 20000" required />
+        </label>
+        <label class="campo"><span>Data *</span><input type="date" id="rec-data" required /></label>
+        <label class="campo"><span>Descrição *</span>
+          <input type="text" id="rec-desc" placeholder="Ex: Pagamento da segunda etapa" required maxlength="80" />
+        </label>
+        <label class="campo"><span>Forma de pagamento</span>
+          <select id="rec-forma">
+            <option>PIX</option><option>Dinheiro</option><option>Transferência</option>
+            <option>Boleto</option><option>Cartão</option><option>Outro</option>
+          </select>
+        </label>
+        <label class="campo"><span>Observação</span><textarea id="rec-obs" rows="2" maxlength="300"></textarea></label>
+        <label class="campo"><span>Foto do comprovante</span>
+          <input type="file" id="rec-foto" accept="image/*" />
+        </label>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
+        </div>
+      </form>
+
+      <!-- Form gasto -->
+      <form id="form-gasto" class="form" hidden novalidate>
+        <label class="campo"><span>Categoria *</span>
+          <select id="gasto-categoria">
+            <option>Materiais</option><option>Frete/Transporte</option>
+            <option>Ferramentas</option><option>Alimentação</option><option>Equipamentos</option><option>Outros</option>
+          </select>
+        </label>
+        <label class="campo"><span>Descrição *</span>
+          <input type="text" id="gasto-desc" placeholder="Ex: Cimento (10 sacos)" required maxlength="80" />
+        </label>
+        <label class="campo"><span>Valor (R$) *</span>
+          <input type="number" id="gasto-valor" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 250" required />
+        </label>
+        <label class="campo"><span>Data *</span><input type="date" id="gasto-data" required /></label>
+        <label class="campo"><span>Forma de pagamento</span>
+          <select id="gasto-forma">
+            <option>PIX</option><option>Dinheiro</option><option>Transferência</option>
+            <option>Boleto</option><option>Cartão</option><option>Outro</option>
+          </select>
+        </label>
+        <label class="campo"><span>Observação</span><textarea id="gasto-obs" rows="2" maxlength="300"></textarea></label>
+        <label class="campo"><span>Foto da nota</span>
+          <input type="file" id="gasto-foto" accept="image/*" />
+        </label>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
+        </div>
+      </form>
+
+      <!-- Form trabalhador -->
+      <form id="form-equipe" class="form" hidden novalidate>
+        <label class="campo"><span>Nome do trabalhador *</span>
+          <input type="text" id="eq-nome" placeholder="Ex: João" required maxlength="60" />
+        </label>
+        <label class="campo"><span>Função *</span>
+          <input type="text" id="eq-funcao" placeholder="Ex: Pedreiro" required maxlength="40" />
+        </label>
+        <div class="linha-2">
+          <label class="campo"><span>Diária (R$) *</span>
+            <input type="number" id="eq-diaria" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 180" required />
+          </label>
+          <label class="campo"><span>Dias *</span>
+            <input type="number" id="eq-dias" min="0" step="1" inputmode="numeric" placeholder="Ex: 20" required />
+          </label>
+        </div>
+        <label class="campo"><span>Data (entra no financeiro do mês) *</span><input type="date" id="eq-data" required /></label>
+        <p class="total-previa">Total: <strong id="eq-total-previa">R$ 0,00</strong></p>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
+        </div>
+      </form>
+
+      <!-- Form parcela (plano de pagamento do cliente) -->
+      <form id="form-parcela" class="form" hidden novalidate>
+        <label class="campo"><span>Descrição *</span>
+          <input type="text" id="par-desc" placeholder="Ex: 2ª parcela" required maxlength="80" />
+        </label>
+        <label class="campo"><span>Valor (R$) *</span>
+          <input type="number" id="par-valor" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 10000" required />
+        </label>
+        <label class="campo"><span>Vencimento</span><input type="date" id="par-venc" /></label>
+        <label class="campo"><span>Observação</span><textarea id="par-obs" rows="2" maxlength="300"></textarea></label>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
+        </div>
+      </form>
+
+      <!-- Form registrar pagamento de parcela (data REAL do pagamento) -->
+      <form id="form-baixa-parcela" class="form" hidden novalidate>
+        <p class="texto-suave" id="baixa-info">Registrar pagamento</p>
+        <label class="campo"><span>Valor (R$) *</span>
+          <input type="number" id="baixa-valor" min="0" step="0.01" inputmode="decimal" required />
+        </label>
+        <label class="campo"><span>Data do pagamento *</span><input type="date" id="baixa-data" required /></label>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" data-fechar-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Confirmar pagamento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Relatório de impressão (só aparece no papel/PDF) -->
+  <div id="relatorio-print" class="somente-impressao" hidden></div>
+
+  <!-- Toast de confirmação -->
+  <div class="toast" id="toast" hidden></div>
+
+  <!-- Sincronização offline (aparece só com pendências) -->
+  <button class="btn-sincronizar" id="btn-sincronizar" hidden>↑ Sincronizar</button>
+
+  <!-- Tela de carregamento (buscando dados no Supabase) -->
+  <div class="carregando" id="carregando" hidden>
+    <div class="carregando-caixa">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Carregando...</p>
+    </div>
+  </div>
+
+  <!-- Modal de confirmação (ex: encerrar obra) -->
+  <div class="modal-fundo" id="modal-confirm" hidden>
+    <div class="modal modal-confirm" role="alertdialog" aria-modal="true">
+      <h3 id="confirm-titulo">Confirmar</h3>
+      <p id="confirm-texto"></p>
+      <div class="confirm-botoes">
+        <button class="btn btn-texto" id="confirm-cancelar">Cancelar</button>
+        <button class="btn btn-perigo" id="confirm-ok">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navegação inferior (mobile) -->
+  <nav class="nav-inferior">
+    <button class="nav-item" data-ir="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Início</span></button>
+    <button class="nav-item" data-ir="financeiro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg><span>Financeiro</span></button>
+    <button class="nav-item" data-ir="visao-geral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span>Visão Geral</span></button>
+    <button class="nav-item" data-ir="plantas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg><span>Plantas</span></button>
+    <button class="nav-item acao" data-ir="nova-obra"><span class="nav-mais">＋</span><span>Nova obra</span></button>
+  </nav>
+
+  <!-- Supabase (CDN) + camada de banco + app. Sem frameworks. -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js?v=16"></script>
+  <script src="auth.js?v=1"></script>
+  <script src="outbox.js?v=16"></script>
+  <script src="script.js?v=16"></script>
+  <script src="plantas.js?v=16"></script>
+  <script src="orcamento.js?v=3"></script>
+  <script src="materiais.js?v=2"></script>
+  <script src="composicoes.js?v=1"></script>
+  <script src="ia.js?v=16"></script>
+  <!-- PWA: registra o Service Worker (só funciona em http/https,
+       abrindo como arquivo local o registro é ignorado sem erro) -->
+  <script>
+    if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function (e) { console.error("SW:", e); });
+      });
+    }
+  </script>
+</body>
+</html>

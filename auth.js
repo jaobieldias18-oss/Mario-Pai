@@ -53,7 +53,6 @@ async function tentarLogin(nomeDigitado, senha) {
   sessaoUsuario = data.user;
   try { localStorage.setItem("mario_nome", MARIO_NOME); } catch (e) {}
   await carregarPerfilAuth();
-  await adotarSemDono();
   location.reload();
   return true;
 }
@@ -66,14 +65,6 @@ async function carregarPerfilAuth() {
   } catch (e) {}
   const n = elAuth("aj-nome");
   if (n) n.textContent = perfilMario.nome;
-}
-
-// Traz para a conta os registros criados sem dono (sem duplicar)
-async function adotarSemDono() {
-  if (!sb || !sessaoUsuario) return;
-  try {
-    await sb.rpc("adotar_tudo", { novo_dono: sessaoUsuario.id });
-  } catch (e) { console.error("adotar:", e); }
 }
 
 async function fazerLogout() {

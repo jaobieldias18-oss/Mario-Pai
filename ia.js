@@ -13,8 +13,6 @@
 const IA_HIST_KEY = "ia_historico_v1";
 const IA_CHAT_KEY = "ia_chat_v1";
 const IA_USOS_KEY = "ia_usos_v1";
-const IA_MODEL = (typeof GROQ_MODEL !== "undefined" && GROQ_MODEL) || "qwen/qwen3.8-27b";
-const IA_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 function elIA(id) { return document.getElementById(id); }
 function obrasNoEscopo() {
@@ -79,19 +77,12 @@ function renderHistoricoIA() {
     box.appendChild(div);
   }
 }
-function chaveIAGroq() {
-  try {
-    let k = localStorage.getItem("mario_groq_key") || "";
-    if (!k) {
-      k = (prompt("Cole a chave da Groq (só na primeira vez):") || "").trim();
-      if (k) localStorage.setItem("mario_groq_key", k);
-    }
-    return k;
-  } catch (e) { return ""; }
-}
 async function iaConversar(pergunta, contexto) {
+  // Limitar pergunta para economizar tokens
+  const perguntaLim = (pergunta || "").slice(0, 500);
+  const contextoLim = (contexto || "").slice(0, 12000);
+
   // 1) IA Financeira no servidor (contas feitas lá, sem chave no aparelho)
-  // Tenta 2x: o limite gratuito da IA às vezes recusa 1 chamada seguida
   for (let tent = 1; tent <= 2; tent++) {
     try {
       const sel = document.getElementById("ia-periodo");
@@ -108,7 +99,7 @@ async function iaConversar(pergunta, contexto) {
             { "Content-Type": "application/json" },
             token ? { Authorization: "Bearer " + token } : {}
           ),
-          body: JSON.stringify({ pergunta, obra_id: obraId, periodo }),
+          body: JSON.stringify({ pergunta: perguntaLim, obra_id: obraId, periodo }),
         }
       );
       if (resp.ok) {
@@ -118,66 +109,52 @@ async function iaConversar(pergunta, contexto) {
           return String(j.resposta).trim();
         }
       }
+      if (resp.status === 401 || resp.status === 403) {
+        throw new Error("Sessão inválida. Faça login novamente.");
+      }
+      if (resp.status === 429) {
+        throw new Error("Limite de uso da IA atingido. Aguarde um minuto e tente novamente.");
+      }
+      if (resp.status >= 500) {
+        // tentar fallback no próximo ciclo/rodada
+      }
       if (tent < 2) await new Promise((r) => setTimeout(r, 3000));
     } catch (e) {
       console.error("ia-financeira:", e);
       if (tent < 2) await new Promise((r) => setTimeout(r, 3000));
     }
   }
-  // 2) Reserva: modo conversa da função de plantas
+  // 2) Reserva: modo conversa da função de plantas (envia contexto e requer autenticação via token)
   try {
+    const sess = (sb && sb.auth && typeof sb.auth.getSession === "function")
+      ? await sb.auth.getSession().catch(() => null) : null;
+    const token = (sess && sess.data && sess.data.session && sess.data.session.access_token) || null;
     const resp = await fetch(
       "https://wmcrbjlzsqveekwifded.supabase.co/functions/v1/analisar-planta",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modo: "chat", pergunta, contexto }),
+        headers: Object.assign(
+          { "Content-Type": "application/json" },
+          token ? { Authorization: "Bearer " + token } : {}
+        ),
+        body: JSON.stringify({ modo: "chat", pergunta: perguntaLim, contexto: contextoLim }),
       }
     );
     if (resp.ok) {
       const j = await resp.json();
       if (j.resposta) return String(j.resposta).trim();
     }
-  } catch (e) { console.error("chat servidor:", e); }
-  // 2) Reserva: Groq direto com a chave do aparelho
-  const chave = chaveIAGroq();
-  if (!chave) throw new Error("sem-chave");
-  let resp = null, ultimo = "";
-  for (let t = 1; t <= 2; t++) {
-    try {
-      resp = await fetch(IA_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + chave },
-        body: JSON.stringify({
-          model: IA_MODEL, temperature: 0.2, max_tokens: 800,
-          messages: [
-            {
-              role: "system",
-              content: "Você é o assistente do Mário, chefe de obra. Fale simples e curto, " +
-                "como quem explica na obra, sem termos técnicos. Use SOMENTE os dados " +
-                "fornecidos abaixo. Se algo não estiver nos dados, diga exatamente: " +
-                "'Essa informação ainda não foi cadastrada.' Nunca invente valores, " +
-                "datas, nomes ou materiais.",
-            },
-            { role: "user", content: "DADOS REAIS DO SISTEMA:\n" + contexto + "\n\nPERGUNTA: " + pergunta },
-          ],
-        }),
-      });
-      if (resp.ok) break;
-      ultimo = "IA " + resp.status;
-      if (resp.status === 401) {
-        try { localStorage.removeItem("mario_groq_key"); } catch (e) {}
-        throw new Error("Chave recusada. Tente de novo com a chave atual.");
-      }
-      resp = null;
-    } catch (e) {
-      ultimo = e.message || "rede";
-      resp = null;
+    if (resp.status === 401) {
+      throw new Error("Sessão inválida. Faça login novamente.");
     }
+    if (resp.status === 429) {
+      throw new Error("Limite de uso da IA atingido. Aguarde um minuto e tente novamente.");
+    }
+    throw new Error("IA temporariamente indisponível.");
+  } catch (e) {
+    console.error("chat servidor:", e);
+    throw new Error((e && e.message) ? e.message : "IA temporariamente indisponível.");
   }
-  if (!resp) throw new Error(ultimo || "falha temporária");
-  const j = await resp.json();
-  return ((((j.choices || [])[0] || {}).message || {}).content || "").trim();
 }
 function contextoEscopo() {
   const lista = obrasNoEscopo();
@@ -435,7 +412,7 @@ async function enviarPerguntaChat(texto) {
   const box = elIA("ia-chat");
   if (!box || (!pergunta && !iaFotoArquivo)) return;
   window._iaOcupada = true;
-  // Sem obra cadastrada: responde na hora, sem rede e sem chave
+  // Sem obra cadastrada: responde na hora
   if (!(obras || []).length) {
     box.innerHTML += `<div class="ia-msg voce">${proteger(pergunta)}</div>` +
       `<div class="ia-msg ia">Ainda não há obras cadastradas. Toque em + Nova obra para começar, depois me pergunte de novo.</div>`;
@@ -486,11 +463,7 @@ function ferramentaPerguntar() {
 function atualizarStatusChaveIA() {
   const el = elIA("ia-chave-status");
   if (!el) return;
-  let tem = false;
-  try { tem = !!(localStorage.getItem("mario_groq_key") || ""); } catch (e) {}
-  el.textContent = tem
-    ? "IA pronta para conversar."
-    : "Na primeira pergunta, cole a chave quando pedir (só desta vez neste aparelho).";
+  el.textContent = "IA usa serviço seguro do servidor.";
 }
 function atualizarObrasIA() {
   const sel = elIA("ia-obra");

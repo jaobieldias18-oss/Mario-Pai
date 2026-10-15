@@ -12,7 +12,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ÚNICO lugar com o nome do modelo. Troque aqui (ou via Secret
 // GROQ_VISION_MODEL) sem mexer no resto.
-const MODELO_PADRAO = "qwen/qwen3.8-27b";
+const MODELO_PADRAO = "qwen/qwen3.8-27b"; // visão: manter para análise de plantas
 
 const PROMPT_SISTEMA = `Você interpreta plantas arquitetônicas de casas e devolve SOMENTE JSON válido, sem texto extra, neste formato:
 {
@@ -106,14 +106,19 @@ serve(async (req) => {
     });
   }
   try {
-    // Chamada anônima liberada (sem login); valida o token se enviado.
+    // Exige usuário autenticado (token JWT do Supabase)
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
     const authHeader = req.headers.get("Authorization") || "";
-    let userId: string | null = null;
     const token = authHeader.replace(/^Bearer\s+/i, "");
-    // Chave pública (anon) = uso sem login, liberado. Só valida se for JWT de usuário.
-    if (token && token !== anonKey) {
+    let userId: string | null = null;
+    if (!token) {
+      return json({ erro: "Sessão inválida. Faça login novamente." }, 401);
+    }
+    if (token === anonKey) {
+      return json({ erro: "Sessão inválida. Faça login novamente." }, 401);
+    }
+    try {
       const sbUser = createClient(supabaseUrl, anonKey, {
         global: { headers: { Authorization: authHeader } },
       });
@@ -122,8 +127,13 @@ serve(async (req) => {
         return json({ erro: "Sessão inválida. Faça login novamente." }, 401);
       }
       userId = userData.user.id;
+    } catch {
+      return json({ erro: "Sessão inválida. Faça login novamente." }, 401);
     }
-    console.log("[ANALISE] Usuário autenticado: " + (userId ? "SIM" : "NÃO (anônimo)"));
+    if (!userId) {
+      return json({ erro: "Sessão inválida. Faça login novamente." }, 401);
+    }
+    console.log("[ANALISE] Usuário autenticado: SIM");
 
     // ---- Chave do Groq: SÓ do Secret do servidor ----
     const groqApiKey = Deno.env.get("GROQ_API_KEY");
@@ -139,9 +149,10 @@ serve(async (req) => {
 
     // ---- MODO CONVERSA (IA da Obra): pergunta + contexto, sem imagem ----
     if (corpo.modo === "chat") {
-      const pergunta = String(corpo.pergunta || "").slice(0, 2000);
+      const pergunta = String(corpo.pergunta || "").slice(0, 500);
       const contexto = String(corpo.contexto || "").slice(0, 12000);
       if (!pergunta) return json({ erro: "Pergunta vazia." }, 400);
+      const chatModelo = Deno.env.get("GROQ_CHAT_MODEL") || "openai/gpt-oss-120b";
       let chatResp: Response;
       try {
         chatResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -151,9 +162,9 @@ serve(async (req) => {
             Authorization: "Bearer " + groqApiKey,
           },
           body: JSON.stringify({
-            model: modelo,
+            model: chatModelo,
             temperature: 0.2,
-            max_tokens: 800,
+            max_tokens: 400,
             messages: [
               {
                 role: "system",
@@ -203,12 +214,21 @@ serve(async (req) => {
       mime = (blob as Blob).type || "image/png";
     }
     if (!base64) return json({ erro: "Nenhuma imagem enviada." }, 400);
+    // Limite de tamanho da imagem em base64 (aprox. até 15MB)
+    const MAX_BASE64 = 20 * 1024 * 1024;
+    if (base64.length > MAX_BASE64) {
+      return json({ erro: "Imagem muito grande. Reduza o tamanho e tente novamente." }, 400);
+    }
     console.log("[ANALISE] Arquivo recebido: SIM");
     console.log("[ANALISE] Tipo: " + mime);
     if (mime === "application/pdf") {
       return json({
         erro: "PDF não suportado pela análise automática. Envie a planta como imagem (PNG/JPG) ou foto.",
       }, 400);
+    }
+    const mimeOk = /^(image\/(jpeg|jpg|png|webp))$/.test(mime);
+    if (!mimeOk) {
+      return json({ erro: "Formato de imagem não suportado. Use JPG, PNG ou WebP." }, 400);
     }
 
     // ---- Groq: SÓ interpreta a planta ----

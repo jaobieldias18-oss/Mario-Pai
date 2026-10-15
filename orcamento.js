@@ -153,12 +153,12 @@ async function renderOrcamentosSalvos() {
   // Completa com o servidor o que falta no aparelho (só soma)
   try {
     if (typeof SyncOrc !== "undefined") {
-      const remotos = await SyncOrc.puxarOrcamentos().catch(() => []);
-      if (remotos.length) {
+      const res = await SyncOrc.puxarOrcamentos().catch(() => ({ ok: false, dados: [] }));
+      if (res && res.ok && res.dados && res.dados.length) {
         const locais = lerOrcamentos();
         const ids = new Set(locais.map((o) => o.id));
         let entrou = false;
-        for (const r of remotos) {
+        for (const r of res.dados) {
           if (!ids.has(r.id)) { locais.unshift(r); entrou = true; }
         }
         if (entrou) salvarOrcamentos(locais.slice(0, 30));
@@ -371,12 +371,12 @@ function estimarObra() {
     salvarOrcamentos(lista.slice(0, 30));
     try {
       if (typeof SyncOrc !== "undefined") {
-        SyncOrc.empurrarOrcamento(lista[0]).then((ok) => {
-          if (ok) salvarOrcamentos(lerOrcamentos());
-          mostrarToast(msgSync(ok));
-        });
-      } else mostrarToast(msgSync(false));
-    } catch (e) { mostrarToast(msgSync(false)); }
+        SyncOrc.empurrarOrcamento(lista[0]).then((r) => {
+          if (r && r.ok) salvarOrcamentos(lerOrcamentos());
+          mostrarToast(msgSync(r), !!(r && r.ok));
+        }).catch(() => mostrarToast(msgSync({ ok: false, status: "rede" }), false));
+      } else mostrarToast(msgSync(false), false);
+    } catch (e) { mostrarToast(msgSync(false), false); }
   });
   box.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -527,9 +527,12 @@ function paredeLiquida(comp, alt, vaos) {
   const r2 = (n) => Math.round(n * 100) / 100;
   return { bruta: r2(bruta), vaos: r2(v), liquida: r2(bruta - v) };
 }
-// Mensagem de salvamento conforme sincronizou ou não (sem mentir)
-function msgSync(ok) {
-  return ok ? "Orçamento salvo e sincronizado!" : "Salvo no aparelho. Sincroniza sozinho com internet.";
+// Mensagem de salvamento conforme o RESULTADO REAL (sem mentir).
+// Aceita objeto {ok,status} OU boolean (compatibilidade com chamadas antigas).
+function msgSync(r, oQue) {
+  if (typeof SyncOrc !== "undefined" && SyncOrc.mensagem) return SyncOrc.mensagem(r, oQue || "Orçamento");
+  const ok = typeof r === "object" && r ? r.ok : !!r;
+  return ok ? (oQue || "Orçamento") + " salvo e sincronizado!" : "Salvo neste aparelho. Sincroniza sozinho com internet.";
 }
 function moeda(v) {
   return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -755,12 +758,12 @@ function calcularOrcamento() {
     salvarOrcamentos(lista.slice(0, 30));
     try {
       if (typeof SyncOrc !== "undefined") {
-        SyncOrc.empurrarOrcamento(novo).then((ok) => {
-          if (ok) salvarOrcamentos(lerOrcamentos());
-          mostrarToast(msgSync(ok));
-        });
-      } else mostrarToast(msgSync(false));
-    } catch (e) { mostrarToast(msgSync(false)); }
+        SyncOrc.empurrarOrcamento(novo).then((r) => {
+          if (r && r.ok) salvarOrcamentos(lerOrcamentos());
+          mostrarToast(msgSync(r), !!(r && r.ok));
+        }).catch(() => mostrarToast(msgSync({ ok: false, status: "rede" }), false));
+      } else mostrarToast(msgSync(false), false);
+    } catch (e) { mostrarToast(msgSync(false), false); }
     try { renderOrcamentosSalvos(); } catch (e) {}
   });
   box.scrollIntoView({ behavior: "smooth", block: "start" });

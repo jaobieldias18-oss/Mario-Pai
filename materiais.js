@@ -165,12 +165,19 @@ function salvarFormMaterial(e) {
   salvarMateriais(lista);
   elMat("form-material").hidden = true;
   desenharMateriais((elMat("mat-busca") || {}).value || "");
-  mostrarToast("Material salvo!");
+  // Mensagem honesta: só afirma "nuvem" após confirmação real da gravação.
   try {
     if (typeof SyncOrc !== "undefined") {
-      SyncOrc.empurrarMaterial(m).then((ok) => { if (ok) salvarMateriais(lista); });
+      SyncOrc.empurrarMaterial(m).then((r) => {
+        const ok = !!(r && r.ok);
+        if (ok) salvarMateriais(lista); // grava o _supa (id da nuvem) no aparelho
+        const texto = SyncOrc.mensagem ? SyncOrc.mensagem(r, "Material") : (ok ? "Material salvo e sincronizado!" : "Material salvo neste aparelho.");
+        mostrarToast(texto, ok);
+      }).catch(() => mostrarToast("Material salvo neste aparelho. Falha ao salvar na nuvem.", false));
+    } else {
+      mostrarToast("Material salvo neste aparelho.", false);
     }
-  } catch (e) {}
+  } catch (e) { mostrarToast("Material salvo neste aparelho.", false); }
 }
 function verHistoricoPreco(id, dias) {
   const m = matPorId(id);
@@ -237,13 +244,15 @@ function ligarMateriais() {
   // Completa com o servidor o que falta no aparelho (só soma, nunca apaga)
   try {
     if (typeof SyncOrc !== "undefined") {
-      SyncOrc.puxarMateriais().then((remotos) => {
+      SyncOrc.puxarMateriais().then((r) => {
+        if (!r || !r.ok) return; // falha de rede/permissão NÃO é "lista vazia"
+        const remotos = r.dados || [];
         if (!remotos.length) return;
         const lista = lerMateriais();
         const ids = new Set(lista.map((m) => m.id));
         let entrou = 0;
-        for (const r of remotos) {
-          if (!ids.has(r.id)) { lista.push(r); entrou++; }
+        for (const rm of remotos) {
+          if (!ids.has(rm.id)) { lista.push(rm); entrou++; }
         }
         if (entrou) {
           salvarMateriais(lista);

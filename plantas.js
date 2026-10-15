@@ -7,21 +7,7 @@
      (localStorage). Nunca vai para o código nem para o GitHub.
    ===================================================== */
 
-const GROQ_MODEL = "qwen/qwen3.8-27b";
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_KEY_SAVE = "mario_groq_key";
-
-// Chave pedida uma vez e guardada NO APARELHO (nunca no código/GitHub)
-function chaveGroq() {
-  try {
-    let k = localStorage.getItem(GROQ_KEY_SAVE) || "";
-    if (!k) {
-      k = (prompt("Cole a chave da Groq (só na primeira vez):") || "").trim();
-      if (k) localStorage.setItem(GROQ_KEY_SAVE, k);
-    }
-    return k;
-  } catch (e) { return ""; }
-}
+// Chave da IA mantida apenas no servidor (Supabase Edge Functions).
 
 function elPlanta2(id) { return document.getElementById(id); }
 
@@ -44,15 +30,16 @@ async function analisarPlanta() {
   elPlanta2("planta-resultado").innerHTML = "";
   try {
     const blob = await prepararFoto(arq, 2048); // plantas vão em alta p/ ler as cotas miúdas
-    // 1) Servidor (sem chave no aparelho)
     let dados = null;
     try {
       dados = await analisarViaServidor(blob, arq.type || "image/jpeg");
       status.textContent = "";
     } catch (e) {
-      console.error("servidor falhou, tentando direto:", e);
-      dados = await analisarViaGroqDireto(arq);
+      console.error("falha ao analisar planta:", e);
       status.textContent = "";
+      mostrarToast("Não foi possível ler a planta. Tente novamente ou verifique se a IA está configurada.", false);
+      btn.disabled = false; btn.textContent = "Ler planta";
+      return;
     }
     desenharLeitura(dados);
     try {
@@ -71,19 +58,31 @@ async function analisarPlanta() {
   btn.disabled = false; btn.textContent = "Ler planta";
 }
 
-// Caminho principal: Edge Function (chave no servidor, nada a digitar)
+// Caminho principal: Edge Function (chave no servidor, autenticação requerida)
 async function analisarViaServidor(blob, mime) {
   const dataUrl = await blobParaDataURL(blob);
   const base64 = (dataUrl.split(",")[1] || "");
+  const sess = (sb && sb.auth && typeof sb.auth.getSession === "function")
+    ? await sb.auth.getSession().catch(() => null) : null;
+  const token = (sess && sess.data && sess.data.session && sess.data.session.access_token) || null;
+  const headers = Object.assign(
+    { "Content-Type": "application/json" },
+    token ? { Authorization: "Bearer " + token } : {}
+  );
   const resp = await fetch(
     "https://wmcrbjlzsqveekwifded.supabase.co/functions/v1/analisar-planta",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ nome_arquivo: "planta", mime, imagem_base64: base64 }),
     }
   );
-  if (!resp.ok) throw new Error("servidor " + resp.status);
+  if (!resp.ok) {
+    if (resp.status === 401) throw new Error("Sessão inválida. Faça login novamente.");
+    if (resp.status === 429) throw new Error("Limite de uso da IA atingido. Aguarde um minuto e tente novamente.");
+    if (resp.status >= 500) throw new Error("IA temporariamente indisponível.");
+    throw new Error("servidor " + resp.status);
+  }
   const j = await resp.json();
   const a = j.analise || j;
   const comodos = ((a.ambientes || []).map((x) => ({
@@ -99,80 +98,13 @@ async function analisarViaServidor(blob, mime) {
   return { comodos, area_total_m2: total, observacao: obs };
 }
 
-// Reserva: Groq direto (pede a chave 1x e guarda no aparelho). Devolve os dados.
-async function analisarViaGroqDireto(arq) {
-  const chave = chaveGroq();
-  if (!chave) throw new Error("cancelado");
-  const status = elPlanta2("planta-status");
-  const blob = await prepararFoto(arq, 2048);
-  const dataUrl = await blobParaDataURL(blob);
-  // Tenta até 3x (a IA às vezes falha 1x com limite/instabilidade e passa na seguinte)
-  let resp = null, ultimoErro = "";
-  for (let tent = 1; tent <= 3; tent++) {
-    if (status) status.textContent = tent > 1 ? `Tentando de novo (${tent}/3)...` : "Enviando para análise...";
-    try {
-      resp = await fetch(GROQ_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + chave,
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          temperature: 0,
-          seed: 7,
-          max_tokens: 1500,
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Analise esta planta baixa de obra com MÁXIMA precisão. " +
-                    "Transcreva as COTAS exatamente como estão escritas no desenho " +
-                    "(não arredonde, não estime, não invente número). " +
-                    "Calcule cada área a partir das cotas transcritas. " +
-                    "Responda SOMENTE com JSON válido, sem texto fora dele, neste formato: " +
-                    '{"comodos": [{"nome": "Sala", "area_m2": 12.5, "perimetro_m": 14, "cotas": "4,00 x 3,10"}], ' +
-                    '"area_total_m2": 0, "observacao": "liste aqui TUDO que estiver ilegível ou duvidoso"}. ' +
-                    "Se não for uma planta, use observacao para dizer e comodos vazio.",
-                },
-                { type: "image_url", image_url: { url: dataUrl } },
-              ],
-            },
-          ],
-        }),
-      });
-      if (resp.ok) break;
-      ultimoErro = "Groq " + resp.status + ": " + (await resp.text()).slice(0, 120);
-      // Chave trocada/recusada: apaga a guardada e pede a nova na próxima
-      if (resp.status === 401) {
-        try { localStorage.removeItem("mario_groq_key"); } catch (e) {}
-        throw new Error("Chave recusada. Toque em Ler planta de novo e cole a chave atual.");
-      }
-      resp = null;
-      if (tent < 3) await new Promise((r) => setTimeout(r, 2000 * tent));
-    } catch (e) {
-      if (/Chave recusada|cancelado/.test(e.message || "")) throw e;
-      ultimoErro = e.message || "rede";
-      resp = null;
-      if (tent < 3) await new Promise((r) => setTimeout(r, 2000 * tent));
-    }
-  }
-  if (!resp) throw new Error(ultimoErro || "falha temporária");
-  const j = await resp.json();
-  const texto = (((j.choices || [])[0] || {}).message || {}).content || "";
-  const ini = texto.indexOf("{");
-  const fim = texto.lastIndexOf("}");
-  if (ini < 0 || fim <= ini) throw new Error("resposta inválida");
-  return JSON.parse(texto.slice(ini, fim + 1));
-}
+
 
 function erroSimplesPlanta(e) {
   const m = String((e && e.message) || "");
-  if (/401/.test(m)) return "Chave não aceita. Toque em Ler planta de novo e cole a chave atual.";
-  if (/429/.test(m)) return "Muito uso agora. Aguarde uns minutos e tente de novo.";
-  if (/404|model/.test(m)) return "Modelo em atualização. Avise o suporte.";
+  if (/401/.test(m)) return "Sessão inválida. Faça login novamente.";
+  if (/429/.test(m)) return "Limite de uso da IA atingido. Aguarde um minuto e tente de novo.";
+  if (/500|temporariamente/.test(m)) return "IA temporariamente indisponível. Verifique se o serviço foi configurado.";
   if (/rede|fetch|Failed/.test(m)) return "Sem internet. Confira o sinal e tente de novo.";
   return "Não foi possível ler. Tente de novo com a foto mais nítida.";
 }

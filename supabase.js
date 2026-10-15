@@ -358,16 +358,84 @@ const DB = {
 // ---------- Sincronização orçamentos/materiais ----------
 // Estratégia segura p/ usuário único: local manda sempre; servidor
 // recebe cópia (melhor esforço) e completa o que falta no aparelho.
-// Se as tabelas ainda não existirem, tudo falha em silêncio e o app
-// segue 100% local. Nada quebra, nada duplica (elo: local_id).
+// As funções informam o MOTIVO quando algo falha (nunca tratam erro
+// como "tabela vazia"). Gravações nunca apagam antes de confirmar.
+const SyncStatus = {
+  OK: "ok",
+  SEM_CONEXAO: "sem-conexao",
+  SEM_TABELA: "sem-tabela",
+  REDE: "rede",
+  PERMISSAO: "permissao",
+  DUPLICADO: "duplicado",
+  REFERENCIA: "referencia",
+  GRAVACAO: "gravacao",
+};
+
+// Traduz o erro do Supabase/rede para um motivo claro (sem esconder)
+function classificarErroSync(e) {
+  if (e === "sem-conexao") return SyncStatus.SEM_CONEXAO;
+  const code = e && e.code;
+  const msg = String((e && (e.message || e.msg)) || e || "");
+  if (/failed to fetch|networkerror|network request failed|load failed|fetch failed|could not connect|timeout|sem-conexao/i.test(msg)) return SyncStatus.REDE;
+  if (code === "42P01" || /does not exist|undefined table|relation .* does not exist|schema cache/i.test(msg)) return SyncStatus.SEM_TABELA;
+  if (code === "42501" || /permission denied|row-level security|violates row-level|new row violates/i.test(msg)) return SyncStatus.PERMISSAO;
+  if (code === "23505" || /duplicate key|unique constraint/i.test(msg)) return SyncStatus.DUPLICADO;
+  if (code === "23503" || /foreign key|violates foreign/i.test(msg)) return SyncStatus.REFERENCIA;
+  return SyncStatus.GRAVACAO;
+}
+
+// Diferença de conjuntos COM multiplicidade: preserva itens repetidos.
+// Devolve o que falta inserir e o que sobrou (por id) para remover.
+function diffSync(existentes, desejados, chave) {
+  const sobras = (existentes || []).slice();
+  const inserir = [];
+  for (const d of desejados || []) {
+    const i = sobras.findIndex((x) => chave(x) === chave(d));
+    if (i >= 0) sobras.splice(i, 1);
+    else inserir.push(d);
+  }
+  return { inserir, remover: sobras };
+}
+
+// Substitui os filhos de um registro de forma SEGURA: primeiro INSERE
+// os que faltam; só depois remove os antigos que sobraram (por id).
+// Se a inserção falhar, nada é apagado -> sem perda de dados.
+async function substituirFilhosSeguro(tabela, colunaFk, fkValor, desejados, chave) {
+  const { data: existentes, error: eLer } = await sb.from(tabela).select("*").eq(colunaFk, fkValor);
+  if (eLer) throw eLer;
+  const { inserir, remover } = diffSync(existentes, desejados, chave);
+  if (inserir.length) {
+    const { error } = await sb.from(tabela).insert(inserir);
+    if (error) throw error; // falhou ao inserir -> NÃO remove nada
+  }
+  const ids = remover.map((x) => x.id).filter(Boolean);
+  if (ids.length) {
+    const { error } = await sb.from(tabela).delete().in("id", ids);
+    if (error) throw error;
+  }
+}
+
 const SyncOrc = {
+  // Texto honesto para qualquer tela (nunca afirma nuvem sem confirmação).
+  // Aceita o objeto de resultado OU um boolean (compatibilidade antiga).
+  mensagem(r, substantivo) {
+    const o = substantivo || "Orçamento";
+    const ok = typeof r === "object" && r ? r.ok : !!r;
+    const st = (typeof r === "object" && r && r.status) || SyncStatus.REDE;
+    if (ok) return o + " salvo e sincronizado!";
+    if (st === SyncStatus.SEM_CONEXAO) return o + " salvo neste aparelho. Conecte à internet para enviar.";
+    if (st === SyncStatus.SEM_TABELA) return o + " salvo neste aparelho. Nuvem ainda não configurada.";
+    if (st === SyncStatus.PERMISSAO) return o + " salvo neste aparelho. Sem permissão na nuvem (confira o login).";
+    if (st === SyncStatus.REDE) return o + " salvo neste aparelho. Aguardando sincronização.";
+    return o + " salvo neste aparelho. Falha ao salvar na nuvem.";
+  },
   async puxarMateriais() {
     try {
-      if (!sb) return [];
+      if (!sb) return { ok: false, status: SyncStatus.SEM_CONEXAO, dados: [] };
       const { data, error } = await sb.from("materiais").select("*");
-      if (error || !data) return [];
+      if (error) throw error;
       const out = [];
-      for (const r of data) {
+      for (const r of data || []) {
         const m = {
           id: r.local_id || r.id, _supa: r.id, nome: r.nome,
           categoria: r.categoria || "Outros", marca: r.marca || "",
@@ -385,8 +453,8 @@ const SyncOrc = {
         } catch (e) {}
         out.push(m);
       }
-      return out;
-    } catch (e) { return []; }
+      return { ok: true, status: SyncStatus.OK, dados: out };
+    } catch (e) { return { ok: false, status: classificarErroSync(e), dados: [] }; }
   },
   linhaMat(l) {
     return {
@@ -401,9 +469,10 @@ const SyncOrc = {
   },
   async empurrarMaterial(m) {
     try {
-      if (!sb) return false;
+      if (!sb) return { ok: false, status: SyncStatus.SEM_CONEXAO };
       if (!m._supa) {
-        const { data } = await sb.from("materiais").select("id").eq("local_id", m.id).limit(1);
+        const { data, error } = await sb.from("materiais").select("id").eq("local_id", m.id).limit(1);
+        if (error) throw error;
         if (data && data[0]) m._supa = data[0].id;
       }
       let rid = m._supa || null;
@@ -415,23 +484,21 @@ const SyncOrc = {
         if (error) throw error;
         rid = data.id; m._supa = rid;
       }
-      await sb.from("materiais_precos").delete().eq("material_id", rid);
+      // Histórico: insere só o que falta e remove só as sobras antigas
+      const chave = (x) => [Number(x.preco).toFixed(2), x.data || "", x.fonte || ""].join("|");
       const hist = (m.historico || []).filter((x) => x.preco > 0)
         .map((x) => ({ owner_id: uidDono(), material_id: rid, preco: x.preco, data: x.data || null, fonte: x.fonte || null }));
-      if (hist.length) {
-        const { error } = await sb.from("materiais_precos").insert(hist);
-        if (error) throw error;
-      }
-      return true;
-    } catch (e) { return false; }
+      await substituirFilhosSeguro("materiais_precos", "material_id", rid, hist, chave);
+      return { ok: true, status: SyncStatus.OK };
+    } catch (e) { return { ok: false, status: classificarErroSync(e), erro: e }; }
   },
   async puxarOrcamentos() {
     try {
-      if (!sb) return [];
+      if (!sb) return { ok: false, status: SyncStatus.SEM_CONEXAO, dados: [] };
       const { data, error } = await sb.from("orcamentos").select("*").order("created_at", { ascending: false }).limit(30);
-      if (error || !data) return [];
+      if (error) throw error;
       const out = [];
-      for (const r of data) {
+      for (const r of data || []) {
         let itens = [];
         try {
           const { data: li } = await sb.from("orcamento_itens").select("*").eq("orcamento_id", r.id);
@@ -443,14 +510,15 @@ const SyncOrc = {
           alvenaria: r.alvenaria || "bloco", total: Number(r.total) || 0, itens,
         });
       }
-      return out;
-    } catch (e) { return []; }
+      return { ok: true, status: SyncStatus.OK, dados: out };
+    } catch (e) { return { ok: false, status: classificarErroSync(e), dados: [] }; }
   },
   async empurrarOrcamento(o) {
     try {
-      if (!sb) return false;
+      if (!sb) return { ok: false, status: SyncStatus.SEM_CONEXAO };
       if (!o._supa) {
-        const { data } = await sb.from("orcamentos").select("id").eq("local_id", o.id).limit(1);
+        const { data, error } = await sb.from("orcamentos").select("id").eq("local_id", o.id).limit(1);
+        if (error) throw error;
         if (data && data[0]) o._supa = data[0].id;
       }
       const linha = {
@@ -467,7 +535,9 @@ const SyncOrc = {
         if (error) throw error;
         rid = data.id; o._supa = rid;
       }
-      await sb.from("orcamento_itens").delete().eq("orcamento_id", rid);
+      // Itens: insere só o que falta e remove só as sobras antigas
+      const num = (v) => (v == null ? "" : Number(v).toFixed(3));
+      const chave = (x) => [x.nome, num(x.quantidade), x.unidade || "", num(x.preco), num(x.total)].join("|");
       const itens = (o.itens || []).map((it) => ({
         owner_id: uidDono(),
         orcamento_id: rid, nome: it.nome,
@@ -475,16 +545,18 @@ const SyncOrc = {
         preco: it.preco == null ? null : it.preco,
         total: it.total == null ? null : it.total, detalhe: null,
       }));
-      if (itens.length) {
-        const { error } = await sb.from("orcamento_itens").insert(itens);
-        if (error) throw error;
-      }
-      return true;
-    } catch (e) { return false; }
+      await substituirFilhosSeguro("orcamento_itens", "orcamento_id", rid, itens, chave);
+      return { ok: true, status: SyncStatus.OK };
+    } catch (e) { return { ok: false, status: classificarErroSync(e), erro: e }; }
   },
   async apagarOrcamentoRemoto(o) {
     try {
-      if (sb && o && o._supa) await sb.from("orcamentos").delete().eq("id", o._supa);
-    } catch (e) {}
+      if (!sb) return { ok: false, status: SyncStatus.SEM_CONEXAO };
+      if (o && o._supa) {
+        const { error } = await sb.from("orcamentos").delete().eq("id", o._supa);
+        if (error) throw error;
+      }
+      return { ok: true, status: SyncStatus.OK };
+    } catch (e) { return { ok: false, status: classificarErroSync(e), erro: e }; }
   },
 };
