@@ -181,12 +181,17 @@ function contextoEscopo() {
   L.push(`Mês atual (${chave}): entradas ${rm.entradas}, gastos ${rm.gastos}, resultado ${rm.resultado}.`);
   try {
     if (typeof lerOrcamentos === "function") {
-      const so = lerOrcamentos().slice(0, 5);
-      if (so.length) L.push("Orçamentos salvos: " + so.map((o) => `${o.area}m² (${o.alvenaria}) total ${o.total}`).join("; ") + ".");
+      const so = lerOrcamentos().slice(0, 3);
+      for (const o of so) {
+        L.push(`Orçamento salvo (${o.data || "sem data"}, ${o.area}m², ${o.alvenaria}): total ${o.total}. ` +
+          `Itens: ${(o.itens || []).map((it) => `${it.nome} ${it.qtd ?? "?"}${it.unidade || ""} x ${it.preco ?? "sem preço"}`).join("; ")}.`);
+      }
+      if (!so.length) L.push("Sem orçamentos salvos.");
     }
     if (typeof lerMateriais === "function") {
       const lm = lerMateriais().filter((m) => m.ativo && m.preco > 0).slice(0, 20);
-      if (lm.length) L.push("Preços cadastrados: " + lm.map((m) => `${m.nome} ${m.preco}/${m.unidade}`).join("; ") + ".");
+      if (lm.length) L.push("Preços cadastrados (com data): " + lm.map((m) => `${m.nome} ${m.preco}/${m.unidade} em ${m.dataPreco || "?"}`).join("; ") + ".");
+      else L.push("Sem preços cadastrados no catálogo.");
     }
   } catch (e) {}
   L.push(`Se algum valor acima for zero ou não houver lançamentos, diga de forma simples quais lançamentos faltam fazer (ex: "cadastre os gastos da obra").`);

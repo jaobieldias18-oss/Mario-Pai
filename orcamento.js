@@ -277,7 +277,7 @@ function calcularOrcamento() {
   // PISO: área × % × (1 + perda)
   const qPiso = area * PARAMS_ORC.PISO_PERC_AREA.valor * (1 + PARAMS_ORC.PERDA_PISO.valor);
   itens.push({
-    nome: "Piso cerâmico", unidade: "m²", qtd: Math.round(qPiso * 10) / 10,
+    nome: "Piso cerâmico", etapa: "Pisos", unidade: "m²", qtd: Math.round(qPiso * 10) / 10,
     preco: precos.piso, total: precos.piso ? qPiso * precos.piso : null,
     detalhe: [
       `Área da casa: ${area} m²`,
@@ -292,7 +292,7 @@ function calcularOrcamento() {
   const consUn = alv === "bloco" ? PARAMS_ORC.BLOCO_M2.valor : PARAMS_ORC.TIJOLO_M2.valor;
   const qAlv = Math.ceil(areaParede * consUn * (1 + PARAMS_ORC.PERDA_BLOCO.valor));
   itens.push({
-    nome: alv === "bloco" ? "Bloco de concreto" : "Tijolo cerâmico", unidade: "un",
+    nome: alv === "bloco" ? "Bloco de concreto" : "Tijolo cerâmico", etapa: "Alvenaria", unidade: "un",
     qtd: qAlv, preco: precos.bloco,
     total: precos.bloco ? qAlv * precos.bloco : null,
     detalhe: [
@@ -307,7 +307,7 @@ function calcularOrcamento() {
   // CIMENTO (reboco) — consolidado aqui; outras etapas somariam junto
   const qCim = Math.ceil(areaParede * PARAMS_ORC.CIMENTO_M2_REBOCO.valor);
   itens.push({
-    nome: "Cimento (reboco)", unidade: "sacos",
+    nome: "Cimento (reboco)", etapa: "Reboco e revestimentos", unidade: "sacos",
     qtd: qCim, preco: precos.cimento,
     total: precos.cimento ? qCim * precos.cimento : null,
     detalhe: [
@@ -321,7 +321,7 @@ function calcularOrcamento() {
   const litros = (areaParede / PARAMS_ORC.TINTA_REND_M2_L.valor) * PARAMS_ORC.TINTA_DEMAOS.valor;
   const qTinta = Math.ceil(litros * 10) / 10;
   itens.push({
-    nome: "Tinta", unidade: "L",
+    nome: "Tinta", etapa: "Pintura", unidade: "L",
     qtd: qTinta, preco: precos.tinta,
     total: precos.tinta ? qTinta * precos.tinta : null,
     detalhe: [
@@ -338,10 +338,10 @@ function calcularOrcamento() {
   ];
   for (const x of pj) {
     if (x.qtd === null || x.qtd === undefined) {
-      itens.push({ nome: x.nome, unidade: "un", qtd: null, preco: null, total: null,
+      itens.push({ nome: x.nome, etapa: "Esquadrias", unidade: "un", qtd: null, preco: null, total: null,
         detalhe: ["Quantidade não informada no Raio-X."] });
     } else {
-      itens.push({ nome: x.nome, unidade: "un", qtd: x.qtd, preco: x.preco,
+      itens.push({ nome: x.nome, etapa: "Esquadrias", unidade: "un", qtd: x.qtd, preco: x.preco,
         total: x.preco ? x.qtd * x.preco : null,
         detalhe: [`Quantidade: ${x.qtd} un`, x.preco ? `Preço: ${moeda(x.preco)}/un` : "Preço não informado."] });
     }
@@ -358,18 +358,41 @@ function calcularOrcamento() {
   const total = itens.reduce((s, it) => s + (it.total || 0), 0);
   const semPreco = itens.filter((it) => it.total === null).length;
 
-  // Render 100% escapado (nada da IA vira HTML)
+  // Render por etapa, com subtotal cada (sem somar nada duas vezes)
   let html = `<div class="card"><h3 class="titulo-secao" style="margin-top:0">Orçamento — ${area} m² (${alv === "bloco" ? "Bloco" : "Tijolo"})</h3>`;
-  for (const it of itens) {
-    html += `<h3 class="titulo-secao">${proteger(it.nome)}</h3>`;
-    html += it.detalhe.map((d) => `<p class="texto-suave">${proteger(d)}</p>`).join("");
-    html += `<p><strong>Total: ${it.total === null ? "Preço não informado." : moeda(it.total)}</strong></p>`;
-    html += `<button class="btn btn-texto" data-orc-ver="${proteger(it.nome)}">Ver como foi calculado</button>`;
-    html += `<div class="card" data-orc-calculo="${proteger(it.nome)}" hidden>` +
-      it.detalhe.map((d) => `<p class="texto-suave">${proteger(d)}</p>`).join("") + `</div>`;
+  const ordemEtapas = ["Pisos", "Alvenaria", "Reboco e revestimentos", "Pintura", "Esquadrias"];
+  for (const etapa of ordemEtapas) {
+    const doEtapa = itens.filter((it) => it.etapa === etapa);
+    if (!doEtapa.length) continue;
+    const sub = doEtapa.reduce((s, it) => s + (it.total || 0), 0);
+    const parcial = doEtapa.some((it) => it.total === null);
+    html += `<h3 class="titulo-secao">${proteger(etapa)} — ${moeda(sub)}${parcial ? " (parcial)" : ""}</h3>`;
+    for (const it of doEtapa) {
+      html += `<p><strong>${proteger(it.nome)}</strong>: ${it.qtd ?? "—"} ${proteger(it.unidade || "")} × ` +
+        `${it.preco ? moeda(it.preco) : "sem preço"} = <strong>${it.total === null ? "—" : moeda(it.total)}</strong></p>`;
+      html += `<button class="btn btn-texto" data-orc-ver="${proteger(it.nome)}">Ver como foi calculado</button>`;
+      html += `<div class="card" data-orc-calculo="${proteger(it.nome)}" hidden>` +
+        it.detalhe.map((d) => `<p class="texto-suave">${proteger(d)}</p>`).join("") + `</div>`;
+    }
   }
+  // Resumo: data-base, premissas, confiabilidade
+  const conf = semPreco === 0 && r.origem && r.origem.area ? "Alta" : semPreco <= 2 ? "Média" : "Baixa";
   html += `<h3 class="titulo-secao">Total estimado: ${moeda(total)}${semPreco ? " (parcial: faltam preços)" : ""}</h3>`;
-  if (semPreco) html += `<p class="texto-suave">${semPreco} item(ns) sem preço — informe para completar.</p>`;
+  html += `<p class="texto-suave">Data-base dos preços: ${formatarData(hojeISO())} (preços digitados ou do catálogo).</p>`;
+  html += `<p class="texto-suave">Premissas: ${area} m², ${alv === "bloco" ? "bloco de concreto" : "tijolo cerâmico"}, coeficientes dos parâmetros do app.</p>`;
+  html += `<p class="texto-suave">Confiabilidade: <strong>${conf}</strong>${semPreco ? ` • ${semPreco} item(ns) sem preço` : ""}.</p>`;
+  // Previsto x realizado da obra vinculada
+  try {
+    const obraReal = r.obraId && typeof pegarObra === "function" ? pegarObra(r.obraId) : null;
+    if (obraReal && typeof calcularTotais === "function") {
+      const t = calcularTotais(obraReal);
+      const real = t.totalGasto + t.totalMO;
+      const dif = total - real;
+      html += `<h3 class="titulo-secao">Previsto x realizado</h3>` +
+        `<p class="texto-suave">Orçado: <strong>${moeda(total)}</strong> • Gasto até agora: <strong>${moeda(real)}</strong> • ` +
+        `Diferença: <strong>${moeda(dif)}</strong> ${dif >= 0 ? "(dentro do previsto)" : "(acima do previsto)"}.</p>`;
+    }
+  } catch (e) {}
   if (avisos.length) html += `<div class="card dica"><p><strong>Atenção, revisar:</strong></p>` +
     avisos.map((a) => `<p class="texto-suave">• ${proteger(a)}</p>`).join("") + `</div>`;
   html += `<div class="modal-botoes"><button class="btn btn-texto" id="orc-editar">Editar dados</button>` +
