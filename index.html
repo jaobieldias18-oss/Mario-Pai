@@ -45,6 +45,7 @@
       <button class="nav-btn" data-ir="visao-geral">Visão Geral</button>
       <button class="nav-btn" data-ir="ia">IA da Obra</button>
       <button class="nav-btn" data-ir="plantas">Plantas</button>
+      <button class="nav-btn" data-ir="orcamento">Orçamento</button>
       <button class="nav-btn destaque" data-ir="nova-obra">+ Nova obra</button>
     </nav>
   </header>
@@ -74,6 +75,11 @@
           <span class="ia-banner-ir" aria-hidden="true">→</span>
         </button>
         <button class="btn btn-texto" id="ia-atencao" hidden></button>
+        <button class="ia-banner" id="qa-orc-ia" aria-label="Abrir orçamento guiado">
+          <span class="ia-banner-icone" aria-hidden="true"><span class="item-icone" aria-hidden="true">R</span></span>
+          <span class="ia-banner-texto"><strong>Orçamento da obra</strong><small>Responda e descubra quanto vai custar.</small></span>
+          <span class="ia-banner-ir" aria-hidden="true">→</span>
+        </button>
       </div>
 
       <!-- Indicadores principais: só o essencial -->
@@ -567,6 +573,37 @@
       </form>
       <div id="mat-historico" hidden></div>
       <div id="lista-materiais" class="lista"></div>
+    </section>
+    <!-- ===== TELA: ORÇAMENTO GUIADO ===== -->
+    <section id="tela-orcamento-ia" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Orçamento da obra</h2>
+      <p class="texto-suave">Passo 1: confira os preços. Passo 2: informe a casa.</p>
+      <div class="card">
+        <h3 class="titulo-secao" style="margin-top:0">Preços dos materiais (R$)</h3>
+        <div id="orc-precos-lista"></div>
+        <button class="btn btn-primario" id="orc-precos-salvar">Salvar preços</button>
+      </div>
+      <div class="card">
+        <h3 class="titulo-secao" style="margin-top:0">Dados da casa</h3>
+        <div class="form">
+          <label class="campo"><span>Área (m²) *</span>
+            <input type="number" id="og-area" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 100" /></label>
+          <div class="linha-2">
+            <label class="campo"><span>Quartos</span>
+              <input type="number" id="og-quartos" min="0" step="1" inputmode="numeric" value="3" /></label>
+            <label class="campo"><span>Banheiros</span>
+              <input type="number" id="og-banheiros" min="0" step="1" inputmode="numeric" value="2" /></label>
+          </div>
+          <label class="campo"><span>Parede</span>
+            <select id="og-sistema">
+              <option value="bloco">Bloco de concreto</option>
+              <option value="tijolo">Tijolo cerâmico</option>
+            </select></label>
+          <button class="btn btn-primario btn-grande" id="og-calcular">Calcular quanto vai custar</button>
+        </div>
+      </div>
+      <div id="og-resultado"></div>
     </section>
   </main>
 

@@ -206,6 +206,137 @@ function duplicarOrcamento(id) {
   mostrarToast("Ajuste e calcule de novo.");
 }
 
+// ---------- ORÇAMENTO GUIADO (preços + medidas = estimativa) ----------
+const OG_ITENS = [
+  ["piso", "Piso (R$/m²)", "Piso cerâmico"],
+  ["bloco", "Bloco/tijolo (R$/un)", "Bloco de concreto"],
+  ["cimento", "Cimento (R$/saco)", "Cimento CP-II 50kg"],
+  ["tinta", "Tinta (R$/L)", "Tinta acrílica 18L"],
+  ["porta", "Porta (R$/un)", "Porta pronta 80cm"],
+  ["janela", "Janela (R$/un)", "Janela alumínio 100x120"],
+];
+function ogPrecos() {
+  try { return JSON.parse(localStorage.getItem("mario_orc_precos_v1")) || {}; } catch (e) { return {}; }
+}
+function ogSalvarPrecos(p) {
+  try { localStorage.setItem("mario_orc_precos_v1", JSON.stringify(p)); } catch (e) {}
+}
+function desenharPrecosOG() {
+  const box = document.getElementById("orc-precos-lista");
+  if (!box) return;
+  const salvos = ogPrecos();
+  let catalogo = {};
+  try {
+    if (typeof lerMateriais === "function") {
+      for (const m of lerMateriais()) {
+        if (m.ativo && m.preco > 0) {
+          const k = m.nome.toLowerCase();
+          if (/piso/.test(k)) catalogo.piso = m.preco;
+          else if (/bloco/.test(k)) catalogo.bloco = m.preco;
+          else if (/tijolo/.test(k)) catalogo.tijolo = m.preco;
+          else if (/cimento/.test(k)) catalogo.cimento = m.preco;
+          else if (/tinta/.test(k)) catalogo.tinta = m.preco;
+          else if (/porta/.test(k)) catalogo.porta = m.preco;
+          else if (/janela/.test(k)) catalogo.janela = m.preco;
+        }
+      }
+    }
+  } catch (e) {}
+  box.innerHTML = "";
+  for (const [chave, rotulo] of OG_ITENS) {
+    let v = salvos[chave];
+    if ((v === undefined || v === null || v === "") && catalogo[chave] !== undefined) v = catalogo[chave];
+    if (chave === "bloco") {
+      const sist = (document.getElementById("og-sistema") || {}).value || "bloco";
+      if ((v === undefined || v === null || v === "") && sist === "tijolo" && catalogo.tijolo !== undefined) v = catalogo.tijolo;
+    }
+    box.innerHTML += `<label class="campo"><span>${rotulo}</span>` +
+      `<input type="number" data-og-preco="${chave}" value="${v ?? ""}" min="0" step="0.01" inputmode="decimal" placeholder="—" /></label>`;
+  }
+}
+function estimarObra() {
+  const area = numeroOuZero((document.getElementById("og-area") || {}).value);
+  if (!(area > 0)) { mostrarToast("Informe a área da casa.", false); return; }
+  const quartos = Math.max(0, parseInt((document.getElementById("og-quartos") || {}).value || "0", 10));
+  const banheiros = Math.max(0, parseInt((document.getElementById("og-banheiros") || {}).value || "0", 10));
+  const sist = (document.getElementById("og-sistema") || {}).value || "bloco";
+  const P = {};
+  document.querySelectorAll("[data-og-preco]").forEach((i) => {
+    const v = numeroOuZero(i.value);
+    P[i.dataset.ogPreco] = v > 0 ? v : null;
+  });
+  const areaParede = area * PARAMS_ORC.PAREDE_POR_AREA.valor;
+  const qPiso = area * PARAMS_ORC.PISO_PERC_AREA.valor * (1 + PARAMS_ORC.PERDA_PISO.valor);
+  const consUn = sist === "bloco" ? PARAMS_ORC.BLOCO_M2.valor : PARAMS_ORC.TIJOLO_M2.valor;
+  const qAlv = Math.ceil(areaParede * consUn * (1 + PARAMS_ORC.PERDA_BLOCO.valor));
+  const qCim = Math.ceil(areaParede * PARAMS_ORC.CIMENTO_M2_REBOCO.valor);
+  const qTinta = Math.ceil((areaParede / PARAMS_ORC.TINTA_REND_M2_L.valor * PARAMS_ORC.TINTA_DEMAOS.valor) * 10) / 10;
+  // Portas e janelas estimadas pelos cômodos (estimativa — confirmar no projeto)
+  const qPortas = quartos + banheiros + 2;
+  const qJanelas = quartos + banheiros + 1;
+  const itens = [
+    { nome: "Piso cerâmico", etapa: "Pisos", unidade: "m²", qtd: Math.round(qPiso * 10) / 10, preco: P.piso, detalhe: [`${area} m² × ${PARAMS_ORC.PISO_PERC_AREA.valor} × ${(1 + PARAMS_ORC.PERDA_PISO.valor).toFixed(2)}`] },
+    { nome: sist === "bloco" ? "Bloco de concreto" : "Tijolo cerâmico", etapa: "Alvenaria", unidade: "un", qtd: qAlv, preco: P.bloco, detalhe: [`${areaParede.toFixed(1)} m² × ${consUn} un/m²`] },
+    { nome: "Cimento (reboco)", etapa: "Reboco e revestimentos", unidade: "sacos", qtd: qCim, preco: P.cimento, detalhe: [`${areaParede.toFixed(1)} m² × ${PARAMS_ORC.CIMENTO_M2_REBOCO.valor}`] },
+    { nome: "Tinta", etapa: "Pintura", unidade: "L", qtd: qTinta, preco: P.tinta, detalhe: [`${areaParede.toFixed(1)} m² ÷ ${PARAMS_ORC.TINTA_REND_M2_L.valor} × ${PARAMS_ORC.TINTA_DEMAOS.valor}`] },
+    { nome: "Portas (estimativa: cômodos + 2)", etapa: "Esquadrias", unidade: "un", qtd: qPortas, preco: P.porta, detalhe: ["Estimativa pelos cômodos — confirmar no projeto"] },
+    { nome: "Janelas (estimativa: cômodos + 1)", etapa: "Esquadrias", unidade: "un", qtd: qJanelas, preco: P.janela, detalhe: ["Estimativa pelos cômodos — confirmar no projeto"] },
+  ];
+  for (const it of itens) it.total = it.preco ? it.qtd * it.preco : null;
+  const total = itens.reduce((s, it) => s + (it.total || 0), 0);
+  const semPreco = itens.filter((it) => it.total === null).length;
+  let html = `<div class="card"><h3 class="titulo-secao" style="margin-top:0">Vai precisar de cerca de ${moeda(total)}${semPreco ? " (parcial)" : ""}</h3>`;
+  html += `<p class="texto-suave">Casa de ${area} m² • ${quartos} quartos • ${banheiros} banheiros • ${sist === "bloco" ? "Bloco" : "Tijolo"}</p>`;
+  for (const it of itens) {
+    html += `<p><strong>${proteger(it.nome)}</strong>: ${it.qtd} ${proteger(it.unidade)} × ` +
+      `${it.preco ? moeda(it.preco) : "sem preço"} = <strong>${it.total === null ? "—" : moeda(it.total)}</strong></p>`;
+  }
+  if (semPreco) html += `<p class="texto-suave">Faltam ${semPreco} preço(s) — preencha no passo 1.</p>`;
+  html += `<p class="texto-suave">Estimativa preliminar: portas e janelas chutadas pelos cômodos. Confirme no projeto.</p>`;
+  html += `<button class="btn btn-primario btn-grande" id="og-salvar">Salvar orçamento</button></div>`;
+  const box = document.getElementById("og-resultado");
+  if (!box) return;
+  box.innerHTML = html;
+  document.getElementById("og-salvar").addEventListener("click", () => {
+    const lista = lerOrcamentos();
+    lista.unshift({
+      id: Date.now().toString(36), data: hojeISO(), obraId: null,
+      area, alvenaria: sist, total,
+      itens: itens.map((it) => ({ nome: it.nome, qtd: it.qtd, unidade: it.unidade, preco: it.preco, total: it.total })),
+    });
+    salvarOrcamentos(lista.slice(0, 30));
+    try { if (typeof SyncOrc !== "undefined") SyncOrc.empurrarOrcamento(lista[0]); } catch (e) {}
+    mostrarToast("Orçamento salvo!");
+  });
+  box.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function ligarOrcamentoGuiado() {
+  const b = document.getElementById("og-calcular");
+  if (b && !b.dataset.ligado) {
+    b.dataset.ligado = "1";
+    b.addEventListener("click", estimarObra);
+  }
+  const s = document.getElementById("orc-precos-salvar");
+  if (s && !s.dataset.ligado) {
+    s.dataset.ligado = "1";
+    s.addEventListener("click", () => {
+      const p = {};
+      document.querySelectorAll("[data-og-preco]").forEach((i) => {
+        const v = numeroOuZero(i.value);
+        p[i.dataset.ogPreco] = v > 0 ? v : null;
+      });
+      ogSalvarPrecos(p);
+      mostrarToast("Preços salvos!");
+    });
+  }
+  const sist = document.getElementById("og-sistema");
+  if (sist && !sist.dataset.ligado) {
+    sist.dataset.ligado = "1";
+    sist.addEventListener("change", desenharPrecosOG);
+  }
+  desenharPrecosOG();
+}
+
 // ---------- Sistema construtivo + quantitativo determinístico ----------
 function desenharSistema() {
   const box = elOrc("orcamento-area");

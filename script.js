@@ -332,6 +332,7 @@ function mostrarTela(nome) {
     "visao-geral": "tela-visao-geral",
     opcoes: "tela-opcoes",
     ia: "tela-ia",
+    orcamento: "tela-orcamento-ia",
     materiais: "tela-materiais",
     plantas: "tela-plantas",
   };
@@ -361,6 +362,7 @@ function irPara(destino) {
   else if (destino === "visao-geral") mostrarTela("visao-geral");
   else if (destino === "opcoes") mostrarTela("opcoes");
   else if (destino === "ia") mostrarTela("ia");
+  else if (destino === "orcamento") mostrarTela("orcamento");
   else if (destino === "materiais") mostrarTela("materiais");
   else if (destino === "plantas") mostrarTela("plantas");
   else if (destino === "plantas") mostrarTela("plantas");
@@ -2655,6 +2657,16 @@ async function iniciar() {
 
   // IA da Obra: liga botões e banner (ia.js)
   try { if (typeof ligarIA === "function") ligarIA(); } catch (e) {}
+
+  // Orçamento guiado (orcamento.js)
+  try {
+    if (typeof ligarOrcamentoGuiado === "function") ligarOrcamentoGuiado();
+    const qo = document.getElementById("qa-orc-ia");
+    if (qo && !qo.dataset.ligado) {
+      qo.dataset.ligado = "1";
+      qo.addEventListener("click", () => mostrarTela("orcamento"));
+    }
+  } catch (e) {}
 
   // Materiais: liga tela e preenche categorias (materiais.js)
   try {
