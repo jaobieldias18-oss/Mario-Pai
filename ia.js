@@ -424,9 +424,11 @@ function renderChatHistorico() {
   }
 }
 async function enviarPerguntaChat(texto) {
+  if (window._iaOcupada) return; // sem envio duplo enquanto pensa
   const pergunta = (texto || (elIA("ia-pergunta") || {}).value || "").trim();
   const box = elIA("ia-chat");
   if (!box || (!pergunta && !iaFotoArquivo)) return;
+  window._iaOcupada = true;
   // Sem obra cadastrada: responde na hora, sem rede e sem chave
   if (!(obras || []).length) {
     box.innerHTML += `<div class="ia-msg voce">${proteger(pergunta)}</div>` +
@@ -460,9 +462,11 @@ async function enviarPerguntaChat(texto) {
     renderChatHistorico();
     guardarHistoricoIA("Pergunta: " + pergunta.slice(0, 60), nomeEscopo(),
       `<div class="card"><p><strong>${proteger(pergunta)}</strong></p><p>${proteger(resp)}</p></div>`);
+    window._iaOcupada = false;
   } catch (e) {
     const d = document.getElementById("ia-digitando");
     if (d) { d.textContent = "Não consegui responder: " + (e.message || "erro"); d.classList.remove("digitando"); d.removeAttribute("id"); }
+    window._iaOcupada = false;
   }
 }
 function ferramentaPerguntar() {
