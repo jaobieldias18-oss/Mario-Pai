@@ -178,7 +178,9 @@ function contextoEscopo() {
     if (pend.length) L.push(`  Parcelas em aberto: ${pend.length} (próximo vencimento ${(pend.map((p) => p.vencimento || "").filter(Boolean).sort()[0]) || "—"}).`);
     if ((o.equipe || []).length) L.push(`  Equipe: ${(o.equipe || []).map((x) => `${x.nome} (${x.funcao})`).join(", ")}.`);
   }
-  L.push(`Mês atual (${chave}): entradas ${rm.entradas}, gastos ${rm.gastos}, resultado ${rm.resultado}.`);
+  const mesCtx = mesAtual();
+  const rmCtx = calcularMes(mesCtx);
+  L.push(`Mês atual (${mesCtx}): entradas ${rmCtx.entradas}, gastos ${rmCtx.gastos}, resultado ${rmCtx.resultado}.`);
   try {
     if (typeof lerOrcamentos === "function") {
       const so = lerOrcamentos().slice(0, 3);
