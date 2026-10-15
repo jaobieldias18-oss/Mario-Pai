@@ -418,9 +418,15 @@ function renderChatHistorico() {
 }
 async function enviarPerguntaChat(texto) {
   const pergunta = (texto || (elIA("ia-pergunta") || {}).value || "").trim();
-  if (!pergunta) return;
   const box = elIA("ia-chat");
-  if (!box) return;
+  if (!box || (!pergunta && !iaFotoArquivo)) return;
+  // Sem obra cadastrada: responde na hora, sem rede e sem chave
+  if (!(obras || []).length) {
+    box.innerHTML += `<div class="ia-msg voce">${proteger(pergunta)}</div>` +
+      `<div class="ia-msg ia">Ainda não há obras cadastradas. Toque em + Nova obra para começar, depois me pergunte de novo.</div>`;
+    box.scrollTop = box.scrollHeight;
+    return;
+  }
   box.innerHTML += `<div class="ia-msg voce">${proteger(pergunta)}</div><div class="ia-msg ia digitando" id="ia-digitando"><span></span><span></span><span></span></div>`;
   box.scrollTop = box.scrollHeight;
   const campo = elIA("ia-pergunta");
