@@ -332,6 +332,7 @@ function mostrarTela(nome) {
     "visao-geral": "tela-visao-geral",
     opcoes: "tela-opcoes",
     ia: "tela-ia",
+    composicoes: "tela-composicoes",
     orcamento: "tela-orcamento-ia",
     materiais: "tela-materiais",
     plantas: "tela-plantas",
@@ -362,6 +363,7 @@ function irPara(destino) {
   else if (destino === "visao-geral") mostrarTela("visao-geral");
   else if (destino === "opcoes") mostrarTela("opcoes");
   else if (destino === "ia") mostrarTela("ia");
+  else if (destino === "composicoes") mostrarTela("composicoes");
   else if (destino === "orcamento") mostrarTela("orcamento");
   else if (destino === "materiais") mostrarTela("materiais");
   else if (destino === "plantas") mostrarTela("plantas");
@@ -2636,6 +2638,8 @@ async function iniciar() {
 
   // IA da Obra: liga botões e banner (ia.js)
   try { if (typeof ligarIA === "function") ligarIA(); } catch (e) {}
+  // Composições (composicoes.js)
+  try { if (typeof ligarComposicoes === "function") ligarComposicoes(); } catch (e) {}
 
   // Orçamento guiado (orcamento.js)
   try {

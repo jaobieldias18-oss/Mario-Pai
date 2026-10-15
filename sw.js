@@ -23,6 +23,7 @@ const ESTATICOS = [
   "plantas.js?v=16",
   "orcamento.js?v=3",
   "materiais.js?v=2",
+  "composicoes.js?v=1",
   "ia.js?v=16",
   "manifest.json",
   "assets/logo.svg",

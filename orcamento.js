@@ -336,7 +336,7 @@ function estimarObra() {
   for (const it of itens) it.total = it.preco ? it.qtd * it.preco : null;
   const total = itens.reduce((s, it) => s + (it.total || 0), 0);
   const semPreco = itens.filter((it) => it.total === null).length;
-  let html = `<div class="card"><h3 class="titulo-secao" style="margin-top:0">Vai precisar de cerca de ${moeda(total)}${semPreco ? " (parcial)" : ""}</h3>`;
+  let html = `<div class="card"><p class="texto-suave"><strong>ESTIMATIVA PRELIMINAR</strong> — complete os dados para o detalhado.</p><h3 class="titulo-secao" style="margin-top:0">Vai precisar de cerca de ${moeda(total)}${semPreco ? " (parcial)" : ""}</h3>`;
   html += `<p class="texto-suave">Casa de ${area} m² • ${quartos} quartos • ${banheiros} banheiros • ${sist === "bloco" ? "Bloco" : "Tijolo"} • <strong>${moeda(total / area)}/m²</strong></p>`;
   for (const it of itens) {
     html += `<p><strong>${proteger(it.nome)}</strong>: ${it.qtd} ${proteger(it.unidade)} × ` +
@@ -559,10 +559,43 @@ function calcularOrcamento() {
   }
   // Resumo: data-base, premissas, confiabilidade
   const conf = semPreco === 0 && r.origem && r.origem.area ? "Alta" : semPreco <= 2 ? "Média" : "Baixa";
+  const pendencias = [];
+  if (!r.area) pendencias.push({ oque: "Área da obra", porque: "base de todos os quantitativos", resolver: "Informe no Raio-X" });
+  if (r.quartos == null) pendencias.push({ oque: "Quartos", porque: "afeta portas e esquadrias", resolver: "Informe no Raio-X" });
+  if (r.banheiros == null) pendencias.push({ oque: "Banheiros", porque: "afeta louças e hidráulica", resolver: "Informe no Raio-X" });
+  if (r.portas == null) pendencias.push({ oque: "Portas", porque: "quantidade estimada", resolver: "Confirme no projeto" });
+  if (r.janelas == null) pendencias.push({ oque: "Janelas", porque: "quantidade estimada", resolver: "Confirme no projeto" });
+  for (const it of itens) {
+    if (it.total === null) pendencias.push({ oque: `Preço: ${it.nome}`, porque: "sem ele o total fica parcial", resolver: "Cadastre em Materiais ou digite" });
+  }
+  const completude = Math.max(0, Math.round(((itens.length * 2 - pendencias.length) / (itens.length * 2)) * 100));
   html += `<h3 class="titulo-secao">Total estimado: ${moeda(total)}${semPreco ? " (parcial: faltam preços)" : ""}</h3>`;
   html += `<p class="texto-suave">Data-base dos preços: ${formatarData(hojeISO())} (preços digitados ou do catálogo).</p>`;
   html += `<p class="texto-suave">Premissas: ${area} m², ${alv === "bloco" ? "bloco de concreto" : "tijolo cerâmico"}, coeficientes dos parâmetros do app.</p>`;
-  html += `<p class="texto-suave">Confiabilidade: <strong>${conf}</strong>${semPreco ? ` • ${semPreco} item(ns) sem preço` : ""}.</p>`;
+  html += `<p class="texto-suave">Confiabilidade: <strong>${conf}</strong> • Completude: <strong>${completude}%</strong>${semPreco ? ` • ${semPreco} item(ns) sem preço` : ""}.</p>`;
+  if (pendencias.length) {
+    html += `<h3 class="titulo-secao">Pendências (${pendencias.length})</h3>` +
+      pendencias.map((p) => `<p class="texto-suave">• <strong>${proteger(p.oque)}</strong> — ${proteger(p.porque)}. Resolver: ${proteger(p.resolver)}.</p>`).join("");
+  }
+  // BDI, impostos e contingência: separados, nunca embutidos (0 = não aplica)
+  html += `<h3 class="titulo-secao">Encargos sobre o custo</h3>
+  <div class="form">
+    <div class="linha-2">
+      <label class="campo"><span>Imprevistos (%)</span><input type="number" id="orc-bdi-imp" value="5" min="0" step="0.1" inputmode="decimal" /></label>
+      <label class="campo"><span>Impostos (%)</span><input type="number" id="orc-bdi-trib" value="0" min="0" step="0.1" inputmode="decimal" /></label>
+    </div>
+    <label class="campo"><span>Margem/lucro (%)</span><input type="number" id="orc-bdi-lucro" value="0" min="0" step="0.1" inputmode="decimal" /></label>
+    <p class="texto-suave" id="orc-bdi-total">Custo direto: ${moeda(total)}</p>
+  </div>`;
+  const recalcBDI = () => {
+    const pi = numeroOuZero((document.getElementById("orc-bdi-imp") || {}).value) / 100;
+    const pt = numeroOuZero((document.getElementById("orc-bdi-trib") || {}).value) / 100;
+    const pl = numeroOuZero((document.getElementById("orc-bdi-lucro") || {}).value) / 100;
+    const vImp = total * pi, vTrib = total * pt, vLucro = total * pl;
+    const el = document.getElementById("orc-bdi-total");
+    if (el) el.innerHTML = `Custo direto: ${moeda(total)}<br>Imprevistos: ${moeda(vImp)}<br>Impostos: ${moeda(vTrib)}<br>Margem: ${moeda(vLucro)}<br><strong>Preço de venda: ${moeda(total + vImp + vTrib + vLucro)}</strong>`;
+    return { pi, pt, pl, vImp, vTrib, vLucro, venda: total + vImp + vTrib + vLucro };
+  };
   // Previsto x realizado da obra vinculada
   try {
     const obraReal = r.obraId && typeof pegarObra === "function" ? pegarObra(r.obraId) : null;
@@ -590,11 +623,17 @@ function calcularOrcamento() {
   );
   elOrc("orc-editar").addEventListener("click", () => { desenharRaioX(); });
   elOrc("orc-imprimir").addEventListener("click", () => window.print());
+  ["orc-bdi-imp", "orc-bdi-trib", "orc-bdi-lucro"].forEach((id) => {
+    const c = elOrc(id);
+    if (c) c.addEventListener("input", recalcBDI);
+  });
+  recalcBDI();
   elOrc("orc-salvar").addEventListener("click", () => {
     const lista = lerOrcamentos();
+    const bdi = recalcBDI();
     const novo = {
       id: Date.now().toString(36), data: hojeISO(), obraId: r.obraId,
-      area, alvenaria: alv, total,
+      area, alvenaria: alv, total, bdi: { imp: bdi.pi, trib: bdi.pt, lucro: bdi.pl, venda: bdi.venda },
       itens: itens.map((it) => ({ nome: it.nome, qtd: it.qtd, unidade: it.unidade, preco: it.preco, total: it.total })),
     };
     lista.unshift(novo);

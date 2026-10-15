@@ -478,6 +478,12 @@
       </div>
 
       <div class="card">
+        <h3 class="opcoes-titulo">Composições</h3>
+        <p class="texto-suave">Serviços com insumos para o orçamento.</p>
+        <button class="btn btn-primario" data-ir="composicoes">Abrir composições</button>
+      </div>
+
+      <div class="card">
         <h3 class="opcoes-titulo">Sobre</h3>
         <p class="texto-suave">MARIO · Controle financeiro de obras.<br />Seus dados ficam salvos e sincronizados.</p>
       </div>
@@ -628,6 +634,13 @@
         </div>
       </div>
       <div id="og-resultado"></div>
+    </section>
+    <!-- ===== TELA: COMPOSIÇÕES ===== -->
+    <section id="tela-composicoes" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Composições</h2>
+      <p class="texto-suave">Serviços com insumos e rendimentos. Base do cálculo.</p>
+      <div id="lista-composicoes" class="lista"></div>
     </section>
   </main>
 
@@ -796,6 +809,7 @@
   <script src="plantas.js?v=16"></script>
   <script src="orcamento.js?v=3"></script>
   <script src="materiais.js?v=2"></script>
+  <script src="composicoes.js?v=1"></script>
   <script src="ia.js?v=16"></script>
   <!-- PWA: registra o Service Worker (só funciona em http/https,
        abrindo como arquivo local o registro é ignorado sem erro) -->
