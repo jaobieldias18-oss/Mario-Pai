@@ -36,6 +36,20 @@ const PARAMS_ORC = {
   // Portas e janelas: por unidade
   PRECO_PORTA_UN: { valor: null, unidade: "R$/un", obs: "porta pronta instalada" },
   PRECO_JANELA_UN: { valor: null, unidade: "R$/un", obs: "janela padrão" },
+  // Fundação (sapata corrida): seção padrão × perímetro
+  SAPATA_LARG_M: { valor: 0.4, unidade: "m", obs: "largura da sapata" },
+  SAPATA_ALT_M: { valor: 0.4, unidade: "m", obs: "altura da sapata" },
+  ACO_FUND_KG_M3: { valor: 80, unidade: "kg/m³", obs: "armação média sapata" },
+  PRECO_CONC_M3: { valor: null, unidade: "R$/m³", obs: "concreto usinado" },
+  PRECO_ACO_KG: { valor: null, unidade: "R$/kg", obs: "aço CA-50" },
+  // Laje maciça: concreto e aço por m²
+  LAJE_CONC_M3_M2: { valor: 0.12, unidade: "m³/m²", obs: "laje ~12cm" },
+  ACO_LAJE_KG_M2: { valor: 12, unidade: "kg/m²", obs: "armação média laje" },
+  // Cobertura: área do telhado sobre a área + telha romana
+  TELHADO_FATOR: { valor: 1.3, unidade: "fração", obs: "telhado sobre a área" },
+  TELHA_M2: { valor: 16, unidade: "un/m²", obs: "telha romana" },
+  PRECO_TELHA_UN: { valor: null, unidade: "R$/un", obs: "telha romana" },
+  MADEIRAMENTO_M2: { valor: null, unidade: "R$/m²", obs: "madeiramento instalado" },
 };
 
 const ORC_SAVE_KEY = "mario_orcamentos_v1";
@@ -214,6 +228,13 @@ const OG_ITENS = [
   ["tinta", "Tinta (R$/L)", "Tinta acrílica 18L"],
   ["porta", "Porta (R$/un)", "Porta pronta 80cm"],
   ["janela", "Janela (R$/un)", "Janela alumínio 100x120"],
+  ["concreto", "Concreto (R$/m³)", null],
+  ["aco", "Aço (R$/kg)", "Aço CA-50 8mm"],
+  ["telha", "Telha (R$/un)", "Telha romana"],
+  ["madeiramento", "Madeiramento (R$/m²)", null],
+  ["peletrico", "Ponto elétrico (R$)", null],
+  ["phidraulico", "Ponto hidráulico (R$)", null],
+  ["modiaria", "Diária MO (R$)", null],
 ];
 function ogPrecos() {
   try { return JSON.parse(localStorage.getItem("mario_orc_precos_v1")) || {}; } catch (e) { return {}; }
@@ -238,6 +259,9 @@ function desenharPrecosOG() {
           else if (/tinta/.test(k)) catalogo.tinta = m.preco;
           else if (/porta/.test(k)) catalogo.porta = m.preco;
           else if (/janela/.test(k)) catalogo.janela = m.preco;
+          else if (/aço|aco/.test(k)) catalogo.aco = m.preco;
+          else if (/telha/.test(k)) catalogo.telha = m.preco;
+          else if (/concreto/.test(k)) catalogo.concreto = m.preco;
         }
       }
     }
@@ -271,22 +295,49 @@ function estimarObra() {
   const qAlv = Math.ceil(areaParede * consUn * (1 + PARAMS_ORC.PERDA_BLOCO.valor));
   const qCim = Math.ceil(areaParede * PARAMS_ORC.CIMENTO_M2_REBOCO.valor);
   const qTinta = Math.ceil((areaParede / PARAMS_ORC.TINTA_REND_M2_L.valor * PARAMS_ORC.TINTA_DEMAOS.valor) * 10) / 10;
+  // Medidas editáveis (vazio = estimativa documentada abaixo)
+  const perim = numeroOuZero((document.getElementById("og-perimetro") || {}).value) || Math.round(4 * Math.sqrt(area) * 10) / 10;
+  const areaTelhado = numeroOuZero((document.getElementById("og-telhado") || {}).value) || Math.round(area * PARAMS_ORC.TELHADO_FATOR.valor * 10) / 10;
+  const nPElet = Math.max(0, parseInt((document.getElementById("og-peletricos") || {}).value || "0", 10));
+  const nPHidr = Math.max(0, parseInt((document.getElementById("og-phidraulicos") || {}).value || "0", 10));
+  const moDias = Math.max(0, parseInt((document.getElementById("og-mo-dias") || {}).value || "0", 10));
+  const moDiaria = numeroOuZero((document.getElementById("og-mo-diaria") || {}).value);
+  const transporte = numeroOuZero((document.getElementById("og-transporte") || {}).value);
+  const outros = numeroOuZero((document.getElementById("og-outros") || {}).value);
+  // Fundação (sapata corrida): concreto + aço
+  const concFund = perim * PARAMS_ORC.SAPATA_LARG_M.valor * PARAMS_ORC.SAPATA_ALT_M.valor;
+  const acoFund = Math.ceil(concFund * PARAMS_ORC.ACO_FUND_KG_M3.valor);
+  // Laje: concreto + aço
+  const concLaje = area * PARAMS_ORC.LAJE_CONC_M3_M2.valor;
+  const acoLaje = Math.ceil(area * PARAMS_ORC.ACO_LAJE_KG_M2.valor);
+  const qTelha = Math.ceil(areaTelhado * PARAMS_ORC.TELHA_M2.valor);
   // Portas e janelas estimadas pelos cômodos (estimativa — confirmar no projeto)
   const qPortas = quartos + banheiros + 2;
   const qJanelas = quartos + banheiros + 1;
   const itens = [
+    { nome: "Concreto fundação", etapa: "Fundação", unidade: "m³", qtd: Math.round(concFund * 100) / 100, preco: P.concreto, detalhe: [`${perim} m × ${PARAMS_ORC.SAPATA_LARG_M.valor} × ${PARAMS_ORC.SAPATA_ALT_M.valor}`] },
+    { nome: "Aço fundação", etapa: "Fundação", unidade: "kg", qtd: acoFund, preco: P.aco, detalhe: [`${concFund.toFixed(2)} m³ × ${PARAMS_ORC.ACO_FUND_KG_M3.valor} kg/m³`] },
+    { nome: "Concreto laje", etapa: "Estrutura", unidade: "m³", qtd: Math.round(concLaje * 100) / 100, preco: P.concreto, detalhe: [`${area} m² × ${PARAMS_ORC.LAJE_CONC_M3_M2.valor}`] },
+    { nome: "Aço laje", etapa: "Estrutura", unidade: "kg", qtd: acoLaje, preco: P.aco, detalhe: [`${area} m² × ${PARAMS_ORC.ACO_LAJE_KG_M2.valor} kg/m²`] },
     { nome: "Piso cerâmico", etapa: "Pisos", unidade: "m²", qtd: Math.round(qPiso * 10) / 10, preco: P.piso, detalhe: [`${area} m² × ${PARAMS_ORC.PISO_PERC_AREA.valor} × ${(1 + PARAMS_ORC.PERDA_PISO.valor).toFixed(2)}`] },
     { nome: sist === "bloco" ? "Bloco de concreto" : "Tijolo cerâmico", etapa: "Alvenaria", unidade: "un", qtd: qAlv, preco: P.bloco, detalhe: [`${areaParede.toFixed(1)} m² × ${consUn} un/m²`] },
     { nome: "Cimento (reboco)", etapa: "Reboco e revestimentos", unidade: "sacos", qtd: qCim, preco: P.cimento, detalhe: [`${areaParede.toFixed(1)} m² × ${PARAMS_ORC.CIMENTO_M2_REBOCO.valor}`] },
     { nome: "Tinta", etapa: "Pintura", unidade: "L", qtd: qTinta, preco: P.tinta, detalhe: [`${areaParede.toFixed(1)} m² ÷ ${PARAMS_ORC.TINTA_REND_M2_L.valor} × ${PARAMS_ORC.TINTA_DEMAOS.valor}`] },
     { nome: "Portas (estimativa: cômodos + 2)", etapa: "Esquadrias", unidade: "un", qtd: qPortas, preco: P.porta, detalhe: ["Estimativa pelos cômodos — confirmar no projeto"] },
     { nome: "Janelas (estimativa: cômodos + 1)", etapa: "Esquadrias", unidade: "un", qtd: qJanelas, preco: P.janela, detalhe: ["Estimativa pelos cômodos — confirmar no projeto"] },
+    { nome: "Telhas", etapa: "Cobertura", unidade: "un", qtd: qTelha, preco: P.telha, detalhe: [`${areaTelhado} m² × ${PARAMS_ORC.TELHA_M2.valor} un/m²`] },
+    { nome: "Madeiramento", etapa: "Cobertura", unidade: "m²", qtd: areaTelhado, preco: P.madeiramento, detalhe: [`${areaTelhado} m² de telhado`] },
+    { nome: "Pontos elétricos", etapa: "Elétrica", unidade: "pt", qtd: nPElet, preco: P.peletrico, detalhe: [nPElet ? `${nPElet} pontos informados` : "Informe os pontos"] },
+    { nome: "Pontos hidráulicos", etapa: "Hidráulica", unidade: "pt", qtd: nPHidr, preco: P.phidraulico, detalhe: [nPHidr ? `${nPHidr} pontos informados` : "Informe os pontos"] },
+    { nome: "Mão de obra", etapa: "Mão de obra", unidade: "diárias", qtd: moDias, preco: moDiaria || null, detalhe: [moDias ? `${moDias} dias × ${moeda(moDiaria || 0)}` : "Informe dias e diária"] },
+    { nome: "Transporte", etapa: "Outros", unidade: "R$", qtd: transporte ? 1 : 0, preco: transporte || null, detalhe: ["Valor informado"] },
+    { nome: "Outros", etapa: "Outros", unidade: "R$", qtd: outros ? 1 : 0, preco: outros || null, detalhe: ["Valor informado"] },
   ];
   for (const it of itens) it.total = it.preco ? it.qtd * it.preco : null;
   const total = itens.reduce((s, it) => s + (it.total || 0), 0);
   const semPreco = itens.filter((it) => it.total === null).length;
   let html = `<div class="card"><h3 class="titulo-secao" style="margin-top:0">Vai precisar de cerca de ${moeda(total)}${semPreco ? " (parcial)" : ""}</h3>`;
-  html += `<p class="texto-suave">Casa de ${area} m² • ${quartos} quartos • ${banheiros} banheiros • ${sist === "bloco" ? "Bloco" : "Tijolo"}</p>`;
+  html += `<p class="texto-suave">Casa de ${area} m² • ${quartos} quartos • ${banheiros} banheiros • ${sist === "bloco" ? "Bloco" : "Tijolo"} • <strong>${moeda(total / area)}/m²</strong></p>`;
   for (const it of itens) {
     html += `<p><strong>${proteger(it.nome)}</strong>: ${it.qtd} ${proteger(it.unidade)} × ` +
       `${it.preco ? moeda(it.preco) : "sem preço"} = <strong>${it.total === null ? "—" : moeda(it.total)}</strong></p>`;
@@ -302,7 +353,7 @@ function estimarObra() {
     lista.unshift({
       id: Date.now().toString(36), data: hojeISO(), obraId: null,
       area, alvenaria: sist, total,
-      itens: itens.map((it) => ({ nome: it.nome, qtd: it.qtd, unidade: it.unidade, preco: it.preco, total: it.total })),
+      itens: itens.map((it) => ({ nome: it.nome, etapa: it.etapa, qtd: it.qtd, unidade: it.unidade, preco: it.preco, total: it.total })),
     });
     salvarOrcamentos(lista.slice(0, 30));
     try { if (typeof SyncOrc !== "undefined") SyncOrc.empurrarOrcamento(lista[0]); } catch (e) {}
