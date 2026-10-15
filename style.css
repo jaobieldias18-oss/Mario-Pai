@@ -520,6 +520,7 @@ html, body { overflow-x: clip; }
   transition: border-color 0.12s ease;
 }
 .hist-item.selecionado { border-color: var(--cor-secundaria); background: #f6f9ff; }
+.item.selecionado { border-color: var(--cor-secundaria); }
 .hist-item strong { font-size: 16px; text-transform: capitalize; }
 .hist-linha { display: flex; justify-content: space-between; font-size: 14px; color: var(--texto-sec); }
 .hist-resultado { font-weight: 800; font-size: 15px; }

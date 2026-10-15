@@ -182,9 +182,10 @@ async function renderOrcamentosSalvos() {
           <span class="item-meta">${formatarData(o.data)} • Total ${moeda(o.total)}</span>
         </div>
       </div>
-      <div class="item-acoes"><button data-a="ver">Ver</button><button data-a="dup">Duplicar</button><button data-a="excluir" class="excluir">Excluir</button></div>`;
+      <div class="item-acoes"><button data-a="ver">Ver</button><button data-a="dup">Duplicar</button><button data-a="cmp">Comparar</button><button data-a="excluir" class="excluir">Excluir</button></div>`;
     div.querySelector('[data-a="ver"]').addEventListener("click", () => verOrcamentoSalvo(o.id));
     div.querySelector('[data-a="dup"]').addEventListener("click", () => duplicarOrcamento(o.id));
+    div.querySelector('[data-a="cmp"]').addEventListener("click", () => marcarComparar(o.id, div));
     div.querySelector('[data-a="excluir"]').addEventListener("click", async () => {
       const ok = await pedirConfirmacao("Excluir orçamento?", "Apaga este orçamento salvo.", "Excluir");
       if (!ok) return;
@@ -388,7 +389,51 @@ function ligarOrcamentoGuiado() {
   desenharPrecosOG();
 }
 
-// ---------- Sistema construtivo + quantitativo determinístico ----------
+// ---------- Comparar duas versões salvas ----------
+let cmpSel = [];
+function marcarComparar(id, div) {
+  if (cmpSel.includes(id)) cmpSel = cmpSel.filter((x) => x !== id);
+  else { cmpSel.push(id); cmpSel = cmpSel.slice(-2); }
+  document.querySelectorAll("#lista-orcamentos .item").forEach((el) => el.classList.remove("selecionado"));
+  if (cmpSel.length === 2) {
+    desenharComparacao(cmpSel[0], cmpSel[1]);
+    cmpSel = [];
+  } else {
+    if (div) div.classList.add("selecionado");
+    mostrarToast("Toque em outro orçamento para comparar.");
+  }
+}
+function desenharComparacao(idA, idB) {
+  const linhas = compararOrcamentos(idA, idB);
+  const box = elOrc("orcamento-area");
+  if (!box || !linhas) return;
+  box.hidden = false;
+  let html = `<div class="card"><h3 class="titulo-secao" style="margin-top:0">Versão A × Versão B</h3>`;
+  for (const l of linhas) {
+    const dif = (l.totalA == null || l.totalB == null)
+      ? " (falta dado)" : ` (diferença ${moeda(l.totalB - l.totalA)})`;
+    html += `<p><strong>${proteger(l.nome)}</strong>: A ${l.totalA == null ? "—" : moeda(l.totalA)} × B ${l.totalB == null ? "—" : moeda(l.totalB)}${dif}</p>`;
+  }
+  html += `</div>`;
+  box.innerHTML = html;
+  box.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function compararOrcamentos(idA, idB) {
+  const a = lerOrcamentos().find((x) => x.id === idA);
+  const b = lerOrcamentos().find((x) => x.id === idB);
+  if (!a || !b) return null;
+  const mapa = {};
+  for (const it of a.itens || []) mapa[it.nome] = { a: it };
+  for (const it of b.itens || []) {
+    mapa[it.nome] = mapa[it.nome] || {};
+    mapa[it.nome].b = it;
+  }
+  return Object.entries(mapa).map(([nome, v]) => ({
+    nome,
+    totalA: v.a && v.a.total != null ? v.a.total : null,
+    totalB: v.b && v.b.total != null ? v.b.total : null,
+  }));
+}
 function desenharSistema() {
   const box = elOrc("orcamento-area");
   box.hidden = false;
@@ -411,6 +456,18 @@ function desenharSistema() {
         <input type="number" id="orc-preco-porta" min="0" step="0.01" inputmode="decimal" /></label>
       <label class="campo"><span>Preço janela (R$/un)</span>
         <input type="number" id="orc-preco-janela" min="0" step="0.01" inputmode="decimal" /></label>
+      <div class="linha-2">
+        <label class="campo"><span>Dias de obra (MO)</span>
+          <input type="number" id="orc-mo-dias" min="0" step="1" inputmode="numeric" /></label>
+        <label class="campo"><span>Diária média (R$)</span>
+          <input type="number" id="orc-mo-diaria" min="0" step="0.01" inputmode="decimal" /></label>
+      </div>
+      <div class="linha-2">
+        <label class="campo"><span>Transporte/frete (R$)</span>
+          <input type="number" id="orc-transporte" min="0" step="0.01" inputmode="decimal" /></label>
+        <label class="campo"><span>Outros (R$)</span>
+          <input type="number" id="orc-outros" min="0" step="0.01" inputmode="decimal" /></label>
+      </div>
       <button class="btn btn-primario btn-grande" id="orc-calcular">Calcular orçamento</button>
     </div></div>
     <div id="orc-resultado"></div>`;
@@ -456,10 +513,10 @@ function calcularOrcamento() {
   const itens = []; // {nome, detalhe:[], qtd, unidade, preco, total|null}
   const areaParede = area * PARAMS_ORC.PAREDE_POR_AREA.valor;
 
-  // PISO: área × % × (1 + perda)
-  const qPiso = area * PARAMS_ORC.PISO_PERC_AREA.valor * (1 + PARAMS_ORC.PERDA_PISO.valor);
+  // PISO: área × % × (1 + perda) — total usa a MESMA qtd exibida (arredondada)
+  const qPiso = Math.round(area * PARAMS_ORC.PISO_PERC_AREA.valor * (1 + PARAMS_ORC.PERDA_PISO.valor) * 10) / 10;
   itens.push({
-    nome: "Piso cerâmico", etapa: "Pisos", unidade: "m²", qtd: Math.round(qPiso * 10) / 10,
+    nome: "Piso cerâmico", etapa: "Pisos", unidade: "m²", qtd: qPiso,
     preco: precos.piso, total: precos.piso ? qPiso * precos.piso : null,
     detalhe: [
       `Área da casa: ${area} m²`,
@@ -529,6 +586,26 @@ function calcularOrcamento() {
     }
   }
 
+  // MO + transporte + outros (valores informados, separados dos materiais)
+  const moDias = Math.max(0, parseInt(((document.getElementById("orc-mo-dias") || {}).value || "0"), 10));
+  const moDiaria = P("orc-mo-diaria");
+  const vTransp = P("orc-transporte");
+  const vOutros = P("orc-outros");
+  if (moDias > 0) {
+    itens.push({ nome: "Mão de obra", etapa: "Mão de obra", unidade: "diárias",
+      qtd: moDias, preco: moDiaria,
+      total: moDiaria ? moDias * moDiaria : null,
+      detalhe: [`${moDias} diárias${moDiaria ? ` × ${moeda(moDiaria)}` : " (diária não informada)"}`] });
+  }
+  if ((vTransp || 0) > 0) {
+    itens.push({ nome: "Transporte/frete", etapa: "Outros", unidade: "R$", qtd: 1, preco: vTransp,
+      total: vTransp, detalhe: ["Valor informado"] });
+  }
+  if ((vOutros || 0) > 0) {
+    itens.push({ nome: "Outros", etapa: "Outros", unidade: "R$", qtd: 1, preco: vOutros,
+      total: vOutros, detalhe: ["Valor informado"] });
+  }
+
   // Validações anti-absurdo (apontam a origem, sem chutar correção)
   const avisos = [];
   for (const it of itens) {
@@ -542,7 +619,7 @@ function calcularOrcamento() {
 
   // Render por etapa, com subtotal cada (sem somar nada duas vezes)
   let html = `<div class="card"><h3 class="titulo-secao" style="margin-top:0">Orçamento — ${area} m² (${alv === "bloco" ? "Bloco" : "Tijolo"})</h3>`;
-  const ordemEtapas = ["Pisos", "Alvenaria", "Reboco e revestimentos", "Pintura", "Esquadrias"];
+  const ordemEtapas = ["Pisos", "Alvenaria", "Reboco e revestimentos", "Pintura", "Esquadrias", "Mão de obra", "Outros"];
   for (const etapa of ordemEtapas) {
     const doEtapa = itens.filter((it) => it.etapa === etapa);
     if (!doEtapa.length) continue;
