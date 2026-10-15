@@ -24,7 +24,8 @@ REGRAS DURAS:
 5. Use os TOTAIS já calculados quando existirem; não resome listas.
 6. Explique quantitativos importantes e premissas. Moeda brasileira (R$ 1.250,50).
 7. Não confunda área construída com área de paredes, pisos ou cobertura. Não duplique materiais ou custos.
-8. Não substitua avaliação de profissionais habilitados em responsabilidade técnica.`;
+8. Não substitua avaliação de profissionais habilitados em responsabilidade técnica.
+9. Se a pergunta não for sobre obras, construção ou finanças da obra, diga de forma simpática que você só ajuda com os assuntos da obra e sugira uma pergunta útil (ex: "quanto gastamos este mês?").`;
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), {
