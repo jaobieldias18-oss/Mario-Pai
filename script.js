@@ -1015,12 +1015,6 @@ async function salvarParcela(event) {
   renderTudo();
 }
 
-// Marca como recebida: abre o modal de baixa (data real editável).
-// Mantido o nome p/ compatibilidade; a baixa real está em confirmarBaixaParcela.
-async function marcarParcelaRecebida(id) {
-  abrirBaixaParcela(id);
-}
-
 async function excluirParcela(id) {
   const obra = pegarObra(obraAbertaId);
   if (!obra || obraSomenteLeitura(obra)) return;
@@ -1068,8 +1062,6 @@ async function excluirParcela(id) {
 }
 
 // ---------- EXPORTAR (planilha formatada abre no Excel; impressão gera PDF) ----------
-// Número no padrão BR (vírgula) para o Excel somar direto
-function br(v) { return numeroOuZero(v).toFixed(2).replace(".", ","); }
 // Escapa texto para XML do Excel
 function xlsTexto(s) {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -1213,19 +1205,6 @@ function gerarXLS(nomeArquivo, titulo, secoes) {
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800);
   mostrarToast("Planilha baixada! Abra com o app Planilhas.");
-}
-function csvCelula(v) {
-  const s = String(v ?? "");
-  return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-function baixarArquivo(nome, conteudo, tipo) {
-  const blob = new Blob([conteudo], { type: tipo });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = nome;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
 function exportarCSVGeral() {
   const N = (v) => ({ v: Number(numeroOuZero(v).toFixed(2)), num: true });
