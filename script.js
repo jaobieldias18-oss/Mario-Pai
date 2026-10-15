@@ -332,6 +332,7 @@ function mostrarTela(nome) {
     "visao-geral": "tela-visao-geral",
     opcoes: "tela-opcoes",
     ia: "tela-ia",
+    materiais: "tela-materiais",
     plantas: "tela-plantas",
   };
   document.querySelectorAll(".tela").forEach((el) => el.classList.remove("ativa"));
@@ -360,6 +361,7 @@ function irPara(destino) {
   else if (destino === "visao-geral") mostrarTela("visao-geral");
   else if (destino === "opcoes") mostrarTela("opcoes");
   else if (destino === "ia") mostrarTela("ia");
+  else if (destino === "materiais") mostrarTela("materiais");
   else if (destino === "plantas") mostrarTela("plantas");
   else if (destino === "plantas") mostrarTela("plantas");
   else if (destino === "obras") {
@@ -2653,6 +2655,15 @@ async function iniciar() {
 
   // IA da Obra: liga botões e banner (ia.js)
   try { if (typeof ligarIA === "function") ligarIA(); } catch (e) {}
+
+  // Materiais: liga tela e preenche categorias (materiais.js)
+  try {
+    if (typeof ligarMateriais === "function") ligarMateriais();
+    const sel = document.getElementById("mat-categoria");
+    if (sel && typeof MAT_CATEGORIAS !== "undefined") {
+      sel.innerHTML = MAT_CATEGORIAS.map((c) => `<option>${c}</option>`).join("");
+    }
+  } catch (e) {}
 }
 
 // Roda quando a página carrega

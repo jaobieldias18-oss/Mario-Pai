@@ -22,6 +22,7 @@ const ESTATICOS = [
   "outbox.js?v=15",
   "plantas.js?v=15",
   "orcamento.js?v=2",
+  "materiais.js?v=1",
   "ia.js?v=15",
   "manifest.json",
   "assets/logo.svg",

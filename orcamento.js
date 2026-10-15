@@ -132,6 +132,64 @@ function desenharRaioX() {
   });
 }
 
+// ---------- Orçamentos salvos (ver, duplicar, excluir) ----------
+function renderOrcamentosSalvos() {
+  const lista = document.getElementById("lista-orcamentos");
+  if (!lista) return;
+  const salvos = lerOrcamentos();
+  lista.innerHTML = "";
+  if (!salvos.length) {
+    lista.innerHTML = `<div class="lista-vazia">Nenhum orçamento salvo.</div>`;
+    return;
+  }
+  for (const o of salvos) {
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="item-topo">
+        <span class="item-icone" aria-hidden="true">O</span>
+        <div class="item-conteudo">
+          <strong>${o.area} m² (${o.alvenaria === "bloco" ? "Bloco" : "Tijolo"})</strong>
+          <span class="item-meta">${formatarData(o.data)} • Total ${moeda(o.total)}</span>
+        </div>
+      </div>
+      <div class="item-acoes"><button data-a="ver">Ver</button><button data-a="dup">Duplicar</button><button data-a="excluir" class="excluir">Excluir</button></div>`;
+    div.querySelector('[data-a="ver"]').addEventListener("click", () => verOrcamentoSalvo(o.id));
+    div.querySelector('[data-a="dup"]').addEventListener("click", () => duplicarOrcamento(o.id));
+    div.querySelector('[data-a="excluir"]').addEventListener("click", async () => {
+      const ok = await pedirConfirmacao("Excluir orçamento?", "Apaga este orçamento salvo.", "Excluir");
+      if (!ok) return;
+      salvarOrcamentos(lerOrcamentos().filter((x) => x.id !== o.id));
+      renderOrcamentosSalvos();
+      mostrarToast("Orçamento excluído.");
+    });
+    lista.appendChild(div);
+  }
+}
+function verOrcamentoSalvo(id) {
+  const o = lerOrcamentos().find((x) => x.id === id);
+  if (!o) return;
+  const box = elOrc("orcamento-area");
+  box.hidden = false;
+  let html = `<div class="card"><h3 class="titulo-secao" style="margin-top:0">Orçamento ${o.area} m² — ${formatarData(o.data)}</h3>`;
+  for (const it of o.itens || []) {
+    html += `<p><strong>${proteger(it.nome)}</strong>: ${it.qtd ?? "—"} ${proteger(it.unidade || "")} × ` +
+      `${it.preco ? moeda(it.preco) : "sem preço"} = <strong>${it.total === null || it.total === undefined ? "—" : moeda(it.total)}</strong></p>`;
+  }
+  html += `<h3 class="titulo-secao">Total: ${moeda(o.total)}</h3></div>`;
+  box.innerHTML = html;
+  box.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function duplicarOrcamento(id) {
+  const o = lerOrcamentos().find((x) => x.id === id);
+  if (!o) return;
+  raioXAtual = { area: o.area, quartos: null, banheiros: null, portas: null, janelas: null, origem: { area: "editado" }, obraId: o.obraId || null };
+  const box = elOrc("orcamento-area");
+  if (box) box.hidden = false;
+  desenharSistema();
+  mostrarToast("Ajuste e calcule de novo.");
+}
+
 // ---------- Sistema construtivo + quantitativo determinístico ----------
 function desenharSistema() {
   const box = elOrc("orcamento-area");
@@ -159,6 +217,24 @@ function desenharSistema() {
     </div></div>
     <div id="orc-resultado"></div>`;
   elOrc("orc-calcular").addEventListener("click", calcularOrcamento);
+  // Preenche preços do catálogo quando existirem (sem inventar)
+  try {
+    if (typeof precoCadastrado === "function") {
+      const mapa = [
+        ["orc-preco-piso", "piso"], ["orc-preco-bloco", "bloco"],
+        ["orc-preco-cimento", "cimento"], ["orc-preco-tinta", "tinta"],
+        ["orc-preco-porta", "porta"], ["orc-preco-janela", "janela"],
+      ];
+      for (const [id, uso] of mapa) {
+        const ach = precoCadastrado(uso);
+        const campo = document.getElementById(id);
+        if (ach && campo && !campo.value) {
+          campo.value = ach.preco;
+          campo.placeholder = `${ach.fonte}${ach.data ? " • " + ach.data : ""}`;
+        }
+      }
+    }
+  } catch (e) {}
   box.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -300,6 +376,7 @@ function calcularOrcamento() {
     });
     salvarOrcamentos(lista.slice(0, 30));
     mostrarToast("Orçamento salvo!");
+    try { renderOrcamentosSalvos(); } catch (e) {}
   });
   box.scrollIntoView({ behavior: "smooth", block: "start" });
 }

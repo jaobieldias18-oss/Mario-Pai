@@ -466,6 +466,12 @@
       </div>
 
       <div class="card">
+        <h3 class="opcoes-titulo">Materiais e preços</h3>
+        <p class="texto-suave">Catálogo com histórico para o orçamento usar.</p>
+        <button class="btn btn-primario" data-ir="materiais">Abrir materiais</button>
+      </div>
+
+      <div class="card">
         <h3 class="opcoes-titulo">Sobre</h3>
         <p class="texto-suave">MARIO · Controle financeiro de obras.<br />Seus dados ficam salvos e sincronizados.</p>
       </div>
@@ -490,6 +496,8 @@
       </div>
       <div id="planta-resultado"></div>
       <div id="orcamento-area" hidden></div>
+      <h3 class="titulo-secao">Meus orçamentos</h3>
+      <div id="lista-orcamentos" class="lista"></div>
       <h3 class="titulo-secao">Leituras anteriores</h3>
       <div id="lista-plantas" class="lista"></div>
     </section>
@@ -523,6 +531,42 @@
       <h3 class="titulo-secao">Conversas</h3>
       <div id="lista-ia-chat" class="lista"></div>
       <button class="btn btn-texto" id="ia-limpar">Limpar conversas</button>
+    </section>
+    <!-- ===== TELA: MATERIAIS E PREÇOS ===== -->
+    <section id="tela-materiais" class="tela">
+      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
+      <h2 class="titulo-secao">Materiais e preços</h2>
+      <p class="texto-suave">Cadastre preços do fornecedor. O orçamento usa daqui.</p>
+      <div class="busca">
+        <span class="busca-icone" aria-hidden="true">⌕</span>
+        <input type="search" id="mat-busca" placeholder="Pesquisar material..." autocomplete="off" aria-label="Pesquisar material" />
+      </div>
+      <div style="margin:10px 0"><button class="btn btn-primario btn-grande" id="btn-novo-material">+ Novo material</button></div>
+      <form id="form-material" class="card form" hidden novalidate>
+        <input type="hidden" id="mat-id" />
+        <label class="campo"><span>Nome *</span><input type="text" id="mat-nome" required maxlength="80" /></label>
+        <div class="linha-2">
+          <label class="campo"><span>Categoria</span><select id="mat-categoria"></select></label>
+          <label class="campo"><span>Unidade</span><input type="text" id="mat-unidade" maxlength="10" /></label>
+        </div>
+        <label class="campo"><span>Marca / fornecedor</span><input type="text" id="mat-marca" maxlength="60" /></label>
+        <div class="linha-2">
+          <label class="campo"><span>Preço (R$)</span><input type="number" id="mat-preco" min="0" step="0.01" inputmode="decimal" /></label>
+          <label class="campo"><span>Fonte do preço</span><input type="text" id="mat-fonte" maxlength="60" placeholder="Ex: Loja X" /></label>
+        </div>
+        <div class="linha-2">
+          <label class="campo"><span>Perda prevista (%)</span><input type="number" id="mat-perda" min="0" step="0.1" inputmode="decimal" /></label>
+          <label class="campo"><span>Consumo de referência</span><input type="number" id="mat-consumo" min="0" step="0.01" inputmode="decimal" /></label>
+        </div>
+        <label class="campo"><span>Observação</span><textarea id="mat-obs" rows="2" maxlength="300"></textarea></label>
+        <label class="forma-pagto"><span style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="mat-ativo" checked style="width:20px;height:20px" /> Material ativo</span></label>
+        <div class="modal-botoes">
+          <button type="button" class="btn btn-texto" id="mat-cancelar">Cancelar</button>
+          <button type="submit" class="btn btn-primario btn-grande">Salvar</button>
+        </div>
+      </form>
+      <div id="mat-historico" hidden></div>
+      <div id="lista-materiais" class="lista"></div>
     </section>
   </main>
 
@@ -690,6 +734,7 @@
   <script src="script.js?v=15"></script>
   <script src="plantas.js?v=15"></script>
   <script src="orcamento.js?v=2"></script>
+  <script src="materiais.js?v=1"></script>
   <script src="ia.js?v=15"></script>
   <!-- PWA: registra o Service Worker (só funciona em http/https,
        abrindo como arquivo local o registro é ignorado sem erro) -->

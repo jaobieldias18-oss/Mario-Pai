@@ -178,9 +178,17 @@ function contextoEscopo() {
     if (pend.length) L.push(`  Parcelas em aberto: ${pend.length} (próximo vencimento ${(pend.map((p) => p.vencimento || "").filter(Boolean).sort()[0]) || "—"}).`);
     if ((o.equipe || []).length) L.push(`  Equipe: ${(o.equipe || []).map((x) => `${x.nome} (${x.funcao})`).join(", ")}.`);
   }
-  const chave = mesAtual();
-  const rm = calcularMes(chave);
   L.push(`Mês atual (${chave}): entradas ${rm.entradas}, gastos ${rm.gastos}, resultado ${rm.resultado}.`);
+  try {
+    if (typeof lerOrcamentos === "function") {
+      const so = lerOrcamentos().slice(0, 5);
+      if (so.length) L.push("Orçamentos salvos: " + so.map((o) => `${o.area}m² (${o.alvenaria}) total ${o.total}`).join("; ") + ".");
+    }
+    if (typeof lerMateriais === "function") {
+      const lm = lerMateriais().filter((m) => m.ativo && m.preco > 0).slice(0, 20);
+      if (lm.length) L.push("Preços cadastrados: " + lm.map((m) => `${m.nome} ${m.preco}/${m.unidade}`).join("; ") + ".");
+    }
+  } catch (e) {}
   L.push(`Se algum valor acima for zero ou não houver lançamentos, diga de forma simples quais lançamentos faltam fazer (ex: "cadastre os gastos da obra").`);
   return L.join("\n");
 }
