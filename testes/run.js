@@ -65,6 +65,7 @@ sandbox.window = sandbox; sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(path.join(BASE, "composicoes.js"), "utf-8"), sandbox);
 vm.runInContext(fs.readFileSync(path.join(BASE, "materiais.js"), "utf-8"), sandbox);
+vm.runInContext(fs.readFileSync(path.join(BASE, "orcamento.js"), "utf-8"), sandbox);
 const rF = vm.runInContext(`(function () {
   const c = { insumos: [
     { nome: "A", qtd: 2, unidade: "un", preco: 5 },
@@ -118,5 +119,19 @@ t("J 93.5*45=4207.5 exato", 93.5 * 45 === 4207.5);
 t("J 0.1+0.2 documentado", Math.abs((0.1 + 0.2) - 0.3) < 1e-9);
 // app arredonda compra inteira (bloco/cimento) e 1 casa no resto
 t("J ceil blocos", Math.ceil(3674.9) === 3675);
+// ---- Parede por geometria (nova) ----
+const rP = vm.runInContext(`(function () {
+  const out = [];
+  const ok = paredeLiquida(40, 2.8, [{ larg: 0.8, alt: 2.1 }, { larg: 1.2, alt: 1 }]);
+  out.push(ok && ok.bruta === 112 && ok.vaos === 2.88 && ok.liquida === 109.12);
+  out.push(paredeLiquida(0, 2.8, []) === null);
+  out.push(paredeLiquida(5, 2.8, [{ larg: 5, alt: 2.8 }]) === null);
+  out.push(paredeLiquida(5, -1, []) === null);
+  out.push(msgSync(true) !== msgSync(false));
+  return out;
+})()`, sandbox);
+t("parede geometria 112-2.88=109.12", rP[0]);
+t("parede inválida -> null", rP[1] && rP[2] && rP[3]);
+t("sync honesto difere", rP[4]);
 console.log(`\nRESULTADO: ${pass} PASS, ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

@@ -643,6 +643,17 @@
             <label class="campo"><span>Telhado (m²)</span>
               <input type="number" id="og-telhado" min="0" step="0.1" inputmode="decimal" placeholder="Auto" /></label>
           </div>
+          <div class="card" style="margin-top:10px">
+            <h3 class="titulo-secao" style="margin-top:0">Paredes (opcional — cálculo exato)</h3>
+            <div class="linha-2">
+              <label class="campo"><span>Comprimento total (m)</span>
+                <input type="number" id="og-par-comp" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 40" /></label>
+              <label class="campo"><span>Altura (m)</span>
+                <input type="number" id="og-par-alt" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 2,8" /></label>
+            </div>
+            <label class="campo"><span>Vãos (portas/janelas: larg×alt separados por ; )</span>
+              <input type="text" id="og-par-vaos" maxlength="120" placeholder="Ex: 0,8x2,1; 1,2x1" /></label>
+          </div>
           <div class="linha-2">
             <label class="campo"><span>Pontos elétricos</span>
               <input type="number" id="og-peletricos" min="0" step="1" inputmode="numeric" placeholder="Ex: 20" /></label>

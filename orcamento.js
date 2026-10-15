@@ -179,7 +179,7 @@ async function renderOrcamentosSalvos() {
         <span class="item-icone" aria-hidden="true">O</span>
         <div class="item-conteudo">
           <strong>${o.area} m² (${o.alvenaria === "bloco" ? "Bloco" : "Tijolo"})</strong>
-          <span class="item-meta">${formatarData(o.data)} • Total ${moeda(o.total)}</span>
+          <span class="item-meta">${formatarData(o.data)} • Total ${moeda(o.total)}${o._supa ? "" : " • só no aparelho"}</span>
         </div>
       </div>
       <div class="item-acoes"><button data-a="ver">Ver</button><button data-a="dup">Duplicar</button><button data-a="cmp">Comparar</button><button data-a="excluir" class="excluir">Excluir</button></div>`;
@@ -290,7 +290,18 @@ function estimarObra() {
     const v = numeroOuZero(i.value);
     P[i.dataset.ogPreco] = v > 0 ? v : null;
   });
-  const areaParede = area * PARAMS_ORC.PAREDE_POR_AREA.valor;
+  // Parede: geometria real se informada, senão fator estimado (sinalizado)
+  const gv = (id) => String((document.getElementById(id) || {}).value || "").trim().replace(",", ".");
+  const gComp = Number(gv("og-par-comp")), gAlt = Number(gv("og-par-alt"));
+  const gVaos = gv("og-par-vaos").split(";").map((s) => s.trim()).filter(Boolean).map((s) => {
+    const p = s.toLowerCase().split("x");
+    return { larg: Number(p[0]), alt: Number(p[1]) };
+  });
+  const geo = (gComp > 0 && gAlt > 0) ? paredeLiquida(gComp, gAlt, gVaos) : null;
+  const areaParede = geo ? geo.liquida : area * PARAMS_ORC.PAREDE_POR_AREA.valor;
+  const paredeOrigem = geo
+    ? `medido: ${gComp}×${gAlt} − vãos = ${geo.liquida} m²`
+    : `estimado: ${area} × ${PARAMS_ORC.PAREDE_POR_AREA.valor}`;
   const qPiso = area * PARAMS_ORC.PISO_PERC_AREA.valor * (1 + PARAMS_ORC.PERDA_PISO.valor);
   const consUn = sist === "bloco" ? PARAMS_ORC.BLOCO_M2.valor : PARAMS_ORC.TIJOLO_M2.valor;
   const qAlv = Math.ceil(areaParede * consUn * (1 + PARAMS_ORC.PERDA_BLOCO.valor));
@@ -339,6 +350,7 @@ function estimarObra() {
   const semPreco = itens.filter((it) => it.total === null).length;
   let html = `<div class="card"><p class="texto-suave"><strong>ESTIMATIVA PRELIMINAR</strong> — complete os dados para o detalhado.</p><h3 class="titulo-secao" style="margin-top:0">Vai precisar de cerca de ${moeda(total)}${semPreco ? " (parcial)" : ""}</h3>`;
   html += `<p class="texto-suave">Casa de ${area} m² • ${quartos} quartos • ${banheiros} banheiros • ${sist === "bloco" ? "Bloco" : "Tijolo"} • <strong>${moeda(total / area)}/m²</strong></p>`;
+  html += `<p class="texto-suave">Parede: ${paredeOrigem}.</p>`;
   for (const it of itens) {
     html += `<p><strong>${proteger(it.nome)}</strong>: ${it.qtd} ${proteger(it.unidade)} × ` +
       `${it.preco ? moeda(it.preco) : "sem preço"} = <strong>${it.total === null ? "—" : moeda(it.total)}</strong></p>`;
@@ -357,8 +369,14 @@ function estimarObra() {
       itens: itens.map((it) => ({ nome: it.nome, etapa: it.etapa, qtd: it.qtd, unidade: it.unidade, preco: it.preco, total: it.total })),
     });
     salvarOrcamentos(lista.slice(0, 30));
-    try { if (typeof SyncOrc !== "undefined") SyncOrc.empurrarOrcamento(lista[0]); } catch (e) {}
-    mostrarToast("Orçamento salvo!");
+    try {
+      if (typeof SyncOrc !== "undefined") {
+        SyncOrc.empurrarOrcamento(lista[0]).then((ok) => {
+          if (ok) salvarOrcamentos(lerOrcamentos());
+          mostrarToast(msgSync(ok));
+        });
+      } else mostrarToast(msgSync(false));
+    } catch (e) { mostrarToast(msgSync(false)); }
   });
   box.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -493,6 +511,26 @@ function desenharSistema() {
   box.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+// ---------- Geometria real de paredes (pura, testável) ----------
+// vaos: [{larg, alt}] em metros. Retorna {bruta, vaos, liquida} ou null se inválido.
+function paredeLiquida(comp, alt, vaos) {
+  const c = Number(comp), a = Number(alt);
+  if (!(c > 0) || !(a > 0)) return null;
+  let v = 0;
+  for (const x of vaos || []) {
+    const l = Number(x.larg), h = Number(x.alt);
+    if (!(l > 0) || !(h > 0)) return null;
+    v += l * h;
+  }
+  const bruta = c * a;
+  if (v >= bruta) return null;
+  const r2 = (n) => Math.round(n * 100) / 100;
+  return { bruta: r2(bruta), vaos: r2(v), liquida: r2(bruta - v) };
+}
+// Mensagem de salvamento conforme sincronizou ou não (sem mentir)
+function msgSync(ok) {
+  return ok ? "Orçamento salvo e sincronizado!" : "Salvo no aparelho. Sincroniza sozinho com internet.";
+}
 function moeda(v) {
   return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
@@ -715,8 +753,14 @@ function calcularOrcamento() {
     };
     lista.unshift(novo);
     salvarOrcamentos(lista.slice(0, 30));
-    try { if (typeof SyncOrc !== "undefined") SyncOrc.empurrarOrcamento(novo); } catch (e) {}
-    mostrarToast("Orçamento salvo!");
+    try {
+      if (typeof SyncOrc !== "undefined") {
+        SyncOrc.empurrarOrcamento(novo).then((ok) => {
+          if (ok) salvarOrcamentos(lerOrcamentos());
+          mostrarToast(msgSync(ok));
+        });
+      } else mostrarToast(msgSync(false));
+    } catch (e) { mostrarToast(msgSync(false)); }
     try { renderOrcamentosSalvos(); } catch (e) {}
   });
   box.scrollIntoView({ behavior: "smooth", block: "start" });
