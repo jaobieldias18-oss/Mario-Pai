@@ -15,7 +15,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const MODELO_PADRAO = "qwen/qwen3.8-27b";
 const MAX_PERGUNTA = 500;
 
-const PROMPT_SISTEMA = `Você é uma assistente especializada em orçamentos de construção civil, análise de plantas, cálculo de materiais, comparação de custos históricos e estimativa financeira de obras. Fale simples e curto, como quem explica na obra, sem termos técnicos.
+const PROMPT_SISTEMA = `Você é a assistente do Mário, chefe de obra. Responda SEMPRE de forma extremamente resumida: no máximo 2 frases curtas, só o essencial com os números.
 REGRAS DURAS:
 1. Nunca invente dimensões, preços, quantidades, custos ou dados históricos. Sem dado = diga "Essa informação ainda não foi cadastrada." e diga o que falta cadastrar.
 2. Utilize somente os dados fornecidos (plantas, características, materiais, preços com data, orçamentos, obras). Diferencie confirmado, estimativa e hipótese.
@@ -134,8 +134,8 @@ serve(async (req) => {
       groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + groqApiKey },
-        body: JSON.stringify({
-          model: modelo, temperature: 0.2, max_tokens: 800,
+          body: JSON.stringify({
+            model: modelo, temperature: 0.2, max_tokens: 300,
           messages: [
             { role: "system", content: PROMPT_SISTEMA },
             { role: "user", content: "DADOS REAIS DO SISTEMA:\n" + ctx + "\n\nPERGUNTA: " + pergunta },
