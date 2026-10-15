@@ -57,6 +57,28 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    // Sessão: valida o JWT e extrai o dono. Leitura FILTRADA pelo dono
+    // (sem login, sem dados). O service_role nunca vaza: fica no servidor.
+    const authHdr = req.headers.get("Authorization") || "";
+    const token = authHdr.replace(/^Bearer\s+/i, "");
+    let uid: string | null = null;
+    if (token && token !== anonKey) {
+      try {
+        const sbAuth = createClient(supabaseUrl, anonKey, {
+          global: { headers: { Authorization: "Bearer " + token } },
+        });
+        const { data: ud } = await sbAuth.auth.getUser();
+        uid = ud?.user?.id || null;
+      } catch { uid = null; }
+      if (!uid) return json({ erro: "Sessão inválida. Entre de novo.", resposta: null }, 401);
+    }
+    if (!uid) {
+      return json({
+        resposta: "Entre na sua conta para eu analisar suas obras.",
+        calculos: null,
+      });
+    }
     const groqApiKey = Deno.env.get("GROQ_API_KEY");
     if (!groqApiKey) return json({ erro: "GROQ_API_KEY não configurada no servidor." }, 500);
     const modelo = Deno.env.get("GROQ_FIN_MODEL") || MODELO_PADRAO;
@@ -67,10 +89,12 @@ serve(async (req) => {
     const obraId = typeof corpo.obra_id === "string" && corpo.obra_id ? corpo.obra_id : null;
     const periodo = /^\d{4}-\d{2}$/.test(String(corpo.periodo || "")) ? String(corpo.periodo) : null;
 
-    const sb = createClient(supabaseUrl, anonKey);
+    const sb = createClient(supabaseUrl, serviceKey || anonKey, {
+      auth: { persistSession: false },
+    });
 
-    // ---- Obras autorizadas (só o que o RLS permite ler) ----
-    let qObras = sb.from("obras").select("id,nome,cliente,status,valor_contratado,area_m2");
+    // ---- Obras do dono (ids vindos do banco, nunca do usuário) ----
+    let qObras = sb.from("obras").select("id,nome,cliente,status,valor_contratado,area_m2").eq("owner_id", uid);
     if (obraId) qObras = qObras.eq("id", obraId);
     const { data: obras, error: eObras } = await qObras;
     if (eObras) return json({ erro: "Não consegui consultar as obras." }, 502);
@@ -85,10 +109,10 @@ serve(async (req) => {
     }
 
     // ---- Consultas por tabela (ids vindos do banco, nunca do usuário) ----
-    const { data: recs } = await sb.from("recebimentos").select("obra_id,valor,data").in("obra_id", ids);
-    const { data: gastos } = await sb.from("gastos").select("obra_id,valor,data,categoria,descricao,mao_obra_id").in("obra_id", ids);
-    const { data: equipe } = await sb.from("trabalhadores").select("obra_id,nome,funcao,diaria,dias_trabalhados,data").in("obra_id", ids);
-    const { data: parcs } = await sb.from("parcelas").select("obra_id,descricao,numero_parcela,total_parcelas,valor,vencimento,data_vencimento,status,data_pagamento").in("obra_id", ids);
+    const { data: recs } = await sb.from("recebimentos").select("obra_id,valor,data").in("obra_id", ids).eq("owner_id", uid);
+    const { data: gastos } = await sb.from("gastos").select("obra_id,valor,data,categoria,descricao,mao_obra_id").in("obra_id", ids).eq("owner_id", uid);
+    const { data: equipe } = await sb.from("trabalhadores").select("obra_id,nome,funcao,diaria,dias_trabalhados,data").in("obra_id", ids).eq("owner_id", uid);
+    const { data: parcs } = await sb.from("parcelas").select("obra_id,descricao,numero_parcela,total_parcelas,valor,vencimento,data_vencimento,status,data_pagamento").in("obra_id", ids).eq("owner_id", uid);
 
     const noMes = (d: string | null) => (periodo ? (d || "").slice(0, 7) === periodo : true);
 

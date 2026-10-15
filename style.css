@@ -881,6 +881,13 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
 }
 .ajustes-linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--borda); font-size: 15px; }
 .ajustes-linha:first-of-type { border-top: none; }
+/* Entrada (login) */
+#tela-login.tela.ativa { display: grid; place-items: center; min-height: 70vh; }
+.login-card { background: var(--card); border-radius: var(--raio); box-shadow: var(--sombra-forte); padding: 28px 22px; max-width: 380px; width: 100%; border-top: 5px solid var(--cor-destaque); text-align: center; }
+.login-card h2 { font-size: 28px; letter-spacing: 2px; }
+.login-card .login-sub { color: var(--texto-sec); margin-bottom: 16px; }
+.login-card .form { text-align: left; }
+.login-erro { background: var(--erro-fundo); color: var(--erro); border-radius: 10px; padding: 10px 12px; font-size: 14px; font-weight: 700; }
 
 /* Entrada suave dos cards (sensação de rapidez, sem travar nada) */
 .lista-obras .obra-card, .lista .item, #lista-parcelas .parcela-card,

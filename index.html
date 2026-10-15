@@ -52,6 +52,25 @@
 
   <main class="container">
 
+    <!-- ===== TELA: ENTRAR ===== -->
+    <section id="tela-login" class="tela">
+      <div class="login-card">
+        <div style="font-size:40px" aria-hidden="true">M</div>
+        <h2>MARIO</h2>
+        <p class="login-sub">Gestão de Obras</p>
+        <form id="form-login" class="form" novalidate>
+          <label class="campo"><span>Usuário</span>
+            <input type="text" id="login-nome" value="mario" autocomplete="username" maxlength="30" required />
+          </label>
+          <label class="campo"><span>Senha</span>
+            <input type="password" id="login-senha" placeholder="••••••" autocomplete="current-password" required />
+          </label>
+          <div class="login-erro" id="login-erro" hidden></div>
+          <button type="submit" class="btn btn-primario btn-grande" id="btn-entrar">Entrar</button>
+        </form>
+      </div>
+    </section>
+
     <!-- ===== TELA: DASHBOARD ===== -->
     <section id="tela-dashboard" class="tela ativa">
       <!-- Boas-vindas -->
@@ -453,6 +472,18 @@
       <h2 class="titulo-secao">Opções</h2>
 
       <div class="card">
+        <h3 class="opcoes-titulo">Minha conta</h3>
+        <div class="ajustes-linha"><span>Nome</span><strong id="aj-nome">Mário</strong></div>
+        <form id="form-senha" class="form" style="margin-top:10px" novalidate>
+          <label class="campo"><span>Senha atual</span><input type="password" id="senha-atual" autocomplete="current-password" required /></label>
+          <label class="campo"><span>Senha nova (6 ou mais)</span><input type="password" id="senha-nova" autocomplete="new-password" required /></label>
+          <label class="campo"><span>Repita a senha nova</span><input type="password" id="senha-conf" autocomplete="new-password" required /></label>
+          <button type="submit" class="btn btn-primario">Trocar senha</button>
+        </form>
+        <div style="margin-top:10px"><button class="btn btn-perigo" id="btn-sair">Sair da conta</button></div>
+      </div>
+
+      <div class="card">
         <h3 class="opcoes-titulo">Aparência</h3>
         <p class="texto-suave">Escolha como o MARIO aparece na tela.</p>
         <div class="opcoes-tema">
@@ -804,6 +835,7 @@
   <!-- Supabase (CDN) + camada de banco + app. Sem frameworks. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase.js?v=16"></script>
+  <script src="auth.js?v=1"></script>
   <script src="outbox.js?v=16"></script>
   <script src="script.js?v=16"></script>
   <script src="plantas.js?v=16"></script>

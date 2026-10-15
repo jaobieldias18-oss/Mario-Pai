@@ -73,6 +73,14 @@ async function enviarFoto(arquivo) {
 
 const dataOuNulo = (v) => (v ? v : null);
 
+// Dono da linha (RLS): auth.js informa o uid logado; sem login, null.
+function uidDono() {
+  try {
+    if (typeof donoIdAtual === "function") return donoIdAtual();
+  } catch (e) {}
+  return null;
+}
+
 // ---------- Conversão banco -> app ----------
 function linhaParaObra(l) {
   return {
@@ -142,6 +150,7 @@ function linhaParaObra(l) {
 // ---------- Conversão app -> banco ----------
 function obraParaLinha(o) {
   return {
+    owner_id: uidDono(),
     nome: o.nome,
     cliente: o.cliente,
     endereco: o.endereco || null,
@@ -157,6 +166,7 @@ function obraParaLinha(o) {
 
 function recebimentoParaLinha(obraId, d) {
   return {
+    owner_id: uidDono(),
     obra_id: obraId,
     valor: d.valor || 0,
     data: d.data,
@@ -170,6 +180,7 @@ function recebimentoParaLinha(obraId, d) {
 
 function gastoParaLinha(obraId, d) {
   return {
+    owner_id: uidDono(),
     obra_id: obraId,
     categoria: d.categoria,
     descricao: d.descricao,
@@ -185,6 +196,7 @@ function gastoParaLinha(obraId, d) {
 
 function trabalhadorParaLinha(obraId, d) {
   return {
+    owner_id: uidDono(),
     obra_id: obraId,
     nome: d.nome,
     funcao: d.funcao,
@@ -198,6 +210,7 @@ function parcelaParaLinha(obraId, d) {
   const venc = dataOuNulo(d.vencimento);
   const pag = dataOuNulo(d.dataRecebimento);
   return {
+    owner_id: uidDono(),
     obra_id: obraId,
     descricao: d.descricao,
     numero_parcela: d.numero || null,
@@ -377,6 +390,7 @@ const SyncOrc = {
   },
   linhaMat(l) {
     return {
+      owner_id: uidDono(),
       local_id: l.id, nome: l.nome, categoria: l.categoria || "Outros",
       marca: l.marca || null, unidade: l.unidade || "un",
       preco: l.preco || null, data_preco: l.dataPreco || null,
@@ -403,7 +417,7 @@ const SyncOrc = {
       }
       await sb.from("materiais_precos").delete().eq("material_id", rid);
       const hist = (m.historico || []).filter((x) => x.preco > 0)
-        .map((x) => ({ material_id: rid, preco: x.preco, data: x.data || null, fonte: x.fonte || null }));
+        .map((x) => ({ owner_id: uidDono(), material_id: rid, preco: x.preco, data: x.data || null, fonte: x.fonte || null }));
       if (hist.length) {
         const { error } = await sb.from("materiais_precos").insert(hist);
         if (error) throw error;
@@ -440,6 +454,7 @@ const SyncOrc = {
         if (data && data[0]) o._supa = data[0].id;
       }
       const linha = {
+        owner_id: uidDono(),
         local_id: o.id, obra_id: o.obraId || null, area: o.area || 0,
         alvenaria: o.alvenaria || "bloco", total: o.total || 0, data: o.data || null,
       };
@@ -454,6 +469,7 @@ const SyncOrc = {
       }
       await sb.from("orcamento_itens").delete().eq("orcamento_id", rid);
       const itens = (o.itens || []).map((it) => ({
+        owner_id: uidDono(),
         orcamento_id: rid, nome: it.nome,
         quantidade: it.qtd == null ? null : it.qtd, unidade: it.unidade || null,
         preco: it.preco == null ? null : it.preco,

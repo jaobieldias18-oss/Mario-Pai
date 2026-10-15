@@ -213,6 +213,7 @@ async function salvarLeitura(arquivo, dados) {
   const obraId = (elPlanta2("planta-obra") || {}).value || null;
   try {
     await sb.from("plantas").insert({
+      owner_id: (typeof donoIdAtual === "function" ? donoIdAtual() : null),
       obra_id: obraId || null, imagem_url: url || null,
       resultado: JSON.stringify(dados),
     });

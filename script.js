@@ -323,8 +323,13 @@ function listarMesesComMovimento() {
 const telas = ["dashboard", "nova-obra", "obra", "financeiro", "visao-geral", "opcoes", "plantas"];
 
 function mostrarTela(nome) {
+  // Sem conta, tudo vira a entrada (auth.js controla a sessão)
+  if (nome !== "login" && typeof temSessao === "function" && typeof sb !== "undefined" && sb && !temSessao()) {
+    nome = "login";
+  }
   // Mostra só a tela pedida
   const mapa = {
+    login: "tela-login",
     dashboard: "tela-dashboard",
     "nova-obra": "tela-nova-obra",
     obra: "tela-obra",
@@ -2481,7 +2486,16 @@ async function iniciar() {
   aplicarTema(temaSalvo()); // tema antes de desenhar (sem flash)
   mesSelecionado = mesAtual();
 
-  // 1. Carrega tudo do Supabase (com tela de "Carregando...")
+  // 0. Conta do Mário antes de tocar no banco (auth.js)
+  try { if (typeof ligarAuthUI === "function") ligarAuthUI(); } catch (e) {}
+  let usuario = null;
+  try { if (typeof AuthPronto === "function") usuario = await AuthPronto(); } catch (e) { usuario = null; }
+  if (!usuario) {
+    try { if (typeof mostrarTelaLogin === "function") mostrarTelaLogin(); } catch (e) {}
+  } else {
+    try { if (typeof adotarSemDono === "function") await adotarSemDono(); } catch (e) {}
+    try { if (typeof carregarPerfilAuth === "function") await carregarPerfilAuth(); } catch (e) {}
+    // 1. Carrega tudo do Supabase (com tela de "Carregando...")
   mostrarCarregando(true);
   try {
     obras = await DB.carregarTudo();
@@ -2498,6 +2512,7 @@ async function iniciar() {
 
   renderTudo();
   mostrarTela("dashboard");
+  } // fim do else (logado)
 
   // Navegação (menus topo + barra inferior + botões voltar)
   document.querySelectorAll("[data-ir]").forEach((btn) =>

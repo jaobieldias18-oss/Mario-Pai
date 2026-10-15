@@ -97,11 +97,17 @@ async function iaConversar(pergunta, contexto) {
       const sel = document.getElementById("ia-periodo");
       const periodo = sel && sel.value === "mes" ? mesAtual() : null;
       const obraId = (document.getElementById("ia-obra") || {}).value || null;
+      const sess = (sb && sb.auth && typeof sb.auth.getSession === "function")
+        ? await sb.auth.getSession().catch(() => null) : null;
+      const token = (sess && sess.data && sess.data.session && sess.data.session.access_token) || null;
       const resp = await fetch(
         "https://wmcrbjlzsqveekwifded.supabase.co/functions/v1/ia-financeira",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: Object.assign(
+            { "Content-Type": "application/json" },
+            token ? { Authorization: "Bearer " + token } : {}
+          ),
           body: JSON.stringify({ pergunta, obra_id: obraId, periodo }),
         }
       );
