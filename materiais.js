@@ -166,14 +166,28 @@ function salvarFormMaterial(e) {
   elMat("form-material").hidden = true;
   desenharMateriais((elMat("mat-busca") || {}).value || "");
   mostrarToast("Material salvo!");
+  try {
+    if (typeof SyncOrc !== "undefined") {
+      SyncOrc.empurrarMaterial(m).then((ok) => { if (ok) salvarMateriais(lista); });
+    }
+  } catch (e) {}
 }
-function verHistoricoPreco(id) {
+function verHistoricoPreco(id, dias) {
   const m = matPorId(id);
   if (!m) return;
-  const h = (m.historico || []).filter((x) => x.preco > 0);
+  let h = (m.historico || []).filter((x) => x.preco > 0);
+  if (dias) {
+    const limite = new Date();
+    limite.setDate(limite.getDate() - dias);
+    const lim = limite.toISOString().slice(0, 10);
+    h = h.filter((x) => (x.data || "") >= lim);
+  }
   let html = `<div class="card"><h3 class="titulo-secao" style="margin-top:0">${proteger(m.nome)}</h3>`;
+  html += `<div class="filtros" style="grid-template-columns:repeat(5,1fr)">` +
+    [[0, "Tudo"], [30, "30d"], [90, "90d"], [180, "6m"], [365, "12m"]].map(([d, t]) =>
+      `<button class="filtro${(dias || 0) === d ? " ativo" : ""}" data-per="${d}">${t}</button>`).join("") + `</div>`;
   if (h.length < 2) {
-    html += `<p class="texto-suave">Poucos registros — média com baixa confiabilidade.</p>`;
+    html += `<p class="texto-suave">Poucos registros no período — média com baixa confiabilidade.</p>`;
   } else {
     const max = Math.max(...h.map((x) => x.preco));
     html += h.slice(-12).map((x) => {
@@ -190,6 +204,9 @@ function verHistoricoPreco(id) {
   const box = elMat("mat-historico");
   box.innerHTML = html;
   box.hidden = false;
+  box.querySelectorAll("[data-per]").forEach((b) =>
+    b.addEventListener("click", () => verHistoricoPreco(id, Number(b.dataset.per)))
+  );
   elMat("mat-hist-voltar").addEventListener("click", () => { box.hidden = true; box.innerHTML = ""; });
   box.scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -217,4 +234,22 @@ function ligarMateriais() {
       x.addEventListener("click", () => setTimeout(() => desenharMateriais(""), 100));
     }
   });
+  // Completa com o servidor o que falta no aparelho (só soma, nunca apaga)
+  try {
+    if (typeof SyncOrc !== "undefined") {
+      SyncOrc.puxarMateriais().then((remotos) => {
+        if (!remotos.length) return;
+        const lista = lerMateriais();
+        const ids = new Set(lista.map((m) => m.id));
+        let entrou = 0;
+        for (const r of remotos) {
+          if (!ids.has(r.id)) { lista.push(r); entrou++; }
+        }
+        if (entrou) {
+          salvarMateriais(lista);
+          desenharMateriais((elMat("mat-busca") || {}).value || "");
+        }
+      });
+    }
+  } catch (e) {}
 }

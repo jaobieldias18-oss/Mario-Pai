@@ -341,3 +341,134 @@ const DB = {
     if (error) throw error;
   },
 };
+
+// ---------- Sincronização orçamentos/materiais ----------
+// Estratégia segura p/ usuário único: local manda sempre; servidor
+// recebe cópia (melhor esforço) e completa o que falta no aparelho.
+// Se as tabelas ainda não existirem, tudo falha em silêncio e o app
+// segue 100% local. Nada quebra, nada duplica (elo: local_id).
+const SyncOrc = {
+  async puxarMateriais() {
+    try {
+      if (!sb) return [];
+      const { data, error } = await sb.from("materiais").select("*");
+      if (error || !data) return [];
+      const out = [];
+      for (const r of data) {
+        const m = {
+          id: r.local_id || r.id, _supa: r.id, nome: r.nome,
+          categoria: r.categoria || "Outros", marca: r.marca || "",
+          unidade: r.unidade || "un", preco: r.preco == null ? null : Number(r.preco),
+          dataPreco: r.data_preco || null, fonte: r.fonte || "",
+          perda: r.perda == null ? 0.05 : Number(r.perda),
+          consumo: r.consumo == null ? null : Number(r.consumo),
+          consumoObs: r.consumo_obs || "", obs: r.obs || "",
+          ativo: r.ativo !== false, historico: [],
+        };
+        try {
+          const { data: h } = await sb.from("materiais_precos")
+            .select("preco,data,fonte").eq("material_id", r.id).order("data", { ascending: true });
+          m.historico = (h || []).map((x) => ({ preco: Number(x.preco), data: x.data, fonte: x.fonte || "" }));
+        } catch (e) {}
+        out.push(m);
+      }
+      return out;
+    } catch (e) { return []; }
+  },
+  linhaMat(l) {
+    return {
+      local_id: l.id, nome: l.nome, categoria: l.categoria || "Outros",
+      marca: l.marca || null, unidade: l.unidade || "un",
+      preco: l.preco || null, data_preco: l.dataPreco || null,
+      fonte: l.fonte || null, perda: l.perda ?? 0.05,
+      consumo: l.consumo ?? null, consumo_obs: l.consumoObs || null,
+      obs: l.obs || null, ativo: l.ativo !== false,
+    };
+  },
+  async empurrarMaterial(m) {
+    try {
+      if (!sb) return false;
+      if (!m._supa) {
+        const { data } = await sb.from("materiais").select("id").eq("local_id", m.id).limit(1);
+        if (data && data[0]) m._supa = data[0].id;
+      }
+      let rid = m._supa || null;
+      if (rid) {
+        const { error } = await sb.from("materiais").update(SyncOrc.linhaMat(m)).eq("id", rid);
+        if (error) throw error;
+      } else {
+        const { data, error } = await sb.from("materiais").insert(SyncOrc.linhaMat(m)).select().single();
+        if (error) throw error;
+        rid = data.id; m._supa = rid;
+      }
+      await sb.from("materiais_precos").delete().eq("material_id", rid);
+      const hist = (m.historico || []).filter((x) => x.preco > 0)
+        .map((x) => ({ material_id: rid, preco: x.preco, data: x.data || null, fonte: x.fonte || null }));
+      if (hist.length) {
+        const { error } = await sb.from("materiais_precos").insert(hist);
+        if (error) throw error;
+      }
+      return true;
+    } catch (e) { return false; }
+  },
+  async puxarOrcamentos() {
+    try {
+      if (!sb) return [];
+      const { data, error } = await sb.from("orcamentos").select("*").order("created_at", { ascending: false }).limit(30);
+      if (error || !data) return [];
+      const out = [];
+      for (const r of data) {
+        let itens = [];
+        try {
+          const { data: li } = await sb.from("orcamento_itens").select("*").eq("orcamento_id", r.id);
+          itens = (li || []).map((x) => ({ nome: x.nome, qtd: x.quantidade == null ? null : Number(x.quantidade), unidade: x.unidade, preco: x.preco == null ? null : Number(x.preco), total: x.total == null ? null : Number(x.total) }));
+        } catch (e) {}
+        out.push({
+          id: r.local_id || r.id, _supa: r.id, data: r.data,
+          obraId: r.obra_id || null, area: Number(r.area) || 0,
+          alvenaria: r.alvenaria || "bloco", total: Number(r.total) || 0, itens,
+        });
+      }
+      return out;
+    } catch (e) { return []; }
+  },
+  async empurrarOrcamento(o) {
+    try {
+      if (!sb) return false;
+      if (!o._supa) {
+        const { data } = await sb.from("orcamentos").select("id").eq("local_id", o.id).limit(1);
+        if (data && data[0]) o._supa = data[0].id;
+      }
+      const linha = {
+        local_id: o.id, obra_id: o.obraId || null, area: o.area || 0,
+        alvenaria: o.alvenaria || "bloco", total: o.total || 0, data: o.data || null,
+      };
+      let rid = o._supa || null;
+      if (rid) {
+        const { error } = await sb.from("orcamentos").update(linha).eq("id", rid);
+        if (error) throw error;
+      } else {
+        const { data, error } = await sb.from("orcamentos").insert(linha).select().single();
+        if (error) throw error;
+        rid = data.id; o._supa = rid;
+      }
+      await sb.from("orcamento_itens").delete().eq("orcamento_id", rid);
+      const itens = (o.itens || []).map((it) => ({
+        orcamento_id: rid, nome: it.nome,
+        quantidade: it.qtd == null ? null : it.qtd, unidade: it.unidade || null,
+        preco: it.preco == null ? null : it.preco,
+        total: it.total == null ? null : it.total, detalhe: null,
+      }));
+      if (itens.length) {
+        const { error } = await sb.from("orcamento_itens").insert(itens);
+        if (error) throw error;
+      }
+      return true;
+    } catch (e) { return false; }
+  },
+  async apagarOrcamentoRemoto(o) {
+    try {
+      if (sb && o && o._supa) await sb.from("orcamentos").delete().eq("id", o._supa);
+    } catch (e) {}
+  },
+};

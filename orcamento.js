@@ -133,9 +133,24 @@ function desenharRaioX() {
 }
 
 // ---------- Orçamentos salvos (ver, duplicar, excluir) ----------
-function renderOrcamentosSalvos() {
+async function renderOrcamentosSalvos() {
   const lista = document.getElementById("lista-orcamentos");
   if (!lista) return;
+  // Completa com o servidor o que falta no aparelho (só soma)
+  try {
+    if (typeof SyncOrc !== "undefined") {
+      const remotos = await SyncOrc.puxarOrcamentos().catch(() => []);
+      if (remotos.length) {
+        const locais = lerOrcamentos();
+        const ids = new Set(locais.map((o) => o.id));
+        let entrou = false;
+        for (const r of remotos) {
+          if (!ids.has(r.id)) { locais.unshift(r); entrou = true; }
+        }
+        if (entrou) salvarOrcamentos(locais.slice(0, 30));
+      }
+    }
+  } catch (e) {}
   const salvos = lerOrcamentos();
   lista.innerHTML = "";
   if (!salvos.length) {
@@ -160,6 +175,7 @@ function renderOrcamentosSalvos() {
       const ok = await pedirConfirmacao("Excluir orçamento?", "Apaga este orçamento salvo.", "Excluir");
       if (!ok) return;
       salvarOrcamentos(lerOrcamentos().filter((x) => x.id !== o.id));
+      try { if (typeof SyncOrc !== "undefined") SyncOrc.apagarOrcamentoRemoto(o); } catch (e) {}
       renderOrcamentosSalvos();
       mostrarToast("Orçamento excluído.");
     });
@@ -357,7 +373,8 @@ function calcularOrcamento() {
   if (avisos.length) html += `<div class="card dica"><p><strong>Atenção, revisar:</strong></p>` +
     avisos.map((a) => `<p class="texto-suave">• ${proteger(a)}</p>`).join("") + `</div>`;
   html += `<div class="modal-botoes"><button class="btn btn-texto" id="orc-editar">Editar dados</button>` +
-    `<button class="btn btn-primario btn-grande" id="orc-salvar">Salvar orçamento</button></div></div>`;
+    `<button class="btn btn-primario btn-grande" id="orc-salvar">Salvar orçamento</button></div>`;
+  html += `<button class="btn btn-texto" id="orc-imprimir">Imprimir / PDF</button></div>`;
   const box = elOrc("orc-resultado");
   box.innerHTML = html;
   box.querySelectorAll("[data-orc-ver]").forEach((b) =>
@@ -367,14 +384,17 @@ function calcularOrcamento() {
     })
   );
   elOrc("orc-editar").addEventListener("click", () => { desenharRaioX(); });
+  elOrc("orc-imprimir").addEventListener("click", () => window.print());
   elOrc("orc-salvar").addEventListener("click", () => {
     const lista = lerOrcamentos();
-    lista.unshift({
+    const novo = {
       id: Date.now().toString(36), data: hojeISO(), obraId: r.obraId,
       area, alvenaria: alv, total,
       itens: itens.map((it) => ({ nome: it.nome, qtd: it.qtd, unidade: it.unidade, preco: it.preco, total: it.total })),
-    });
+    };
+    lista.unshift(novo);
     salvarOrcamentos(lista.slice(0, 30));
+    try { if (typeof SyncOrc !== "undefined") SyncOrc.empurrarOrcamento(novo); } catch (e) {}
     mostrarToast("Orçamento salvo!");
     try { renderOrcamentosSalvos(); } catch (e) {}
   });
