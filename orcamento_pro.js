@@ -20,6 +20,7 @@ const ORC_PRO = {
   COTACOES_KEY: "mario_cotacoes_v1",
   OBRAS_REAIS_KEY: "mario_obras_reais_v1",
   MEDICOES_KEY: "mario_medicoes_v1",
+  FUNDACAO_KEY: "mario_fundacao_v1",
   VERSAO: 1,
 };
 
@@ -186,6 +187,18 @@ function precoVigente(codigo, filtro) {
   if (!lista.length) return null;
   lista = lista.slice().sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : (a.id < b.id ? 1 : -1)));
   return lista[0];
+}
+// Preço desatualizado? Compara a data da cotação com hoje. NÃO altera o preço:
+// só avisa. `diasMax` default 90. Retorna { desatualizado, dias, motivo }.
+function precoDesatualizado(cotacao, diasMax) {
+  const lim = Number(diasMax) > 0 ? Number(diasMax) : 90;
+  if (!cotacao || !cotacao.data) return { desatualizado: false, dias: null, motivo: "cotação sem data" };
+  const d = new Date(cotacao.data + "T00:00:00");
+  if (isNaN(d.getTime())) return { desatualizado: false, dias: null, motivo: "data inválida" };
+  const hoje = new Date(hojeISO() + "T00:00:00");
+  const dias = Math.floor((hoje - d) / 86400000);
+  const desatualizado = dias > lim;
+  return { desatualizado, dias, motivo: desatualizado ? `preço registrado há ${dias} dias (> ${lim})` : "dentro da validade" };
 }
 // Comparação por fornecedor: menor preço primeiro (sem afirmar qual "vale").
 function compararFornecedores(codigo) {
@@ -408,6 +421,10 @@ function montarEntradaMotor(med, campos, precos) {
     precos: precos || {},
     paredes: paredesComVaos.length ? paredesComVaos : undefined,
     medicao, // metadados para a auditoria (o motor ignora se não souber usar)
+    // --- Dados técnicos (Seções 2,4,5,6) repassados ao motor ---
+    pinturaFaces: c.pinturaFaces, pinturaTeto: c.pinturaTeto,
+    telhaModelo: c.telhaModelo, telhaUnM2: c.telhaUnM2,
+    moEscopo: c.moEscopo, fundacao: c.fundacao,
   };
 }
 
@@ -465,17 +482,51 @@ function salvarMedicaoAtual(m) {
   return limpa;
 }
 
+// ---------- Fundação por elemento (persistida no aparelho - Seção 2) ----------
+// Formato: { sapatas:[], baldrames:[], pilares:[], vigas:[], laje:{area,espessura}, acoKgM3 }
+function fundacaoVazia() { return { sapatas: [], baldrames: [], pilares: [], vigas: [], laje: null, acoKgM3: null }; }
+function lerFundacao() {
+  try {
+    const f = JSON.parse(localStorage.getItem(ORC_PRO.FUNDACAO_KEY) || "null");
+    if (f && typeof f === "object") {
+      const v = fundacaoVazia();
+      for (const k of ["sapatas", "baldrames", "pilares", "vigas"]) if (Array.isArray(f[k])) v[k] = f[k];
+      if (f.laje && typeof f.laje === "object") {
+        const area = Number(f.laje.area);
+        const esp = Number(f.laje.espessura != null ? f.laje.espessura : f.laje.esp);
+        if (area > 0 && esp > 0) v.laje = { area: area, espessura: esp };
+      }
+      v.acoKgM3 = Number(f.acoKgM3) > 0 ? Number(f.acoKgM3) : null;
+      return v;
+    }
+  } catch (e) {}
+  return fundacaoVazia();
+}
+function salvarFundacao(f) {
+  const limpa = fundacaoVazia();
+  if (f) for (const k of ["sapatas", "baldrames", "pilares", "vigas"]) if (Array.isArray(f[k])) limpa[k] = f[k];
+  if (f && f.laje && typeof f.laje === "object") {
+    const area = Number(f.laje.area);
+    const esp = Number(f.laje.espessura != null ? f.laje.espessura : f.laje.esp);
+    if (area > 0 && esp > 0) limpa.laje = { area: area, espessura: esp };
+  }
+  if (f && Number(f.acoKgM3) > 0) limpa.acoKgM3 = Number(f.acoKgM3);
+  try { localStorage.setItem(ORC_PRO.FUNDACAO_KEY, JSON.stringify(limpa)); } catch (e) {}
+  return limpa;
+}
+
 if (typeof window !== "undefined") {
   window.OrcPro = {
     ORC_PRO, ORC_UNIDADES, ORC_TIPO_PRECO, ORC_HIPOTESE_DATA,
     converterUnidade, arredondarCompra,
     catalogoSemente, lerCatalogo, salvarCatalogo, buscarCatalogo, catalogoPorCodigo,
-    lerCotacoes, salvarCotacoes, adicionarCotacao, precoVigente, compararFornecedores,
+    lerCotacoes, salvarCotacoes, adicionarCotacao, precoVigente, compararFornecedores, precoDesatualizado,
     lerFornecedores, salvarFornecedores, salvarFornecedor,
     lerObrasReais, salvarObrasReais, diffObraReal, salvarObraReal,
     gerarCenarios,
     normalizarAbertura, calcularParedeDetalhe, calcularAmbienteDetalhe, calcularMedicaoObra,
     montarEntradaMotor, auditoriaEstendida, lerMedicoes, salvarMedicoes,
     medicaoVazia, lerMedicaoAtual, salvarMedicaoAtual,
+    fundacaoVazia, lerFundacao, salvarFundacao,
   };
 }

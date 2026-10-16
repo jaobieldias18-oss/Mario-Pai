@@ -1015,6 +1015,9 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
 .pro-resumo { margin: 10px 0; font-size: 14px; }
 .pro-alerta { color: var(--erro); font-weight: 700; }
 .pro-cot-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 8px 0; }
+.pro-fund-add { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; align-items: end; margin: 8px 0; }
+.pro-fund-add input, .pro-fund-add select { width: 100%; box-sizing: border-box; }
+.pro-fund-laje { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 8px 0; }
 @media (max-width: 700px) {
   .pro-tabela { grid-template-columns: 1fr 1fr; }
   .pro-th { display: none; }

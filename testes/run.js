@@ -673,5 +673,160 @@ t("T subtotal contrapiso = qtd x preco", rT[7]);
 t("T subtotal faces extras = qtd x preco", rT[8]);
 t("T sem medição: sem extensões, 17 itens base", rT[9]);
 
+// ---- Teste U: revisão (Seções 1,2,4,5,6,7,8,9) — correções e transparência ----
+// Todos os valores esperados calculados À MÃO (independentemente do código).
+const rU = vm.runInContext(`(function () {
+  const out = [];
+  // U1: unit-safety dos parâmetros + natureza/fonte declarada (Seção 1).
+  out.push(verificarUnidadesOrcamento().length === 0);
+  out.push(fonteCoeficiente("TELHA_M2").tipo === "hipotese");
+  out.push(fonteCoeficiente("INEXISTENTE").fonte === "Não documentado");
+  // U2: fundação por ELEMENTO (Seção 2). Sapata 30×0,4×0,4 = 4,8 m³; aço 80 kg/m³ → 384 kg.
+  const f = calcularFundacaoPorElementos({ sapatas: [{ comp: 30, larg: 0.4, alt: 0.4, qtd: 1 }], acoKgM3: 80 });
+  out.push(f.ok === true && f.volumeConcreto === 4.8 && f.acoKg === 384 && f.pendenteDimensionamento === false);
+  const f2 = calcularFundacaoPorElementos({ sapatas: [{ comp: 30, larg: 0.4, alt: 0.4, qtd: 1 }] });
+  out.push(f2.acoKg === null && f2.volumeConcreto === 4.8);      // sem aço informado: não inventa
+  out.push(calcularFundacaoPorElementos({}).pendenteDimensionamento === true); // sem dados: pendente
+  const f4 = calcularFundacaoPorElementos({ pilares: [{ comp: 3, larg: 0.2, alt: 0.3, qtd: 4 }] });
+  out.push(f4.volumeConcreto === 0.72);                          // 4 × (3×0,2×0,3)
+  // U3: motor com fundação por elemento SUBSTITUI a estimativa por perímetro.
+  const rFun = calcularOrcamentoGuiado({ area: 100, quartos: "3", banheiros: "2", sistema: "bloco",
+    perimetro: 40, precos: { concreto: 450, aco: 8.5 },
+    fundacao: { sapatas: [{ comp: 30, larg: 0.4, alt: 0.4, qtd: 1 }], acoKgM3: 80 } });
+  const byF = {}; for (const it of rFun.itens) byF[it.nome] = it;
+  out.push(!!byF["Concreto Sapatas"] && byF["Concreto Sapatas"].qtd === 4.8 && byF["Concreto Sapatas"].conf === 1);
+  out.push(!!byF["Aço fundação"] && byF["Aço fundação"].qtd === 384);
+  out.push(!byF["Concreto fundação"]);                          // estimativa substituída
+  out.push(rFun.fundacaoPendente === false);
+  out.push(calcularOrcamentoGuiado({ area: 100, sistema: "bloco", perimetro: 40, precos: {} }).fundacaoPendente === true);
+  // U4: pintura por FACES (Seção 4). areaParede 280 → 1 face 93,4 L; 2 faces 186,7 L.
+  out.push(calcularOrcamentoGuiado({ area: 100, sistema: "bloco", precos: { tinta: 35 }, pinturaFaces: 2 })
+    .itens.find((i) => i.nome === "Tinta").qtd === 186.7);
+  out.push(calcularOrcamentoGuiado({ area: 100, sistema: "bloco", precos: { tinta: 35 } })
+    .itens.find((i) => i.nome === "Tinta").qtd === 93.4);
+  out.push(calcularOrcamentoGuiado({ area: 100, sistema: "bloco", precos: { tinta: 35 }, pinturaTeto: 80 })
+    .itens.find((i) => i.nome === "Tinta").qtd === 120);        // (280+80)/6×2
+  // U5: telha por consumo informado (Seção 5). 120 m² × 10 = 1200 (padrão seria 1920).
+  out.push(calcularOrcamentoGuiado({ area: 100, sistema: "bloco", telhado: 120, telhaUnM2: 10, precos: { telha: 5 } })
+    .itens.find((i) => i.nome === "Telhas").qtd === 1200);
+  out.push(calcularOrcamentoGuiado({ area: 100, sistema: "bloco", telhado: 120, precos: { telha: 5 } })
+    .itens.find((i) => i.nome === "Telhas").qtd === 1920);
+  // U6: escopo da mão de obra e sobreposição (Seção 6).
+  const rMo = calcularOrcamentoGuiado({ area: 100, sistema: "bloco", moDias: 10, moDiaria: 100, moEscopo: ["pintura", "eletrica"], precos: {} });
+  out.push(rMo.moSobreposicoes.length === 2 && rMo.moSobreposicoes.indexOf("Tinta") >= 0);
+  out.push(rMo.itens.find((i) => i.nome === "Mão de obra").limitacao.indexOf("COBRANÇA DUPLA") >= 0);
+  // U7: custos diretos/indiretos/BDI/venda separados (Seção 7).
+  const cst = resumoCustosOrcamento({ itens: [{ total: 1000, conf: 1 }, { total: 500, conf: 2 }, { total: null, conf: 1 }] },
+    { indiretos: 1000, impostosPerc: 10, contingenciaPerc: 5, bdiPerc: 20 });
+  out.push(cst.diretoInformado === 1000 && cst.diretoEstimado === 500 && cst.diretoConhecido === 1500);
+  out.push(cst.base === 2500 && cst.imposto === 250 && cst.contingencia === 125 && cst.bdi === 500 && cst.venda === 3375);
+  out.push(cst.qtdSemPreco === 1 && cst.vendaParcial === true);
+  // U8: pendências classificadas — fundação pendente é BLOQUEANTE (Seção 8).
+  const pend = montarPendenciasClassificadas(calcularOrcamentoGuiado({ area: 100, quartos: "3", banheiros: "2", sistema: "bloco", precos: {} }));
+  out.push(pend.some((p) => p.nvel === "bloqueante" && /Fundação/.test(p.oque)));
+  out.push(pend.every((p) => p.oque && p.porque && p.resolver && ["bloqueante", "importante", "opcional"].indexOf(p.nvel) >= 0));
+  // U9: aviso de preço desatualizado (Seção 9). hojeISO do sandbox = 2026-10-15.
+  out.push(precoDesatualizado({ data: "2026-01-01" }).desatualizado === true);
+  out.push(precoDesatualizado({ data: "2026-10-10" }).desatualizado === false);
+  out.push(precoDesatualizado({}).desatualizado === false);
+  // U10: snapshot registra técnicos/fundação/medição (o salvo não depende do aparelho).
+  const snap = snapshotParametrosOrcamento({ area: 100, sistema: "bloco", pinturaFaces: 2, pinturaTeto: 80,
+    telhaModelo: "romana", telhaUnM2: 12, moEscopo: ["pintura"],
+    fundacao: { sapatas: [{ comp: 30, larg: 0.4, alt: 0.4, qtd: 1 }], acoKgM3: 80 },
+    medicao: { temMedidaReal: true, liquida: 200 } });
+  out.push(snap.tecnicos.pinturaFaces === 2 && snap.tecnicos.pinturaTeto === 80 && snap.tecnicos.telhaModelo === "romana" && snap.tecnicos.telhaUnM2 === 12);
+  out.push(Array.isArray(snap.tecnicos.moEscopo) && snap.tecnicos.moEscopo[0] === "pintura");
+  out.push(!!snap.fundacao && snap.fundacao.sapatas.length === 1 && snap.fundacao.acoKgM3 === 80);
+  out.push(!!snap.medicao && snap.medicao.liquida === 200);
+  // U11: elemento com dimensão incompleta é DESCARTADO e SINALIZADO (não pode ser silencioso).
+  const rInc = calcularOrcamentoGuiado({ area: 100, sistema: "bloco", precos: { concreto: 450, aco: 8.5 },
+    fundacao: { sapatas: [{ comp: 30, larg: 0.4, alt: 0.4, qtd: 1 }, { comp: 0, larg: 0.4, alt: 0.4, qtd: 1 }], acoKgM3: 80 } });
+  out.push(rInc.fundacaoIncompletos === 1);
+  const byInc = {}; for (const itInc of rInc.itens) byInc[itInc.nome] = itInc;
+  out.push(!!byInc["Concreto Sapatas"] && byInc["Concreto Sapatas"].qtd === 4.8);
+  out.push(montarPendenciasClassificadas(rInc).some((p) => p.nvel === "importante" && /incompleta/.test(p.oque)));
+  // U12: só elementos incompletos → estimativa por perímetro PERMANECE, mas sinalizada.
+  const rIncOnly = calcularOrcamentoGuiado({ area: 100, sistema: "bloco", perimetro: 40, precos: {},
+    fundacao: { sapatas: [{ comp: 0, larg: 0, alt: 0, qtd: 1 }] } });
+  out.push(rIncOnly.fundacaoIncompletos === 1 && rIncOnly.fundacaoPendente === true);
+  const byI = {}; for (const itI of rIncOnly.itens) byI[itI.nome] = itI;
+  out.push(!!byI["Concreto fundação"]);
+  out.push(montarPendenciasClassificadas(rIncOnly).some((p) => /incompleta/.test(p.oque)));
+  // U13: com MEDIÇÃO real, faces extras já têm item próprio — a Tinta base usa 1 face (não duplica).
+  const rMed = calcularOrcamentoGuiado({ area: 100, sistema: "bloco", precos: { tinta: 35 },
+    pinturaFaces: 2, medicao: { temMedidaReal: true, liquida: 200, revestimentoFaces: 400 } });
+  const byMed = {}; for (const itM of rMed.itens) byMed[itM.nome] = itM;
+  out.push(!!byMed["Tinta"] && byMed["Tinta"].qtd === 93.4);
+  out.push(!!byMed["Reboco e pintura de faces extras"] && byMed["Reboco e pintura de faces extras"].qtd === 200);
+  return out;
+})()`, sandbox);
+t("U parâmetros documentados (unidade+obs)", rU[0]);
+t("U fonte do coeficiente é hipótese", rU[1]);
+t("U fonte desconhecida não inventa", rU[2]);
+t("U fundação elemento 4.8 m³ / aço 384 kg", rU[3]);
+t("U fundação sem aço não inventa armação", rU[4]);
+t("U fundação sem dados fica pendente", rU[5]);
+t("U pilar 4×(0,2×0,3×3) = 0.72 m³", rU[6]);
+t("U motor: concreto por elemento (conf 1)", rU[7]);
+t("U motor: aço por elemento 384 kg", rU[8]);
+t("U motor: estimativa por perímetro substituída", rU[9]);
+t("U motor: fundação informada não é pendente", rU[10]);
+t("U motor: fundação sem dados é pendente", rU[11]);
+t("U pintura 2 faces = 186.7 L", rU[12]);
+t("U pintura 1 face = 93.4 L (padrão)", rU[13]);
+t("U pintura com teto 80 m² = 120 L", rU[14]);
+t("U telha consumo informado = 1200", rU[15]);
+t("U telha padrão = 1920", rU[16]);
+t("U MO: 2 sobreposições detectadas", rU[17]);
+t("U MO: aviso de cobrança dupla", rU[18]);
+t("U custos: informado/estimado separados", rU[19]);
+t("U custos: imposto/contingência/BDI/venda", rU[20]);
+t("U custos: total parcial sinalizado", rU[21]);
+t("U pendência de fundação é bloqueante", rU[22]);
+t("U pendências bem formadas", rU[23]);
+t("U preço antigo → desatualizado", rU[24]);
+t("U preço recente → ok", rU[25]);
+t("U cotação sem data não acusa", rU[26]);
+t("U snapshot registra técnicos", rU[27]);
+t("U snapshot registra escopo MO", rU[28]);
+t("U snapshot registra fundação", rU[29]);
+t("U snapshot registra medição", rU[30]);
+t("U fundação descarta elemento incompleto", rU[31]);
+t("U volume usa só elementos válidos", rU[32]);
+t("U elemento incompleto é sinalizado", rU[33]);
+t("U só incompleto mantém estimativa", rU[34]);
+t("U estimativa por perímetro permanece", rU[35]);
+t("U incompleto sinalizado com estimativa", rU[36]);
+t("U medição real: base usa 1 face", rU[37]);
+t("U medição real: faces extras em item próprio", rU[38]);
+
+// ---- Teste W: persistência da fundação por elemento (camada usada pela UI) ----
+const rW = vm.runInContext(`(function () {
+  const out = [];
+  const v0 = fundacaoVazia();
+  out.push(v0.sapatas.length === 0 && v0.laje === null && v0.acoKgM3 === null);
+  // salvamento limpa campos estranhos e normaliza o aço.
+  salvarFundacao({ sapatas: [{ comp: 30, larg: 0.4, alt: 0.4, qtd: 1 }], acoKgM3: 80, lixo: 1 });
+  const l1 = lerFundacao();
+  out.push(l1.sapatas.length === 1 && l1.acoKgM3 === 80 && l1.laje === null && !("lixo" in l1));
+  // laje válida e aço inválido (0) → null, sem inventar.
+  salvarFundacao({ laje: { area: 50, espessura: 0.12 }, acoKgM3: 0 });
+  const l2 = lerFundacao();
+  out.push(!!l2.laje && l2.laje.area === 50 && l2.acoKgM3 === null);
+  // laje sem espessura → não guarda laje (inválida).
+  salvarFundacao({ laje: { area: 50, espessura: 0 } });
+  out.push(lerFundacao().laje === null);
+  // salvar vazio apaga os dados (não mistura com orçamento anterior).
+  salvarFundacao(null);
+  const l3 = lerFundacao();
+  out.push(l3.sapatas.length === 0 && l3.laje === null && l3.acoKgM3 === null);
+  return out;
+})()`, sandbox);
+t("W fundação vazia bem formada", rW[0]);
+t("W salvar fundação limpa e normaliza", rW[1]);
+t("W laje válida + aço 0 vira null", rW[2]);
+t("W laje sem espessura não é guardada", rW[3]);
+t("W salvar vazio não mistura orçamentos", rW[4]);
+
 console.log(`\nRESULTADO: ${pass} PASS, ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

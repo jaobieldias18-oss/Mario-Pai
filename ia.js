@@ -495,8 +495,11 @@ async function iaOrcamentoPro() {
   try {
     const txt = await iaConversar(
       "Comente este orçamento residencial de forma simples e diga o que falta confirmar. " +
-      "Use APENAS os números abaixo e NÃO invente valores, preços nem medidas. " +
-      "Deixe claro que é uma estimativa, não um projeto. Dados: " + ctx,
+      "Use APENAS os números abaixo e NÃO invente valores, preços, medidas nem coeficientes. " +
+      "Distinga o que foi INFORMADO pelo usuário, o que é ESTIMATIVA (coeficiente) e o que está PENDENTE. " +
+      "Deixe claro que é uma estimativa preliminar de custo direto, não um projeto nem garantia de preço final. " +
+      "Não faça dimensionamento estrutural. Se faltar dado, explique o que falta e peça a informação. " +
+      "Dados: " + ctx,
       "obra"
     );
     box.innerHTML = `<div class="card"><p>${proteger(txt)}</p>` +

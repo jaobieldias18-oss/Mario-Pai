@@ -101,6 +101,23 @@
     h += '<button class="btn btn-texto" data-pro="limpar-medicao">Limpar medição</button>';
     h += '</div>';
 
+    // --- Fundação por elemento (Seção 2) ---
+    h += '<h4 class="pro-sub">Fundação por elemento (opcional — projeto/medidas)</h4>';
+    h += '<p class="texto-suave">Informe comprimento × largura × altura × quantidade de cada elemento. Sem isso, a fundação fica como ESTIMATIVA e é marcada como pendente de dimensionamento. O sistema NÃO dimensiona sozinho.</p>';
+    h += '<div class="pro-tabela"><div class="pro-th">Elemento</div><div class="pro-th">Compr. (m)</div><div class="pro-th">Larg. (m)</div><div class="pro-th">Alt. (m)</div><div class="pro-th">Qtd</div><div class="pro-th"></div></div>';
+    h += '<div id="pro-fund-lista">' + linhasFundacao() + '</div>';
+    h += '<div class="pro-fund-add">';
+    h += '<select id="pro-fund-tipo"><option value="sapatas">Sapata</option><option value="baldrames">Baldrame</option><option value="pilares">Pilar</option><option value="vigas">Viga</option></select>';
+    h += '<input type="number" id="pro-fund-comp" step="0.01" inputmode="decimal" placeholder="Compr. (m)" />';
+    h += '<input type="number" id="pro-fund-larg" step="0.01" inputmode="decimal" placeholder="Larg. (m)" />';
+    h += '<input type="number" id="pro-fund-alt" step="0.01" inputmode="decimal" placeholder="Alt. (m)" />';
+    h += '<input type="number" id="pro-fund-qtd" step="1" inputmode="numeric" placeholder="Qtd" value="1" />';
+    h += '<button class="btn btn-texto" data-pro="add-fund">+ Adicionar</button>';
+    h += '</div>';
+    h += '<div class="pro-fund-laje"><label class="campo"><span>Laje (m²)</span><input type="number" id="pro-laje-area" step="0.1" inputmode="decimal" /></label>';
+    h += '<label class="campo"><span>Espessura (m)</span><input type="number" id="pro-laje-esp" step="0.01" inputmode="decimal" placeholder="Ex: 0,12" /></label>';
+    h += '<label class="campo"><span>Aço fundação (kg/m³)</span><input type="number" id="pro-fund-aco" step="1" inputmode="decimal" placeholder="vazio = pendente" /></label></div>';
+
     // --- Cenários ---
     h += '<h4 class="pro-sub">Cenários (econômico / provável / conservador)</h4>';
     h += '<p class="texto-suave">Fatores explícitos sobre os PREÇOS (não são probabilidades). Ex.: -5% e +15%.</p>';
@@ -148,6 +165,7 @@
     desenharSelectCatalogo();
     desenharCotacoes();
     desenharObrasReais();
+    try { preencherFundacaoInputs(); } catch (e) {}
   }
 
   function radio(v, label, atual) {
@@ -264,6 +282,71 @@
     box.innerHTML = h || '<p class="texto-suave">Nenhum registro de obra real.</p>';
   }
 
+  // ---------- Fundação por elemento (Seção 2) ----------
+  function linhasFundacao() {
+    var f = OrcPro.lerFundacao();
+    var tipos = [["sapatas", "Sapata"], ["baldrames", "Baldrame"], ["pilares", "Pilar"], ["vigas", "Viga"]];
+    var h = "";
+    for (var t = 0; t < tipos.length; t++) {
+      var chave = tipos[t][0], rotulo = tipos[t][1];
+      var arr = f[chave] || [];
+      for (var i = 0; i < arr.length; i++) {
+        var el = arr[i];
+        h += '<div class="pro-tr"><div class="pro-td">' + rotulo + '</div>' +
+          '<div class="pro-td">' + esc(el.comp) + '</div>' +
+          '<div class="pro-td">' + esc(el.larg) + '</div>' +
+          '<div class="pro-td">' + esc(el.alt) + '</div>' +
+          '<div class="pro-td">' + esc(el.qtd || 1) + '</div>' +
+          '<div class="pro-td"><button class="btn btn-texto" data-pro="del-fund" data-tipo="' + chave + '" data-i="' + i + '">remover</button></div></div>';
+      }
+    }
+    return h || '<p class="texto-suave">Nenhum elemento de fundação informado.</p>';
+  }
+  function fundacaoParaMotor() {
+    // Captura o que está na tela (laje/aço) mesmo sem clicar em "Adicionar".
+    try {
+      if (document.getElementById("pro-laje-area") || document.getElementById("pro-laje-esp") || document.getElementById("pro-fund-aco")) lerFundacaoInputs();
+    } catch (e) {}
+    var f = OrcPro.lerFundacao();
+    var limpo = { sapatas: f.sapatas || [], baldrames: f.baldrames || [], pilares: f.pilares || [], vigas: f.vigas || [] };
+    if (f.laje && f.laje.area > 0 && f.laje.espessura > 0) limpo.laje = f.laje;
+    if (Number(f.acoKgM3) > 0) limpo.acoKgM3 = Number(f.acoKgM3);
+    var tem = (limpo.sapatas.length + limpo.baldrames.length + limpo.pilares.length + limpo.vigas.length) > 0 || !!limpo.laje;
+    if (!tem && !(Number(f.acoKgM3) > 0)) return null;
+    return limpo;
+  }
+  function preencherFundacaoInputs() {
+    var f = OrcPro.lerFundacao();
+    var set = function (id, v) { var el = document.getElementById(id); if (el) el.value = (v == null ? "" : v); };
+    set("pro-laje-area", f.laje && f.laje.area);
+    set("pro-laje-esp", f.laje && f.laje.espessura);
+    set("pro-fund-aco", f.acoKgM3);
+  }
+  function lerFundacaoInputs() {
+    var f = OrcPro.lerFundacao();
+    var na = function (id) { var el = document.getElementById(id); return el ? Number(el.value) : 0; };
+    var area = na("pro-laje-area"), esp = na("pro-laje-esp"), aco = na("pro-fund-aco");
+    f.laje = (area > 0 && esp > 0) ? { area: area, espessura: esp } : null;
+    f.acoKgM3 = aco > 0 ? aco : null;
+    OrcPro.salvarFundacao(f);
+    return f;
+  }
+  function addFundacao() {
+    lerFundacaoInputs();
+    var f = OrcPro.lerFundacao();
+    var tipo = ((document.getElementById("pro-fund-tipo") || {}).value || "sapatas");
+    var comp = nz((document.getElementById("pro-fund-comp") || {}).value);
+    var larg = nz((document.getElementById("pro-fund-larg") || {}).value);
+    var alt = nz((document.getElementById("pro-fund-alt") || {}).value);
+    var qtd = nz((document.getElementById("pro-fund-qtd") || {}).value) || 1;
+    if (!(comp > 0) || !(larg > 0) || !(alt > 0)) { tost("Informe comprimento, largura e altura do elemento.", false); return; }
+    f[tipo].push({ comp: comp, larg: larg, alt: alt, qtd: qtd });
+    OrcPro.salvarFundacao(f);
+    ["pro-fund-comp", "pro-fund-larg", "pro-fund-alt"].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ""; });
+    document.getElementById("pro-fund-lista").innerHTML = linhasFundacao();
+    tost("Elemento adicionado.");
+  }
+
   // ---------- Cenários ----------
   function rodarCenarios() {
     var box = document.getElementById("pro-cenarios");
@@ -297,7 +380,16 @@
       if (vig) cot[k] = vig;
     }
     var ext = OrcPro.auditoriaEstendida(base, { cotacoes: cot });
-    var h = '<table class="aud-tabela"><thead><tr><th>Item</th><th>Preço</th><th>Fonte</th><th>Origem</th><th>Confiança</th></tr></thead><tbody>';
+    var cst = (typeof resumoCustosOrcamento === "function") ? resumoCustosOrcamento(base, {}) : null;
+    var h = "";
+    if (cst) {
+      var mm = function (v) { return (typeof moeda === "function" ? moeda(v) : ("R$ " + v)); };
+      h += '<p><strong>Custo direto conhecido:</strong> ' + mm(cst.diretoConhecido) +
+        ' <span class="texto-suave">(informado ' + mm(cst.diretoInformado) + ' + estimado ' + mm(cst.diretoEstimado) + ')</span>' +
+        (cst.qtdSemPreco ? ' <span class="pro-alerta">— ' + cst.qtdSemPreco + ' item(ns) sem preço (total parcial)</span>' : '') + '</p>';
+      h += '<p class="texto-suave">Com impostos/contingência/BDI informados no orçamento, o PREÇO DE VENDA é maior que este custo direto. Custo direto NÃO é preço final.</p>';
+    }
+    h += '<table class="aud-tabela"><thead><tr><th>Item</th><th>Preço</th><th>Fonte</th><th>Origem</th><th>Confiança</th></tr></thead><tbody>';
     for (var j = 0; j < ext.linhas.length; j++) {
       var l = ext.linhas[j];
       var cls = l.conf === 1 ? "aud-ok" : l.conf === 2 ? "aud-medio" : "aud-alerta";
@@ -337,6 +429,16 @@
     else if (acao === "aplicar-cot") { aplicarCotacao(); }
     else if (acao === "add-real") { addObraReal(); }
     else if (acao === "auditoria-pro") { auditarPro(); }
+    else if (acao === "add-fund") { addFundacao(); }
+    else if (acao === "del-fund") {
+      lerFundacaoInputs();
+      var ff = OrcPro.lerFundacao();
+      var tp = t.getAttribute("data-tipo");
+      ff[tp].splice(Number(t.getAttribute("data-i")), 1);
+      OrcPro.salvarFundacao(ff);
+      document.getElementById("pro-fund-lista").innerHTML = linhasFundacao();
+      tost("Elemento removido.");
+    }
     else if (acao === "ia-orcamento") { if (typeof window.iaOrcamentoPro === "function") window.iaOrcamentoPro(); else tost("IA indisponível.", false); }
   }
   function addCotacao() {
@@ -407,5 +509,5 @@
   }
   // Reprocessa ao trocar para a tela de orçamento (se a SPA expõe isso).
   window.addEventListener("hashchange", function () { setTimeout(iniciar, 60); });
-  window.OrcProUI = { render: render, iniciar: iniciar, parseVaosTexto: parseVaosTexto, coletarMedicao: coletarMedicao };
+  window.OrcProUI = { render: render, iniciar: iniciar, parseVaosTexto: parseVaosTexto, coletarMedicao: coletarMedicao, fundacaoParaMotor: fundacaoParaMotor };
 })();

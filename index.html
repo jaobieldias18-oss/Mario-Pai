@@ -23,7 +23,7 @@
   <!-- Acelera o carregamento: conecta antes nos servidores externos -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="preconnect" href="https://wmcrbjlzsqveekwifded.supabase.co" crossorigin />
-  <link rel="stylesheet" href="style.css?v=18" />
+  <link rel="stylesheet" href="style.css?v=19" />
 </head>
 <body>
 
@@ -624,8 +624,8 @@
           <div class="linha-2">
             <label class="campo"><span>Perímetro (m)</span>
               <input type="number" id="og-perimetro" min="0" step="0.1" inputmode="decimal" placeholder="Auto" /></label>
-            <label class="campo"><span>Telhado (m²)</span>
-              <input type="number" id="og-telhado" min="0" step="0.1" inputmode="decimal" placeholder="Auto" /></label>
+            <label class="campo"><span>Telhado — área inclinada (m²)</span>
+              <input type="number" id="og-telhado" min="0" step="0.1" inputmode="decimal" placeholder="Auto (área × 1,3)" /></label>
           </div>
           <div class="card" style="margin-top:10px">
             <h3 class="titulo-secao" style="margin-top:0">Paredes (opcional — cálculo exato)</h3>
@@ -655,6 +655,38 @@
               <input type="number" id="og-transporte" min="0" step="0.01" inputmode="decimal" placeholder="0" /></label>
             <label class="campo"><span>Outros (R$)</span>
               <input type="number" id="og-outros" min="0" step="0.01" inputmode="decimal" placeholder="0" /></label>
+          </div>
+          <div class="card" style="margin-top:10px">
+            <h3 class="titulo-secao" style="margin-top:0">Dados técnicos (opcional)</h3>
+            <p class="texto-suave">Deixe vazio para usar a estimativa padrão. Informando aqui, o cálculo fica mais próximo do real.</p>
+            <div class="linha-2">
+              <label class="campo"><span>Faces a pintar (parede)</span>
+                <select id="og-pintura-faces"><option value="1">1 face (padrão)</option><option value="2">2 faces (parede interna)</option></select></label>
+              <label class="campo"><span>Teto a pintar (m²)</span>
+                <input type="number" id="og-pintura-teto" min="0" step="0.1" inputmode="decimal" placeholder="0 = não pinta teto" /></label>
+            </div>
+            <div class="linha-2">
+              <label class="campo"><span>Telha — modelo</span>
+                <input type="text" id="og-telha-modelo" maxlength="40" placeholder="Ex: coloniale, romana, metalica" /></label>
+              <label class="campo"><span>Telha — consumo (un/m²)</span>
+                <input type="number" id="og-telha-un" min="0" step="0.1" inputmode="decimal" placeholder="auto (peça pequena = 16)" /></label>
+            </div>
+            <label class="campo"><span>Aço da fundação (kg/m³, só se o projeto indicar)</span>
+              <input type="number" id="og-acofund-kgm3" min="0" step="1" inputmode="decimal" placeholder="vazio = aço pendente de projeto" /></label>
+            <fieldset style="border:none;padding:0;margin:6px 0">
+              <span>Escopo da mão de obra (o que as diárias já incluem):</span>
+              <div class="linha-2" style="margin-top:4px">
+                <label><input type="checkbox" class="og-mo-escopo" value="alvenaria" /> Alvenaria</label>
+                <label><input type="checkbox" class="og-mo-escopo" value="reboco" /> Reboco</label>
+                <label><input type="checkbox" class="og-mo-escopo" value="pintura" /> Pintura</label>
+                <label><input type="checkbox" class="og-mo-escopo" value="eletrica" /> Elétrica</label>
+                <label><input type="checkbox" class="og-mo-escopo" value="hidraulica" /> Hidráulica</label>
+                <label><input type="checkbox" class="og-mo-escopo" value="cobertura" /> Cobertura</label>
+                <label><input type="checkbox" class="og-mo-escopo" value="pisos" /> Pisos</label>
+                <label><input type="checkbox" class="og-mo-escopo" value="esquadrias" /> Esquadrias</label>
+              </div>
+              <p class="texto-suave">Marcar o que já está incluso evita cobrança dupla nos materiais.</p>
+            </fieldset>
           </div>
           <button class="btn btn-primario btn-grande" id="og-calcular">Calcular quanto vai custar</button>
           <button class="btn btn-texto" id="og-preencher-teste" style="margin-top:6px">Preencher dados de teste</button>
@@ -842,12 +874,12 @@
   <script src="outbox.js?v=16"></script>
   <script src="script.js?v=17"></script>
 
-  <script src="orcamento_pro.js?v=1"></script>
-  <script src="orcamento.js?v=8"></script>
-  <script src="orcamento_pro_ui.js?v=1"></script>
+  <script src="orcamento_pro.js?v=2"></script>
+  <script src="orcamento.js?v=9"></script>
+  <script src="orcamento_pro_ui.js?v=2"></script>
   <script src="materiais.js?v=2"></script>
   <script src="composicoes.js?v=1"></script>
-  <script src="ia.js?v=19"></script>
+  <script src="ia.js?v=20"></script>
   <!-- PWA: registra o Service Worker (só funciona em http/https,
        abrindo como arquivo local o registro é ignorado sem erro) -->
   <script>

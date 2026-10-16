@@ -65,6 +65,55 @@ const PARAMS_ORC = {
   PERDA_REVEST: { valor: 0.10, unidade: "fração", obs: "recortes em revestimento de parede" },
 };
 
+// ---------- FONTE / NATUREZA DE CADA COEFICIENTE (transparência - Seção 1) ----------
+// Nenhum coeficiente abaixo foi medido/validado em norma ou fabricante neste app.
+// "hipotese"      = valor prático de obra, NÃO verificado (pode estar errado).
+// "usuario"       = o próprio usuário informa (não é coeficiente do sistema).
+// "norma"         = valor normativo (nenhum até o momento; reservado).
+// "fornecedor"    = valor de catálogo/fabricante (nenhum até o momento).
+// `conf`: 1 = informado · 2 = coeficiente · 3 = requer projeto/confirmação.
+const ORC_FONTES = {
+  PISO_PERC_AREA: { tipo: "hipotese", conf: 2, fonte: "Prática de obra (não verificada)" },
+  PERDA_PISO: { tipo: "hipotese", conf: 2, fonte: "Prática de obra (não verificada)" },
+  PAREDE_POR_AREA: { tipo: "hipotese", conf: 2, fonte: "Média de casas térreas (não verificada)" },
+  BLOCO_M2: { tipo: "hipotese", conf: 2, fonte: "Geometria da peça + junta de 1 cm (1/(0,20×0,40))" },
+  TIJOLO_M2: { tipo: "hipotese", conf: 3, fonte: "Valor NÃO conferido com a peça real" },
+  PERDA_BLOCO: { tipo: "hipotese", conf: 2, fonte: "Prática de obra (não verificada)" },
+  CIMENTO_M2_REBOCO: { tipo: "hipotese", conf: 2, fonte: "Consumo médio de reboco (não verificado)" },
+  TINTA_REND_M2_L: { tipo: "hipotese", conf: 2, fonte: "Rendimento médio de parede selada" },
+  TINTA_DEMAOS: { tipo: "hipotese", conf: 2, fonte: "Padrão de 2 demãos" },
+  SAPATA_LARG_M: { tipo: "hipotese", conf: 3, fonte: "Seção padrão — NÃO substitui projeto estrutural" },
+  SAPATA_ALT_M: { tipo: "hipotese", conf: 3, fonte: "Seção padrão — NÃO substitui projeto estrutural" },
+  ACO_FUND_KG_M3: { tipo: "hipotese", conf: 3, fonte: "Armação média — requer projeto estrutural" },
+  LAJE_CONC_M3_M2: { tipo: "hipotese", conf: 3, fonte: "Espessura ~12 cm — requer projeto estrutural" },
+  ACO_LAJE_KG_M2: { tipo: "hipotese", conf: 3, fonte: "Armação média — requer projeto estrutural" },
+  TELHADO_FATOR: { tipo: "hipotese", conf: 2, fonte: "Fator 1,3 sobre a área (não verificado)" },
+  TELHA_M2: { tipo: "hipotese", conf: 3, fonte: "Peça pequena (~0,06 m²) — depende do modelo da telha" },
+  ARGAMASSA_ALV_M2: { tipo: "hipotese", conf: 2, fonte: "Traço médio de obra (não verificado)" },
+  CHAPISCO_CIM_M2: { tipo: "hipotese", conf: 2, fonte: "Traço médio (não verificado)" },
+  CONTRAPISO_ESP_M: { tipo: "hipotese", conf: 2, fonte: "Espessura 3 cm (depende do nivelamento)" },
+  CIMENTO_M3_CONTRAPISO: { tipo: "hipotese", conf: 2, fonte: "Traço médio (não verificado)" },
+  PERDA_REVEST: { tipo: "hipotese", conf: 2, fonte: "Recortes em revestimento (não verificado)" },
+};
+// Devolve a natureza/fonte declarada de um parâmetro (nunca inventa fonte).
+function fonteCoeficiente(nome) {
+  return Object.assign({ tipo: "hipotese", conf: 2, fonte: "Não documentado" }, ORC_FONTES[nome] || {});
+}
+// Checagem estrutural de unit-safety: cada parâmetro precisa de valor numérico
+// (ou null) + unidade + obs. Devolve lista de problemas (vazia = ok).
+function verificarUnidadesOrcamento(params) {
+  const p = params || PARAMS_ORC;
+  const problemas = [];
+  for (const k of Object.keys(p)) {
+    const c = p[k];
+    if (!c || typeof c !== "object") { problemas.push(k + ": parâmetro malformado"); continue; }
+    if (c.valor !== null && c.valor !== undefined && !Number.isFinite(Number(c.valor))) problemas.push(k + ": valor não numérico");
+    if (!c.unidade) problemas.push(k + ": sem unidade declarada");
+    if (!c.obs) problemas.push(k + ": sem observação/origem");
+  }
+  return problemas;
+}
+
 const ORC_SAVE_KEY = "mario_orcamentos_v1";
 
 function elOrc(id) { return document.getElementById(id); }
@@ -233,6 +282,7 @@ function verOrcamentoSalvo(id) {
   html += `<p class="texto-suave">${o.alvenaria === "bloco" ? "Bloco de concreto" : "Tijolo cerâmico"}`;
   if (o.parametros && o.parametros.versao) html += ` • parâmetros v${o.parametros.versao}`;
   html += `</p>`;
+  html += `<p class="texto-suave">Estimativa salva (coeficientes são hipóteses). NÃO é orçamento executivo — confira os quantitativos antes de comprar.</p>`;
   // Agrupa por etapa, preservando a ordem salva.
   const etapas = [];
   for (const it of o.itens || []) {
@@ -292,6 +342,26 @@ function duplicarOrcamento(id) {
     const v = precos[i.dataset.ogPreco];
     if (v !== undefined && v !== null) i.value = v;
   });
+  // Dados técnicos (Seções 2,4,5,6): repõe a tela para o recálculo bater com o salvo.
+  const tec = (o.parametros && o.parametros.tecnicos) || {};
+  set("og-pintura-faces", tec.pinturaFaces || 1);
+  set("og-pintura-teto", tec.pinturaTeto || "");
+  set("og-telha-modelo", tec.telhaModelo || "");
+  set("og-telha-un", tec.telhaUnM2 || "");
+  const escopo = Array.isArray(tec.moEscopo) ? tec.moEscopo : [];
+  document.querySelectorAll(".og-mo-escopo").forEach((c) => { c.checked = escopo.indexOf(c.value) >= 0; });
+  // Fundação e medição ficam no aparelho; repõe para ESTE orçamento (evita misturar obras).
+  try {
+    if (o.parametros && o.parametros.fundacao && typeof OrcPro !== "undefined" && typeof OrcPro.salvarFundacao === "function") {
+      OrcPro.salvarFundacao(o.parametros.fundacao);
+      const aco = o.parametros.fundacao.acoKgM3;
+      set("og-acofund-kgm3", aco > 0 ? aco : "");
+    }
+    if (o.parametros && o.parametros.medicao && typeof OrcPro !== "undefined" && typeof OrcPro.salvarMedicaoAtual === "function") {
+      OrcPro.salvarMedicaoAtual(o.parametros.medicao);
+    }
+    if (typeof OrcProUI !== "undefined" && typeof OrcProUI.render === "function") OrcProUI.render();
+  } catch (err) {}
   const sel = document.getElementById("og-obra");
   if (sel && o.obraId) sel.value = o.obraId;
   mostrarToast("Dados carregados. Toque em Calcular para atualizar.");
@@ -366,6 +436,52 @@ function desenharPrecosOG() {
 // `e` = { area, quartos, banheiros, sistema, perimetro, telhado,
 //         parComp, parAlt, parVaos, peletricos, phidraulicos,
 //         moDias, moDiaria, transporte, outros, precos:{piso,bloco,...} }
+// ---------- Fundação por ELEMENTO (pura - Seção 2) ----------
+// O usuário informa dimensões/quantidades POR ELEMENTO. O sistema NÃO dimensiona
+// estrutura nem transforma perímetro em seção: só multiplica o que foi informado.
+// Sem dados → marca "pendente de dimensionamento/confirmação técnica".
+// Formato: fund = {
+//   sapatas:[{comp,larg,alt,qtd}], baldrames:[...], pilares:[...], vigas:[...],
+//   laje:{area,espessura}, acoKgM3 }   (qualquer subconjunto; nomes alternativos ok)
+function calcularFundacaoPorElementos(fund) {
+  const f = fund || {};
+  const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
+  const r3 = (n) => Math.round(n * 1000) / 1000;
+  const elementos = [], faltando = [];
+  let volume = 0, incompletos = 0, informados = 0;
+  const grupos = [["sapatas", "Sapatas"], ["baldrames", "Baldrames"], ["pilares", "Pilares"], ["vigas", "Vigas"]];
+  for (const [chave, rotulo] of grupos) {
+    const arr = Array.isArray(f[chave]) ? f[chave] : [];
+    let vol = 0, nOk = 0, nInc = 0;
+    for (const el of arr) {
+      const comp = num(el && (el.comp != null ? el.comp : el.comprimento));
+      const larg = num(el && (el.larg != null ? el.larg : el.seccaoLarg));
+      const alt = num(el && (el.alt != null ? el.alt : el.seccaoAlt));
+      const qtd = num(el && el.qtd) || 1;
+      if (!(comp > 0) || !(larg > 0) || !(alt > 0)) { nInc++; incompletos++; continue; }
+      vol += comp * larg * alt * qtd; nOk++;
+    }
+    if (nOk > 0) { elementos.push({ tipo: chave, nome: rotulo, volume: r3(vol), qtd: nOk }); volume += vol; informados++; }
+    else if (nInc > 0) faltando.push(rotulo + ": " + nInc + " elemento(s) com dimensão incompleta");
+  }
+  const laje = f.laje || null;
+  if (laje) {
+    const areaL = num(laje.area), esp = num(laje.espessura != null ? laje.espessura : laje.esp);
+    if (areaL > 0 && esp > 0) { const v = areaL * esp; elementos.push({ tipo: "laje", nome: "Laje (fundo/piso)", volume: r3(v), qtd: 1 }); volume += v; informados++; }
+    else faltando.push("Laje: informe área e espessura");
+  }
+  const acoKgM3 = num(f.acoKgM3);
+  const volumeConcreto = r3(volume);
+  const acoKg = acoKgM3 > 0 ? Math.ceil(volumeConcreto * acoKgM3) : null;
+  return {
+    ok: informados > 0, elementos, volumeConcreto, acoKg,
+    acoKgM3: acoKgM3 > 0 ? acoKgM3 : null, faltando, incompletos,
+    pendenteDimensionamento: informados === 0,
+    ausentes: grupos.filter(([c]) => !(Array.isArray(f[c]) && f[c].length)).map((x) => x[1]),
+    origem: "dimensões e quantidades informadas por elemento", hipotese: false, conf: 1,
+  };
+}
+
 function calcularOrcamentoGuiado(e) {
   const area = Number(e.area) || 0;
   const quartos = Math.max(0, parseInt(e.quartos || "0", 10));
@@ -405,7 +521,16 @@ function calcularOrcamentoGuiado(e) {
   const consUn = sist === "bloco" ? PARAMS_ORC.BLOCO_M2.valor : PARAMS_ORC.TIJOLO_M2.valor;
   const qAlv = Math.ceil(areaParede * consUn * (1 + PARAMS_ORC.PERDA_BLOCO.valor));
   const qCim = Math.ceil(areaParede * PARAMS_ORC.CIMENTO_M2_REBOCO.valor);
-  const qTinta = Math.ceil((areaParede / PARAMS_ORC.TINTA_REND_M2_L.valor * PARAMS_ORC.TINTA_DEMAOS.valor) * 10) / 10;
+  // Pintura por FACES (Seção 4). Default 1 face (comportamento anterior preservado).
+  // `e.pinturaFaces` = 1 ou 2; `e.pinturaTeto` = área de teto a pintar (m², opcional).
+  const pinturaFaces = Math.max(1, Math.min(2, parseInt(e.pinturaFaces || "1", 10) || 1));
+  const pinturaTeto = numeroOuZero(e.pinturaTeto);
+  // Quando há MEDIÇÃO real, as faces EXTRAS já viram item próprio ("Reboco e pintura
+  // de faces extras"). A base cobre 1 face — forçar 2 aqui contaria a 2ª face duas vezes.
+  const medRealFaces = !!(e.medicao && e.medicao.temMedidaReal);
+  const facesBase = medRealFaces ? 1 : pinturaFaces;
+  const areaPintavel = areaParede * facesBase + pinturaTeto;
+  const qTinta = Math.ceil((areaPintavel / PARAMS_ORC.TINTA_REND_M2_L.valor * PARAMS_ORC.TINTA_DEMAOS.valor) * 10) / 10;
   // Medidas editáveis (vazio = estimativa documentada abaixo)
   const perimetroInformado = numeroOuZero(e.perimetro) > 0;
   const telhadoInformado = numeroOuZero(e.telhado) > 0;
@@ -417,13 +542,38 @@ function calcularOrcamentoGuiado(e) {
   const moDiaria = numeroOuZero(e.moDiaria);
   const transporte = numeroOuZero(e.transporte);
   const outros = numeroOuZero(e.outros);
-  // Fundação (sapata corrida): concreto + aço
+  // Escopo da mão de obra (Seção 6): serviços que as diárias JÁ incluem. Serve para
+  // AVISAR sobreposição com itens que já têm preço próprio (sem bloquear nada).
+  const MO_SERVICOS = {
+    alvenaria: { rotulo: "Alvenaria", item: "Bloco de concreto" },
+    reboco: { rotulo: "Reboco", item: "Cimento (reboco)" },
+    pintura: { rotulo: "Pintura", item: "Tinta" },
+    eletrica: { rotulo: "Elétrica", item: "Pontos elétricos" },
+    hidraulica: { rotulo: "Hidráulica", item: "Pontos hidráulicos" },
+    cobertura: { rotulo: "Cobertura", item: "Telhas" },
+    pisos: { rotulo: "Pisos", item: "Piso cerâmico" },
+    esquadrias: { rotulo: "Esquadrias", item: "Portas (estimativa: cômodos + 2)" },
+    fundacao: { rotulo: "Fundação", item: "Concreto fundação" },
+    estrutura: { rotulo: "Estrutura", item: "Concreto laje" },
+  };
+  const moEscopo = Array.isArray(e.moEscopo) ? e.moEscopo.filter((s) => MO_SERVICOS[s]) : [];
+  const moSobreposicoes = moEscopo.map((s) => MO_SERVICOS[s].item);
+  // Fundação (sapata corrida): concreto + aço — ESTIMATIVA por perímetro.
+  // Só é usada quando NÃO há dados por elemento (e.fundacao). Se houver, o item
+  // por elemento substitui este (Seção 2). Sem dados → fica marcada como pendente.
   const concFund = perim * PARAMS_ORC.SAPATA_LARG_M.valor * PARAMS_ORC.SAPATA_ALT_M.valor;
   const acoFund = Math.ceil(concFund * PARAMS_ORC.ACO_FUND_KG_M3.valor);
+  // Fundação por elemento (opcional): substitui a estimativa por perímetro.
+  const fundElem = (e.fundacao && typeof e.fundacao === "object") ? calcularFundacaoPorElementos(e.fundacao) : null;
   // Laje: concreto + aço
   const concLaje = area * PARAMS_ORC.LAJE_CONC_M3_M2.valor;
   const acoLaje = Math.ceil(area * PARAMS_ORC.ACO_LAJE_KG_M2.valor);
-  const qTelha = Math.ceil(areaTelhado * PARAMS_ORC.TELHA_M2.valor);
+  // Telha: consumo por m² pode ser informado pelo modelo/fabricante (Seção 5).
+  // Sem informação → mantém a hipótese 16 un/m² (peça pequena), sinalizada.
+  const telhaModelo = (e.telhaModelo != null && String(e.telhaModelo).trim()) ? String(e.telhaModelo).trim() : null;
+  const telhaUnM2Informado = numeroOuZero(e.telhaUnM2);
+  const telhaUnM2 = telhaUnM2Informado > 0 ? telhaUnM2Informado : PARAMS_ORC.TELHA_M2.valor;
+  const qTelha = Math.ceil(areaTelhado * telhaUnM2);
   // Portas e janelas estimadas pelos cômodos (estimativa — confirmar no projeto)
   const qPortas = quartos + banheiros + 2;
   const qJanelas = quartos + banheiros + 1;
@@ -467,11 +617,15 @@ function calcularOrcamentoGuiado(e) {
       formula: "área de parede × cimento por m² de reboco",
       origem: geoMedida ? "parede medida + consumo padrão de reboco" : "parede estimada + consumo padrão de reboco",
       conf: 2, limitacao: "SOMENTE reboco de parede: NÃO é o cimento da obra. Não inclui assentamento de alvenaria, chapisco, contrapiso, baldrame, pilar nem perda." },
-    { nome: "Tinta", etapa: "Pintura", unidade: "L", qtd: qTinta, preco: P.tinta, detalhe: [`${areaParede.toFixed(1)} m² ÷ ${PARAMS_ORC.TINTA_REND_M2_L.valor} × ${PARAMS_ORC.TINTA_DEMAOS.valor}`],
+    { nome: "Tinta", etapa: "Pintura", unidade: "L", qtd: qTinta, preco: P.tinta, detalhe: [`${areaPintavel.toFixed(1)} m² ÷ ${PARAMS_ORC.TINTA_REND_M2_L.valor} × ${PARAMS_ORC.TINTA_DEMAOS.valor}`, `Área pintável: ${facesBase} face(s) de parede${pinturaTeto ? " + teto " + pinturaTeto + " m²" : " (teto não incluído)"}${medRealFaces ? " — faces extras em item separado" : ""}`],
       coef: `${PARAMS_ORC.TINTA_REND_M2_L.valor} m²/L por demão × ${PARAMS_ORC.TINTA_DEMAOS.valor} demãos`,
-      formula: "área de parede ÷ rendimento × demãos",
+      formula: "(área de parede × faces + área de teto) ÷ rendimento × demãos",
       origem: geoMedida ? "parede medida + rendimento padrão" : "parede estimada + rendimento padrão",
-      conf: 2, limitacao: "Pinta UMA face das paredes: paredes internas têm duas faces. Não inclui teto nem demão de impermeabilização." },
+      conf: 2, limitacao: medRealFaces
+        ? "Medição real: a 1ª face entra aqui e as faces EXTRAS entram no item próprio. O teto só entra se a área for informada."
+        : (pinturaFaces >= 2
+          ? "Pintura nas 2 faces informada por você. Confira se não há sobreposição com o item de faces extras; tetos só entram se a área for informada."
+          : "Pinta UMA face das paredes: paredes internas têm DUAS faces. Informe as faces e a área de teto na medição para não subestimar.") },
     { nome: "Portas (estimativa: cômodos + 2)", etapa: "Esquadrias", unidade: "un", qtd: qPortas, preco: P.porta, detalhe: ["Estimativa pelos cômodos — confirmar no projeto"],
       coef: "quartos + banheiros + 2",
       formula: "número de cômodos + 2",
@@ -482,11 +636,13 @@ function calcularOrcamentoGuiado(e) {
       formula: "número de cômodos + 1",
       origem: "estimativa automática pelos cômodos informados",
       conf: 2, limitacao: "PROVISÓRIO: não usa o projeto. Não confere janelas com os vãos informados." },
-    { nome: "Telhas", etapa: "Cobertura", unidade: "un", qtd: qTelha, preco: P.telha, detalhe: [`${areaTelhado} m² × ${PARAMS_ORC.TELHA_M2.valor} un/m²`],
-      coef: `${PARAMS_ORC.TELHA_M2.valor} un/m²`,
-      formula: "área de telhado × telhas por m²",
-      origem: telhadoInformado ? "área de telhado informada + consumo padrão" : "área de telhado ESTIMADA pela área construída + consumo padrão",
-      conf: 2, limitacao: `Consumo de ${PARAMS_ORC.TELHA_M2.valor} un/m² é de peça pequena, NÃO de telha romana (8–10 un/m²). Não inclui inclinação, cumeeira, calha ou rufo. Confirme o modelo da telha.` },
+    { nome: "Telhas", etapa: "Cobertura", unidade: "un", qtd: qTelha, preco: P.telha, detalhe: [`${areaTelhado} m² × ${telhaUnM2} un/m²${telhaModelo ? " (" + telhaModelo + ")" : ""}`],
+      coef: telhaUnM2Informado > 0 ? `${telhaUnM2} un/m² (informado)` : `${telhaUnM2} un/m² (hipótese)`,
+      formula: "área de telhado × consumo de telha por m²",
+      origem: telhaUnM2Informado > 0 ? "consumo/m² informado pelo usuário" : (telhadoInformado ? "área informada + consumo padrão" : "área ESTIMADA + consumo padrão"),
+      conf: telhaUnM2Informado > 0 ? 1 : 2, limitacao: telhaUnM2Informado > 0
+        ? "Consumo/m² informado pelo usuário. Não inclui inclinação real, cumeeira, calha, rufo ou beiral."
+        : `Consumo de ${PARAMS_ORC.TELHA_M2.valor} un/m² é de peça pequena, NÃO de telha romana (8–10 un/m²). Informe o modelo/fabricante ou o consumo/m². Não inclui inclinação, cumeeira, calha ou rufo.` },
     { nome: "Madeiramento", etapa: "Cobertura", unidade: "m²", qtd: areaTelhado, preco: P.madeiramento, detalhe: [`${areaTelhado} m² de telhado`],
       coef: "1 m² de madeiramento por m² de telhado",
       formula: "área de telhado × 1",
@@ -500,11 +656,13 @@ function calcularOrcamentoGuiado(e) {
       coef: "1 ponto informado", formula: "soma dos pontos hidráulicos informados",
       origem: nPHidr ? "pontos informados pelo usuário" : "NÃO INFORMADO",
       conf: nPHidr ? 1 : 3, limitacao: "Só o ponto: não inclui tubos, conexões, louças, metais, aquecedor nem mão de obra hidráulica." },
-    { nome: "Mão de obra", etapa: "Mão de obra", unidade: "diárias", qtd: moDias, preco: moDiaria || null, detalhe: [moDias ? `${moDias} dias × ${moeda(moDiaria || 0)}` : "Informe dias e diária"],
+    { nome: "Mão de obra", etapa: "Mão de obra", unidade: "diárias", qtd: moDias, preco: moDiaria || null, detalhe: [moDias ? `${moDias} dias × ${moeda(moDiaria || 0)}` : "Informe dias e diária", moEscopo.length ? `Escopo informado: ${moEscopo.map((s) => MO_SERVICOS[s].rotulo).join(", ")}` : "Escopo NÃO informado (não sabemos o que as diárias cobrem)"],
       coef: `${moDias} diárias × ${moeda(moDiaria)}`,
       formula: "número de diárias × valor da diária",
       origem: (moDias && moDiaria) ? "dias e diária informados pelo usuário" : "NÃO INFORMADO",
-      conf: (moDias && moDiaria) ? 1 : 3, limitacao: "ESCPO NÃO DEFINIDO: se as diárias já incluírem pintura, elétrica ou hidráulica, esses serviços estão cobrados DUAS VEZES." },
+      conf: (moDias && moDiaria) ? 1 : 3, limitacao: moSobreposicoes.length
+        ? `ATENÇÃO: o escopo das diárias inclui ${moEscopo.map((s) => MO_SERVICOS[s].rotulo).join(", ")}, que TAMBÉM têm item com preço próprio. Risco de COBRANÇA DUPLA: confira se esses materiais/serviços não estão sendo somados duas vezes.`
+        : "ESCOPO NÃO DEFINIDO: se as diárias já incluírem pintura, elétrica ou hidráulica, esses serviços podem estar cobrados DUAS VEZES." },
     { nome: "Transporte", etapa: "Outros", unidade: "R$", qtd: transporte ? 1 : 0, preco: transporte || null, detalhe: ["Valor informado"],
       coef: "valor fixo", formula: "valor informado pelo usuário",
       origem: transporte ? "valor informado pelo usuário" : "NÃO INFORMADO",
@@ -568,6 +726,36 @@ function calcularOrcamentoGuiado(e) {
         conf: 2, limitacao: "Traço NÃO confirmado. Reutiliza o preço do cimento informado." });
     }
   }
+  // --- Fundação por ELEMENTO substitui a estimativa por perímetro (Seção 2) ---
+  // Com dados informados, cada elemento vira um item (conf 1). Sem dados, a
+  // estimativa por perímetro PERMANECE, mas marcada como pendente de dimensionamento.
+  let fundacaoPendente = true;
+  let fundacaoElementos = [];
+  if (fundElem && fundElem.ok) {
+    for (let i = itens.length - 1; i >= 0; i--) if (itens[i].etapa === "Fundação") itens.splice(i, 1);
+    fundacaoElementos = fundElem.elementos;
+    for (const el of fundElem.elementos) {
+      itens.push({
+        nome: "Concreto " + el.nome, etapa: "Fundação", unidade: "m³", qtd: el.volume, preco: P.concreto,
+        detalhe: [`${el.qtd} elemento(s) — volume informado`],
+        coef: "comprimento × largura × altura × quantidade (informado)",
+        formula: "comprimento × seção (larg × alt) × quantidade",
+        origem: "dimensões/quantidades informadas pelo usuário por elemento",
+        conf: 1, limitacao: "Calculado com as dimensões informadas; a verificação estrutural é do responsável técnico." });
+    }
+    if (fundElem.acoKg != null) {
+      itens.push({
+        nome: "Aço fundação", etapa: "Fundação", unidade: "kg", qtd: fundElem.acoKg, preco: P.aco,
+        detalhe: [`${fundElem.volumeConcreto} m³ × ${fundElem.acoKgM3} kg/m³`],
+        coef: `${fundElem.acoKgM3} kg/m³ (informado)`,
+        formula: "volume de concreto × consumo de aço informado",
+        origem: "consumo de aço informado pelo usuário",
+        conf: 1, limitacao: "Consumo informado; não substitui a memória de cálculo estrutural." });
+      fundacaoPendente = false;
+    } else {
+      fundacaoPendente = true; // concreto informado, mas AÇO permanece pendente de projeto
+    }
+  }
   for (const it of itens) it.total = it.preco ? it.qtd * it.preco : null;
   const total = itens.reduce((s, it) => s + (it.total || 0), 0);
   const semPreco = itens.filter((it) => it.total === null).length;
@@ -580,7 +768,82 @@ function calcularOrcamentoGuiado(e) {
   const vaosDivergem = geoMedida && vaosInformados > 0 && esquadriasEstimadas !== vaosInformados;
   return { area, quartos, banheiros, sist, itens, total, semPreco, areaParede, paredeOrigem, perim, areaTelhado,
     geoMedida, vaosInvalidos, vaosInformados, esquadriasEstimadas, vaosDivergem,
-    perimetroInformado, telhadoInformado, medicao: med || null, facesExtras, pisoMedido };
+    perimetroInformado, telhadoInformado, medicao: med || null, facesExtras, pisoMedido,
+    pinturaFaces, pinturaTeto, areaPintavel, telhaUnM2, telhaUnM2Informado, telhaModelo,
+    moEscopo, moSobreposicoes, fundacaoPendente, fundacaoElementos,
+    fundacaoIncompletos: fundElem ? fundElem.incompletos : 0,
+    fundacaoFaltando: fundElem ? fundElem.faltando : [],
+    fundacaoAusentes: fundElem ? fundElem.ausentes : ["Sapatas", "Baldrames", "Pilares", "Vigas"] };
+}
+
+// ---------- Lista de pendências classificada (pura - Seção 8) ----------
+// Classifica o que falta em: bloqueante (impede confiar no número),
+// importante (muda bastante o custo) e opcional (melhora a precisão).
+// Não esconde pendência estrutural. Devolve [{ nvel, oque, porque, resolver }].
+function montarPendenciasClassificadas(r) {
+  const pend = [];
+  const add = (nvel, oque, porque, resolver) => pend.push({ nvel, oque, porque, resolver });
+  if (!(r.area > 0)) add("bloqueante", "Área da obra", "é a base de todos os quantitativos", "Informe a área no Raio-X");
+  // Fundação: pendência estrutural NUNCA deve ser escondida.
+  if (r.fundacaoPendente) {
+    add("bloqueante", "Fundação (concreto e aço)",
+      "sem dimensões por elemento, a fundação é uma ESTIMATIVA por perímetro — pode divergir muito do real",
+      "Informe sapatas/baldrames/pilares/vigas (dimensões e quantidades) ou aguarde o projeto estrutural");
+  }
+  if (r.fundacaoAusentes && r.fundacaoAusentes.length && !r.fundacaoPendente) {
+    add("importante", "Elementos de fundação não informados: " + r.fundacaoAusentes.join(", "),
+      "podem existir e não estão no orçamento", "Confirme no projeto estrutural quais elementos existem");
+  }
+  // Elementos com dimensão incompleta são DESCARTADOS do volume — não podem ficar silenciosos.
+  if (r.fundacaoIncompletos > 0) {
+    add("importante", "Fundação com dimensão incompleta (" + r.fundacaoIncompletos + " elemento(s))",
+      "elemento(s) sem comprimento/largura/altura foram IGNORADOS — o volume de concreto está incompleto",
+      "Complete comprimento, largura, altura e quantidade de cada elemento");
+  }
+  if (!r.geoMedida) add("importante", "Paredes não medidas", "alvenaria, cimento e tinta usam fator médio por área", "Informe comprimento, altura e vãos das paredes");
+  if (!r.telhadoInformado) add("importante", "Área de telhado", "telhas e madeiramento usam estimativa pela área", "Informe a área do telhado");
+  if (r.telhaUnM2Informado === 0) add("importante", "Consumo de telha por m²", "depende do MODELO da telha (o padrão é de peça pequena)", "Informe o modelo/fabricante ou o consumo por m²");
+  if (!r.perimetroInformado) add("opcional", "Perímetro", "a fundação estimada usa um perímetro aproximado", "Informe o perímetro real");
+  if (r.pinturaFaces < 2) add("opcional", "Pintura por face", "por padrão pinta 1 face; paredes internas têm 2", "Informe as faces a pintar e a área de teto");
+  if (r.moSobreposicoes && r.moSobreposicoes.length) add("importante", "Sobreposição de mão de obra", "o escopo das diárias inclui serviços que já têm item próprio", "Confirme que não há cobrança dupla");
+  if (!(r.quartos > 0)) add("opcional", "Quartos", "afeta portas e esquadrias", "Informe no Raio-X");
+  if (!(r.banheiros > 0)) add("opcional", "Banheiros", "afeta louças e hidráulica", "Informe no Raio-X");
+  for (const it of (r.itens || [])) {
+    if (it.total === null) add("importante", "Preço ausente: " + it.nome, "sem preço o total fica parcial", "Cadastre em Materiais ou digite o preço");
+  }
+  return pend;
+}
+
+// ---------- Custos diretos / indiretos / preço de venda (pura - Seção 7) ----------
+// Separa o que é CUSTO DIRETO (informado vs. estimado), o que é INDIRETO e o
+// que é encargo (impostos, contingência, BDI/margem) até o PREÇO DE VENDA.
+// NUNCA apresenta o custo direto como preço final.
+function resumoCustosOrcamento(r, cfg) {
+  const c = cfg || {};
+  const itens = (r && r.itens) || [];
+  const comPreco = itens.filter((it) => it.total !== null);
+  const semPreco = itens.filter((it) => it.total === null);
+  const soma = (l) => l.reduce((s, it) => s + (it.total || 0), 0);
+  const diretoInformado = soma(comPreco.filter((it) => (it.conf || 2) === 1));
+  const diretoEstimado = soma(comPreco.filter((it) => (it.conf || 2) >= 2));
+  const diretoConhecido = diretoInformado + diretoEstimado;
+  const indiretos = numeroOuZero(c.indiretos);
+  const impostosPerc = numeroOuZero(c.impostosPerc) / 100;
+  const contingenciaPerc = numeroOuZero(c.contingenciaPerc) / 100;
+  const bdiPerc = numeroOuZero(c.bdiPerc) / 100;
+  const base = diretoConhecido + indiretos;
+  const imposto = base * impostosPerc;
+  const contingencia = base * contingenciaPerc;
+  const bdi = base * bdiPerc;
+  const venda = base + imposto + contingencia + bdi;
+  return {
+    diretoInformado, diretoEstimado, diretoConhecido, indiretos, base,
+    imposto, contingencia, bdi, venda,
+    qtdSemPreco: semPreco.length, semPreco,
+    // Transparência: sem todos os preços, o preço de venda é PARCIAL.
+    vendaParcial: semPreco.length > 0,
+    observacao: "Custo direto NÃO é preço final. Impostos/contingência/BDI incidem sobre (direto + indiretos).",
+  };
 }
 
 // ---------- Relatório de auditoria (puro / testável) ----------
@@ -637,6 +900,7 @@ function montarAuditoriaOrcamento(r) {
       telhado: !r.telhadoInformado, portasJanelas: true,
       fundacaoLaje: true,
     },
+    pendencias: montarPendenciasClassificadas(r),
   };
 }
 
@@ -659,6 +923,28 @@ function lerEntradaOrcamentoGuiado() {
     transporte: numeroOuZero(val("og-transporte")), outros: numeroOuZero(val("og-outros")),
     precos,
   };
+  // --- Dados técnicos opcionais (Seções 2,4,5,6) ---
+  e.pinturaFaces = parseInt(val("og-pintura-faces") || "1", 10) || 1;
+  e.pinturaTeto = numeroOuZero(val("og-pintura-teto"));
+  e.telhaModelo = val("og-telha-modelo");
+  e.telhaUnM2 = numeroOuZero(val("og-telha-un"));
+  e.moEscopo = Array.prototype.slice
+    .call(document.querySelectorAll(".og-mo-escopo:checked"))
+    .map((i) => i.value);
+  // Fundação por elemento (vem do painel profissional, se houver).
+  try {
+    if (typeof OrcProUI !== "undefined" && typeof OrcProUI.fundacaoParaMotor === "function") {
+      const f = OrcProUI.fundacaoParaMotor();
+      const temElemento = f && ((f.sapatas && f.sapatas.length) || (f.baldrames && f.baldrames.length) ||
+        (f.pilares && f.pilares.length) || (f.vigas && f.vigas.length) || f.laje);
+      const acoGuiado = numeroOuZero(val("og-acofund-kgm3"));
+      const acoFinal = acoGuiado > 0 ? acoGuiado : (f && Number(f.acoKgM3) > 0 ? Number(f.acoKgM3) : 0);
+      if (temElemento || acoFinal > 0) {
+        e.fundacao = Object.assign({}, f || {});
+        e.fundacao.acoKgM3 = acoFinal > 0 ? acoFinal : null;
+      }
+    }
+  } catch (err) {}
   // Fase 2: se houver medição por ambiente/parede (modo detalhado), traduz para o
   // MESMO motor via OrcPro (não recalcula nada aqui). Sem medição → nada muda.
   // No modo rápido (A) a medição é ignorada de propósito.
@@ -692,6 +978,15 @@ function snapshotParametrosOrcamento(e) {
       moDias: e.moDias || null, moDiaria: e.moDiaria || null,
       transporte: e.transporte || null, outros: e.outros || null,
     },
+    // Dados técnicos opcionais (Seções 2,4,5,6): ficam registrados para o orçamento
+    // salvo não depender do estado global do aparelho.
+    tecnicos: {
+      pinturaFaces: e.pinturaFaces || 1, pinturaTeto: numeroOuZero(e.pinturaTeto),
+      telhaModelo: e.telhaModelo || null, telhaUnM2: numeroOuZero(e.telhaUnM2),
+      moEscopo: Array.isArray(e.moEscopo) ? e.moEscopo.slice() : [],
+    },
+    fundacao: e.fundacao || null,
+    medicao: e.medicao || null,
     precos: e.precos || {},
   };
 }
@@ -789,6 +1084,20 @@ function desenharAuditoriaOrcamento(r, aud) {
       `<td data-l="Limitações" class="aud-limitacao">${l.limitacao || "—"}</td></tr>`;
   }
   h += `</tbody></table>`;
+  // Lista de pendências CLASSIFICADA (Seção 8): nunca esconde pendência estrutural.
+  const pend = (aud.pendencias || montarPendenciasClassificadas(r));
+  if (pend.length) {
+    const rot = { bloqueante: "Bloqueante (impede confiar no número)", importante: "Importante (muda bastante o custo)", opcional: "Opcional (melhora a precisão)" };
+    h += `<h4 class="aud-subtitulo">Pendências (${pend.length})</h4>`;
+    for (const nvel of ["bloqueante", "importante", "opcional"]) {
+      const doNivel = pend.filter((p) => p.nvel === nvel);
+      if (!doNivel.length) continue;
+      const cls = nvel === "bloqueante" ? "aud-alerta" : nvel === "importante" ? "aud-medio" : "aud-ok";
+      h += `<p><span class="aud-chip ${cls}">${rot[nvel]}</span></p><ul class="aud-ausentes">`;
+      for (const p of doNivel) h += `<li><strong>${proteger(p.oque)}</strong> — ${proteger(p.porque)}. <span class="texto-suave">Resolver: ${proteger(p.resolver)}</span></li>`;
+      h += `</ul>`;
+    }
+  }
   h += `<h4 class="aud-subtitulo">O que NÃO está neste orçamento</h4>`;
   h += `<p class="texto-suave">Serviços e materiais ausentes — sem valor porque os dados necessários não foram informados:</p><ul class="aud-ausentes">`;
   for (const a of aud.ausentes) h += `<li><strong>${a.item}</strong> <span class="texto-suave">(${a.etapa}) — falta: ${a.dado}</span></li>`;
