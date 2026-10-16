@@ -53,6 +53,16 @@ const PARAMS_ORC = {
   TELHA_M2: { valor: 16, unidade: "un/m²", obs: "peça pequena (~0,06 m²); NÃO é romana — conferir modelo" },
   PRECO_TELHA_UN: { valor: null, unidade: "R$/un", obs: "telha romana" },
   MADEIRAMENTO_M2: { valor: null, unidade: "R$/m²", obs: "madeiramento instalado" },
+  // --- Extensões aditivas (usadas só quando houver medida por parede/ambiente) ---
+  // Argamassa de assentamento por m² de alvenaria (média prática de obra).
+  ARGAMASSA_ALV_M2: { valor: 0.03, unidade: "m³/m²", obs: "Hipótese de obra (traço médio) — NÃO verificada em norma; confirme com o pedreiro." },
+  // Chapisco por m² de parede (consumo de cimento médio).
+  CHAPISCO_CIM_M2: { valor: 0.10, unidade: "saco/m²", obs: "Hipótese de obra — confirme o traço do chapisco." },
+  // Contrapiso: espessura média e consumo de cimento por m³ de argamassa.
+  CONTRAPISO_ESP_M: { valor: 0.03, unidade: "m", obs: "Hipótese (3 cm) — a espessura depende do nivelamento real." },
+  CIMENTO_M3_CONTRAPISO: { valor: 7, unidade: "saco/m³", obs: "Hipótese de traço — confirme." },
+  // Rejunte/perda de revestimento de parede por face pintada/revestida.
+  PERDA_REVEST: { valor: 0.10, unidade: "fração", obs: "recortes em revestimento de parede" },
 };
 
 const ORC_SAVE_KEY = "mario_orcamentos_v1";
@@ -304,6 +314,9 @@ const OG_ITENS = [
   ["peletrico", "Ponto elétrico (R$)", null],
   ["phidraulico", "Ponto hidráulico (R$)", null],
   ["modiaria", "Diária MO (R$)", null],
+  ["argamassa", "Argamassa assent. (R$/m³)", null],
+  ["contrapiso", "Contrapiso (R$/m³)", null],
+  ["revestimento", "Revest. faces extra (R$/m²)", null],
 ];
 function ogPrecos() {
   try { return JSON.parse(localStorage.getItem("mario_orc_precos_v1")) || {}; } catch (e) { return {}; }
@@ -366,10 +379,24 @@ function calcularOrcamentoGuiado(e) {
     const p = s.toLowerCase().split("x");
     return { larg: Number(p[0]), alt: Number(p[1]) };
   });
-  const geo = (gComp > 0 && gAlt > 0) ? paredeLiquida(gComp, gAlt, gVaos) : null;
+  // Fase 2: medição por VÁRIAS paredes (opcional e aditivo). Se `e.paredes` tiver
+  // uma lista válida de paredes medidas, a área de parede é a soma exata das
+  // áreas líquidas; caso contrário mantém-se o comportamento anterior (parede
+  // única ou fator estimado). Ausente → nada muda (compatibilidade total).
+  const geoLista = (Array.isArray(e.paredes) && e.paredes.length) ? areaParedesPorLista(e.paredes) : null;
+  let geo = null, geoModo = null;
+  if (geoLista && geoLista.ok) {
+    geo = { bruta: geoLista.bruta, vaos: geoLista.vaos, liquida: geoLista.liquida, invalidos: geoLista.vaosInvalidos };
+    geoModo = "lista";
+  } else if (gComp > 0 && gAlt > 0) {
+    geo = paredeLiquida(gComp, gAlt, gVaos);
+    geoModo = geo ? "unica" : null;
+  }
   const areaParede = geo ? geo.liquida : area * PARAMS_ORC.PAREDE_POR_AREA.valor;
   const paredeOrigem = geo
-    ? `medido: ${gComp}×${gAlt} − vãos = ${geo.liquida} m²`
+    ? (geoModo === "lista"
+        ? `medido por ${e.paredes.length} parede(s): líquida = ${geo.liquida} m²`
+        : `medido: ${gComp}×${gAlt} − vãos = ${geo.liquida} m²`)
     : `estimado: ${area} × ${PARAMS_ORC.PAREDE_POR_AREA.valor}`;
   // Flags de transparência: o que veio do usuário e o que o sistema estimou.
   const geoMedida = !!geo;
@@ -487,16 +514,73 @@ function calcularOrcamentoGuiado(e) {
       origem: outros ? "valor informado pelo usuário" : "NÃO INFORMADO",
       conf: outros ? 1 : 3, limitacao: "Rubrica genérica: não substitui os serviços ausentes listados na auditoria." },
   ];
+  // --- Extensões (só entram quando há MEDIÇÃO real por parede/ambiente) ---
+  // São itens NOVOS, adicionados ao MESMO motor. Hipóteses marcadas conf 2.
+  // Não alteram os itens base: só somam serviços que faltavam e ficavam na
+  // lista "ausentes" da auditoria (assentamento, chapisco, contrapiso).
+  const med = e.medicao || null;
+  let facesExtras = 0, pisoMedido = 0;
+  if (med && med.temMedidaReal) {
+    facesExtras = Math.round(Math.max(0, (med.revestimentoFaces || 0) - (med.liquida || 0)) * 100) / 100;
+    pisoMedido = med.pisoTotal || 0;
+    const qArg = Math.round(areaParede * PARAMS_ORC.ARGAMASSA_ALV_M2.valor * 1000) / 1000;
+    itens.push({
+      nome: "Argamassa de assentamento", etapa: "Alvenaria", unidade: "m³", qtd: qArg, preco: P.argamassa || null,
+      detalhe: [`${areaParede.toFixed(2)} m² × ${PARAMS_ORC.ARGAMASSA_ALV_M2.valor} m³/m²`],
+      coef: `${PARAMS_ORC.ARGAMASSA_ALV_M2.valor} m³/m² (hipótese de obra)`,
+      formula: "área de parede × argamassa por m² de alvenaria",
+      origem: "estimativa por coeficiente de obra (NÃO verificado em norma)",
+      conf: 2, limitacao: "Coeficiente NÃO validado: o consumo real depende do traço e da espessura da parede. Confirme com o pedreiro." });
+    const qChap = Math.ceil(areaParede * PARAMS_ORC.CHAPISCO_CIM_M2.valor);
+    itens.push({
+      nome: "Chapisco (cimento)", etapa: "Reboco e revestimentos", unidade: "sacos", qtd: qChap, preco: P.cimento || null,
+      detalhe: [`${areaParede.toFixed(2)} m² × ${PARAMS_ORC.CHAPISCO_CIM_M2.valor} saco/m²`],
+      coef: `${PARAMS_ORC.CHAPISCO_CIM_M2.valor} saco/m² (hipótese de obra)`,
+      formula: "área de parede × cimento por m² de chapisco",
+      origem: "estimativa por coeficiente de obra (NÃO verificado)",
+      conf: 2, limitacao: "Traço do chapisco NÃO confirmado. Reutiliza o preço do cimento informado." });
+    if (facesExtras > 0) {
+      itens.push({
+        nome: "Reboco e pintura de faces extras", etapa: "Reboco e revestimentos", unidade: "m²", qtd: facesExtras, preco: P.revestimento || null,
+        detalhe: [`${med.liquida} m² líquido × (${(facesExtras / med.liquida).toFixed(2)} face(s) extra(s))`],
+        coef: "faces 2 − 1 face já coberta pelo reboco/tinta base",
+        formula: "Σ(área líquida × (faces − 1))",
+        origem: "paredes internas medidas com 2 faces",
+        limitacao: "Só as faces EXTRAS (parede interna). A primeira face já entra em Cimento (reboco) e Tinta. NÃO duplica.",
+        conf: 1 });
+    }
+    if (pisoMedido > 0) {
+      const volContra = Math.round(pisoMedido * PARAMS_ORC.CONTRAPISO_ESP_M.valor * 1000) / 1000;
+      itens.push({
+        nome: "Contrapiso (argamassa)", etapa: "Pisos", unidade: "m³", qtd: volContra, preco: P.contrapiso || null,
+        detalhe: [`${pisoMedido} m² × ${PARAMS_ORC.CONTRAPISO_ESP_M.valor} m`],
+        coef: `espessura ${PARAMS_ORC.CONTRAPISO_ESP_M.valor} m (hipótese)`,
+        formula: "área de piso medida × espessura do contrapiso",
+        origem: "ambientes medidos + espessura hipotética",
+        conf: 2, limitacao: "Espessura do contrapiso NÃO confirmada: depende do nivelamento real do piso." });
+      const cimContra = Math.ceil(volContra * PARAMS_ORC.CIMENTO_M3_CONTRAPISO.valor);
+      itens.push({
+        nome: "Cimento do contrapiso", etapa: "Pisos", unidade: "sacos", qtd: cimContra, preco: P.cimento || null,
+        detalhe: [`${volContra} m³ × ${PARAMS_ORC.CIMENTO_M3_CONTRAPISO.valor} saco/m³`],
+        coef: `${PARAMS_ORC.CIMENTO_M3_CONTRAPISO.valor} saco/m³ (hipótese de traço)`,
+        formula: "volume de contrapiso × cimento por m³ de argamassa",
+        origem: "estimativa por traço hipotético",
+        conf: 2, limitacao: "Traço NÃO confirmado. Reutiliza o preço do cimento informado." });
+    }
+  }
   for (const it of itens) it.total = it.preco ? it.qtd * it.preco : null;
   const total = itens.reduce((s, it) => s + (it.total || 0), 0);
   const semPreco = itens.filter((it) => it.total === null).length;
   // Divergência entre vãos informados e esquadrias estimadas (aviso de transparência).
   const esquadriasEstimadas = qPortas + qJanelas;
-  const vaosInformados = geoMedida ? gVaos.length - vaosInvalidos : 0;
+  const vaosTotais = geoModo === "lista"
+    ? e.paredes.reduce((s, p) => s + ((p.vaos || []).filter((x) => Number(x.larg) > 0 && Number(x.alt) > 0).length), 0)
+    : gVaos.length;
+  const vaosInformados = geoMedida ? vaosTotais - vaosInvalidos : 0;
   const vaosDivergem = geoMedida && vaosInformados > 0 && esquadriasEstimadas !== vaosInformados;
   return { area, quartos, banheiros, sist, itens, total, semPreco, areaParede, paredeOrigem, perim, areaTelhado,
     geoMedida, vaosInvalidos, vaosInformados, esquadriasEstimadas, vaosDivergem,
-    perimetroInformado, telhadoInformado };
+    perimetroInformado, telhadoInformado, medicao: med || null, facesExtras, pisoMedido };
 }
 
 // ---------- Relatório de auditoria (puro / testável) ----------
@@ -564,7 +648,7 @@ function lerEntradaOrcamentoGuiado() {
     const v = numeroOuZero(i.value);
     precos[i.dataset.ogPreco] = v > 0 ? v : null;
   });
-  return {
+  const e = {
     area: numeroOuZero(val("og-area")),
     quartos: val("og-quartos"), banheiros: val("og-banheiros"),
     sistema: val("og-sistema") || "bloco",
@@ -575,6 +659,20 @@ function lerEntradaOrcamentoGuiado() {
     transporte: numeroOuZero(val("og-transporte")), outros: numeroOuZero(val("og-outros")),
     precos,
   };
+  // Fase 2: se houver medição por ambiente/parede (modo detalhado), traduz para o
+  // MESMO motor via OrcPro (não recalcula nada aqui). Sem medição → nada muda.
+  // No modo rápido (A) a medição é ignorada de propósito.
+  try {
+    let modo = "A";
+    try { modo = localStorage.getItem("mario_orc_modo_v1") || "A"; } catch (err) {}
+    if (modo !== "A" && typeof OrcPro !== "undefined" && typeof OrcPro.lerMedicaoAtual === "function") {
+      const m = OrcPro.lerMedicaoAtual();
+      if (m && ((m.paredes && m.paredes.length) || (m.ambientes && m.ambientes.length))) {
+        return OrcPro.montarEntradaMotor(m, e, precos);
+      }
+    }
+  } catch (err) {}
+  return e;
 }
 
 // Retrato dos parâmetros/medidas/preços usados (para persistir e auditar depois).
@@ -718,6 +816,7 @@ const DADOS_TESTE_OG = {
     piso: 45, bloco: 3.5, cimento: 40, tinta: 35, porta: 450, janela: 350,
     concreto: 450, aco: 8.5, telha: 5, madeiramento: 65,
     peletrico: 120, phidraulico: 180, modiaria: 180,
+    argamassa: 320, contrapiso: 280, revestimento: 55,
   },
 };
 function preencherDadosTesteOG() {
@@ -903,13 +1002,100 @@ function paredeLiquida(comp, alt, vaos) {
   for (const x of vaos || []) {
     const l = Number(x.larg), h = Number(x.alt);
     if (!(l > 0) || !(h > 0)) { invalidos++; continue; }
-    v += l * h;
+    const q = Number(x.qtd) > 0 ? Number(x.qtd) : 1;
+    v += l * h * q;
   }
   const bruta = c * a;
   if (v >= bruta) return null;
   const r2 = (n) => Math.round(n * 100) / 100;
   return { bruta: r2(bruta), vaos: r2(v), liquida: r2(bruta - v), invalidos };
 }
+
+// ---------- Medição por parede e por ambiente (Fase 2, pura, testável) ----------
+// Helpers que NÃO alteram o motor atual (calcularOrcamentoGuiado). São expostos
+// para testes de precisão e uso futuro. Convenção: dimensões em metros, áreas em m².
+// Formato de vão: {larg, alt}. Classificação de confiança (ORC_CONF):
+//   1 = calculado com dados informados; 2 = estimativa por coeficiente;
+//   3 = requer projeto ou confirmação técnica.
+
+// Parede a partir de medidas reais. Retorna objeto detalhado com origem/limitações.
+function calcularParedeMedida(p) {
+  const comp = Number(p && p.comp), alt = Number(p && p.alt);
+  if (!(comp > 0) || !(alt > 0)) {
+    return { ok: false, motivo: "comprimento ou altura da parede inválidos" };
+  }
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const bruta = comp * alt;
+  let vaosArea = 0, invalidos = 0;
+  for (const x of (p.vaos || [])) {
+    const l = Number(x.larg), h = Number(x.alt);
+    if (!(l > 0) || !(h > 0)) { invalidos++; continue; }
+    const q = Number(x.qtd) > 0 ? Number(x.qtd) : 1;
+    vaosArea += l * h * q;
+  }
+  if (vaosArea >= bruta) {
+    return { ok: false, motivo: "soma dos vãos maior ou igual à área da parede",
+             bruta: r2(bruta), vaos: r2(vaosArea), vaosInvalidos: invalidos };
+  }
+  return {
+    ok: true,
+    comp: r2(comp), alt: r2(alt),
+    bruta: r2(bruta), vaos: r2(vaosArea), liquida: r2(bruta - vaosArea),
+    vaosInvalidos: invalidos,
+    origem: "medidas reais da parede (comprimento × altura − vãos)",
+    conf: 1,
+  };
+}
+
+// Wrapper compatível com paredeLiquida (deliberadamente equivalente em números).
+// Mantido separado para deixar explícito o contrato usado em testes de regressão.
+function paredeLiquidaPorLista(comp, alt, vaos) {
+  const res = calcularParedeMedida({ comp, alt, vaos });
+  if (!res.ok) return null;
+  return { bruta: res.bruta, vaos: res.vaos, liquida: res.liquida, invalidos: res.vaosInvalidos };
+}
+
+// Ambiente simples a partir de largura×comprimento. NÃO deduz vãos: a área de
+// parede é o perímetro × altura (sem descontar portas/janelas), então é uma
+// ESTIMATIVA (conf 2) até que os vãos sejam informados parede a parede.
+function calcularAmbiente(a) {
+  const larg = Number(a && a.larg), comp = Number(a && a.comp);
+  const alt = Number(a && a.alt);
+  if (!(larg > 0) || !(comp > 0)) {
+    return { ok: false, motivo: "largura ou comprimento do ambiente inválidos" };
+  }
+  if (!(alt > 0)) {
+    return { ok: false, motivo: "altura do ambiente não informada (não é um coeficiente: é medida essencial)" };
+  }
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const perimetro = 2 * (larg + comp);
+  return {
+    ok: true,
+    piso: r2(larg * comp),
+    perimetro: r2(perimetro),
+    parede: r2(perimetro * alt),
+    alt: r2(alt),
+    origem: "medidas do ambiente; parede = perímetro × altura, SEM descontar vãos",
+    limitacao: "portas e janelas não foram descontadas; use a medição por parede para área líquida",
+    conf: 2,
+  };
+}
+
+// Área total de paredes (líquida) a partir de uma lista de paredes medidas.
+// Cada item: {comp, alt, vaos:[{larg,alt}]}. Retorna agregado e lista por parede.
+function areaParedesPorLista(paredes) {
+  const itens = [];
+  let bruta = 0, vaos = 0, liquida = 0, invalidas = 0, vaosInvalidos = 0;
+  for (const p of (paredes || [])) {
+    const r = calcularParedeMedida(p);
+    if (!r.ok) { invalidas++; itens.push({ ok: false, motivo: r.motivo }); continue; }
+    bruta += r.bruta; vaos += r.vaos; liquida += r.liquida; vaosInvalidos += r.vaosInvalidos;
+    itens.push(r);
+  }
+  const r2 = (n) => Math.round(n * 100) / 100;
+  return { ok: itens.length > 0 && invalidas < itens.length, bruta: r2(bruta), vaos: r2(vaos), liquida: r2(liquida), invalidas, vaosInvalidos, paredes: itens };
+}
+
 // Mensagem de salvamento conforme o RESULTADO REAL (sem mentir).
 // Aceita objeto {ok,status} OU boolean (compatibilidade com chamadas antigas).
 function msgSync(r, oQue) {

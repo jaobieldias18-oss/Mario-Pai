@@ -1001,3 +1001,24 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
   .aud-tabela td::before { content: attr(data-l) ": "; font-weight: 700; color: var(--texto-sec); }
   .aud-limitacao { max-width: none; }
 }
+
+/* ===== Modo profissional do orçamento (aditivo) =====
+   Só apresentação. O cálculo continua no motor único. */
+.pro-card { border: 1px solid var(--borda); }
+.pro-sub { font-size: 15px; margin: 18px 0 6px; border-top: 1px solid var(--borda); padding-top: 12px; }
+.pro-modos { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0; }
+.pro-radio { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.pro-tabela { display: grid; grid-template-columns: 70px 90px 90px 70px 1fr 90px; gap: 6px; margin: 8px 0; }
+.pro-th { font-size: 12px; text-transform: uppercase; letter-spacing: .02em; color: var(--texto-sec); }
+.pro-tr { display: contents; }
+.pro-td input, .pro-td select { width: 100%; box-sizing: border-box; }
+.pro-resumo { margin: 10px 0; font-size: 14px; }
+.pro-alerta { color: var(--erro); font-weight: 700; }
+.pro-cot-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 8px 0; }
+@media (max-width: 700px) {
+  .pro-tabela { grid-template-columns: 1fr 1fr; }
+  .pro-th { display: none; }
+  .pro-tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border: 1px solid var(--borda); border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+  .pro-td::before { content: attr(data-l); display: block; font-size: 11px; color: var(--texto-sec); text-transform: uppercase; }
+}
+

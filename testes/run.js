@@ -66,6 +66,7 @@ vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(path.join(BASE, "composicoes.js"), "utf-8"), sandbox);
 vm.runInContext(fs.readFileSync(path.join(BASE, "materiais.js"), "utf-8"), sandbox);
 vm.runInContext(fs.readFileSync(path.join(BASE, "orcamento.js"), "utf-8"), sandbox);
+vm.runInContext(fs.readFileSync(path.join(BASE, "orcamento_pro.js"), "utf-8"), sandbox);
 vm.runInContext(fs.readFileSync(path.join(BASE, "supabase.js"), "utf-8"), sandbox);
 const rF = vm.runInContext(`(function () {
   const c = { insumos: [
@@ -437,6 +438,240 @@ t("O vau invalido nao zera a medição", rO[15]);
 t("O sem preco = parcial, nao inventa", rO[16]);
 t("O entradas vazias: nada negativo/NaN", rO[17]);
 t("O moeda pt-BR", rO[18]);
+
+// ---- Teste P: medição por parede e por ambiente (Fase 2) ----
+// TODOS os valores esperados foram calculados À MÃO, independentemente do código.
+// Fórmulas: parede bruta = comp × alt; vãos = Σ(larg × alt); líquida = bruta − vãos.
+// ambiente: piso = larg × comp; perímetro = 2×(larg+comp); parede = perímetro × alt.
+const rQ = vm.runInContext(`(function () {
+  const out = [];
+  // P1: parede 5×2,80 com 1 porta 0,80×2,10.
+  //   bruta = 14,00 ; vão = 1,68 ; líquida = 12,32
+  const p1 = calcularParedeMedida({ comp: 5, alt: 2.8, vaos: [{ larg: 0.8, alt: 2.1 }] });
+  out.push(p1.ok === true && p1.bruta === 14 && p1.vaos === 1.68 && p1.liquida === 12.32);
+  out.push(p1.conf === 1 && p1.vaosInvalidos === 0);
+  // P2: parede 6×3,00 com porta 0,90×2,10 e janela 1,50×1,20 + 1 vão inválido.
+  //   bruta = 18,00 ; vãos válidos = 1,89 + 1,80 = 3,69 ; líquida = 14,31 ; 1 inválido.
+  const p2 = calcularParedeMedida({ comp: 6, alt: 3, vaos: [
+    { larg: 0.9, alt: 2.1 }, { larg: 1.5, alt: 1.2 }, { larg: NaN, alt: NaN }] });
+  out.push(p2.ok === true && p2.bruta === 18 && p2.vaos === 3.69 && p2.liquida === 14.31 && p2.vaosInvalidos === 1);
+  // P3: parede sem medida → rejeitada (não inventa).
+  out.push(calcularParedeMedida({ comp: 0, alt: 2.8 }).ok === false);
+  out.push(calcularParedeMedida({ comp: 4 }).ok === false);
+  // P4: vãos ≥ parede → rejeitada (área líquida não pode ser ≤ 0).
+  //   bruta = 2×1 = 2 ; vão 2×1 = 2 → 2 ≥ 2 → rejeita.
+  out.push(calcularParedeMedida({ comp: 2, alt: 1, vaos: [{ larg: 2, alt: 1 }] }).ok === false);
+  // P5: ambiente 4×5 com altura 2,80. piso = 20 ; perim = 18 ; parede = 50,4.
+  const a1 = calcularAmbiente({ larg: 4, comp: 5, alt: 2.8 });
+  out.push(a1.ok === true && a1.piso === 20 && a1.perimetro === 18 && a1.parede === 50.4);
+  // P5b: ambiente é ESTIMATIVA (não desconta vãos) → confiança 2.
+  out.push(a1.conf === 2);
+  // P6: altura ausente no ambiente → solicita a medida (não usa coeficiente inventado).
+  out.push(calcularAmbiente({ larg: 4, comp: 5 }).ok === false);
+  // P7: agregado de 3 paredes (2 válidas + 1 inválida).
+  //   pA: 5×2,8 = 14,00 bruta ; vão 0,80×2,10 = 1,68 ; líquida 12,32
+  //   pB: 4×2,8 = 11,20 bruta ; sem vãos ; líquida 11,20
+  //   total: bruta = 25,20 ; vãos = 1,68 ; líquida = 23,52 ; 1 inválida
+  const ap = areaParedesPorLista([
+    { comp: 5, alt: 2.8, vaos: [{ larg: 0.8, alt: 2.1 }] },
+    { comp: 4, alt: 2.8, vaos: [] },
+    { comp: 0, alt: 2.8, vaos: [] },
+  ]);
+  out.push(ap.bruta === 25.2 && ap.vaos === 1.68 && ap.liquida === 23.52 && ap.invalidas === 1);
+  // P8: paredeLiquidaPorLista devolve os MESMOS números da paredeLiquida antiga.
+  //   casa de teste: 80×2,8 = 224 ; vãos 8,94 ; líquida 215,06 (3×1,68 + 2×1,20 + 1,50)
+  const vaosCasa = [{ larg: 0.8, alt: 2.1 }, { larg: 0.8, alt: 2.1 }, { larg: 0.8, alt: 2.1 },
+    { larg: 1.2, alt: 1.0 }, { larg: 1.2, alt: 1.0 }, { larg: 1.5, alt: 1.0 }];
+  const antigo = paredeLiquida(80, 2.8, vaosCasa);
+  const novo = paredeLiquidaPorLista(80, 2.8, vaosCasa);
+  out.push(antigo.liquida === 215.06 && novo.liquida === 215.06);
+  out.push(antigo.bruta === novo.bruta && antigo.vaos === novo.vaos && antigo.invalidos === novo.invalidos);
+  return out;
+})()`, sandbox);
+t("P parede 5x2.8 - porta = 12.32", rQ[0]);
+t("P parede medida conf 1 / sem vaos invalidos", rQ[1]);
+t("P parede 6x3 com 2 vaos + invalido = 14.31", rQ[2]);
+t("P parede sem medida rejeitada", rQ[3]);
+t("P vaos >= parede rejeitado", rQ[4]);
+t("P ambiente 4x5: piso 20 / perim 18 / parede 50.4", rQ[5]);
+t("P ambiente e estimativa (conf 2)", rQ[6]);
+t("P ambiente sem altura pede a medida", rQ[7]);
+t("P agregado 3 paredes = 23.52 liquida", rQ[8]);
+t("P paredeLiquidaPorLista = paredeLiquida", rQ[9]);
+t("P equivalencia bruta/vaos/invalidos", rQ[10]);
+
+// ---- Teste R: motor com medição por VÁRIAS paredes (Fase 2, aditivo) ----
+// Esperados calculados À MÃO. Duas paredes SEM vãos: 40×2,8 = 112 e 30×2,8 = 84.
+//   areaParede = 112 + 84 = 196 m²
+//   bloco  = ceil(196 × 12,5 × 1,05) = ceil(2572,5) = 2573
+//   cimento= ceil(196 × 0,25) = 49
+//   tinta  = ceil(196 / 6 × 2 × 10)/10 = ceil(653,33)/10 = 65,4
+//   Preços do DADOS_TESTE_OG para os demais itens.
+const rR = vm.runInContext(`(function () {
+  const out = [];
+  const d = DADOS_TESTE_OG;
+  const base = {
+    area: d.campos["og-area"], quartos: String(d.campos["og-quartos"]),
+    banheiros: String(d.campos["og-banheiros"]), sistema: d.campos["og-sistema"],
+    perimetro: d.campos["og-perimetro"], telhado: d.campos["og-telhado"],
+    peletricos: String(d.campos["og-peletricos"]), phidraulicos: String(d.campos["og-phidraulicos"]),
+    moDias: String(d.campos["og-mo-dias"]), moDiaria: d.campos["og-mo-diaria"],
+    transporte: d.campos["og-transporte"], outros: d.campos["og-outros"],
+    precos: d.precos,
+  };
+  // (a) COM lista de paredes: usa a medição exata por parede.
+  const comLista = Object.assign({}, base, { paredes: [
+    { comp: 40, alt: 2.8, vaos: [] },
+    { comp: 30, alt: 2.8, vaos: [] },
+  ] });
+  const rl = calcularOrcamentoGuiado(comLista);
+  const byNameL = {}; for (const it of rl.itens) byNameL[it.nome] = it;
+  out.push(rl.areaParede === 196 && rl.geoMedida === true);
+  out.push(byNameL["Bloco de concreto"].qtd === 2573);
+  out.push(byNameL["Cimento (reboco)"].qtd === 49);
+  out.push(byNameL["Tinta"].qtd === 65.4);
+  out.push(rl.paredeOrigem.indexOf("2 parede") >= 0);
+  // (b) SEM lista (comportamento antigo intacto): paredes ausente → estimativa.
+  const semLista = Object.assign({}, base);
+  const rs = calcularOrcamentoGuiado(semLista);
+  out.push(rs.areaParede === 280 && rs.geoMedida === false); // 100 × 2,8 (fator)
+  // (c) Lista com vãos: 1 parede 40×2,8 com 2 portas 0,8×2,1 → 112 − 3,36 = 108,64.
+  const comVaos = Object.assign({}, base, { paredes: [
+    { comp: 40, alt: 2.8, vaos: [{ larg: 0.8, alt: 2.1 }, { larg: 0.8, alt: 2.1 }] },
+  ] });
+  const rv = calcularOrcamentoGuiado(comVaos);
+  out.push(rv.areaParede === 108.64 && rv.vaosInformados === 2 && rv.vaosInvalidos === 0);
+  return out;
+})()`, sandbox);
+t("R lista de paredes: areaParede 196", rR[0]);
+t("R bloco com lista = 2573", rR[1]);
+t("R cimento com lista = 49", rR[2]);
+t("R tinta com lista = 65.4", rR[3]);
+t("R origem indica 2 paredes", rR[4]);
+t("R sem lista mantem estimativa (280)", rR[5]);
+t("R lista com vaos = 108.64 / 2 vaos", rR[6]);
+
+// ---- Teste S: orçamento pro — conversões, medições e cenários (Fase 2+) ----
+// Todos os valores esperados calculados À MÃO (independentemente do código).
+const rV = vm.runInContext(`(function () {
+  const out = [];
+  // S1: conversão de unidades. 2 sacos × 50 kg/saco = 100 kg; reverso 100/50 = 2 sacos.
+  const conv = [{ de: "saco", para: "kg", fator: 50 }];
+  const c1 = converterUnidade(2, "saco", "kg", conv);
+  out.push(c1.ok && c1.valor === 100);
+  const c2 = converterUnidade(100, "kg", "saco", conv);
+  out.push(c2.ok && c2.valor === 2);
+  out.push(!converterUnidade(5, "un", "m3", conv).ok); // sem conversão declarada
+  // S2: arredondamento de compra. un/m³ inteiro sobe; m2 arredonda 2 casas.
+  out.push(arredondarCompra(3.2, "un") === 4 && arredondarCompra(1.234, "m2") === 1.23);
+  // S3: parede detalhada 4×2,80 com 2 portas 0,80×2,10 (qtd 2).
+  //   bruta = 11,20 ; aberturas = 0,8×2,1×2 = 3,36 ; líquida = 7,84 ; faces 2 → revest. 15,68.
+  const pd = calcularParedeDetalhe({ comp: 4, alt: 2.8, faces: 2,
+    aberturas: [{ tipo: "porta", larg: 0.8, alt: 2.1, qtd: 2 }] });
+  out.push(pd.ok && pd.bruta === 11.2 && pd.aberturas === 3.36 && pd.liquida === 7.84 && pd.revestimentoFaces === 15.68);
+  // S4: abertura inválida é contada e ignorada (não invalida a parede).
+  const pd2 = calcularParedeDetalhe({ comp: 4, alt: 2.8, faces: 2,
+    aberturas: [{ tipo: "porta", larg: 0, alt: 2.1, qtd: 1 }] });
+  out.push(pd2.ok && pd2.aberturas === 0 && pd2.aberturasInvalidas === 1);
+  // S5: ambiente 4×5 (piso 20, perímetro 18) com altura 2,8.
+  const amb = calcularAmbienteDetalhe({ nome: "Sala", larg: 4, comp: 5, alt: 2.8 });
+  out.push(amb.ok && amb.piso === 20 && amb.perimetro === 18);
+  // S6: medição agregada — 2 paredes (uma com porta) + 1 ambiente 4×4.
+  //   P1 4×2,8 − porta 1,68 = 9,52 ; P2 4×2,8 = 11,20 ; líquido 20,72 ; faces extras 20,72.
+  //   piso ambiente 4×4 = 16.
+  const med = calcularMedicaoObra({
+    ambientes: [{ nome: "Sala", larg: 4, comp: 4, alt: 2.8, paredes: [] }],
+    paredes: [
+      { id: "p1", comp: 4, alt: 2.8, faces: 2, aberturas: [{ tipo: "porta", larg: 0.8, alt: 2.1, qtd: 1 }] },
+      { id: "p2", comp: 4, alt: 2.8, faces: 2, aberturas: [] },
+    ],
+  });
+  out.push(med.liquida === 20.72 && med.aberturas === 1.68 && med.bruta === 22.4);
+  out.push(med.revestimentoFaces === 41.44 && med.pisoTotal === 16 && med.aberturasTipo.porta === 1);
+  // S7: duplicidade por id é detectada e descartada (não conta duas vezes).
+  const medD = calcularMedicaoObra({ paredes: [
+    { id: "x", comp: 4, alt: 2.8, faces: 2 }, { id: "x", comp: 4, alt: 2.8, faces: 2 }] });
+  out.push(medD.liquida === 11.2 && medD.duplicados.length === 1);
+  // S8: cenários por fatores explícitos. provável 1000; econ 1000×0,9=900; cons 1000×1,15=1150.
+  const cen = gerarCenarios({ total: 1000, itens: [{ nome: "x", preco: 10, qtd: 100 }] },
+    { fatorEcon: 0.9, fatorCons: 1.15 });
+  out.push(cen.provavel === 1000 && cen.economico === 900 && cen.conservador === 1150 && cen.baseadoEmFatores !== undefined);
+  // S9: sem fatores → sem cenário (não inventa margem).
+  const cen0 = gerarCenarios({ total: 500, itens: [] }, {});
+  out.push(cen0.economico === null && cen0.conservador === null);
+  // S10: persistência da medição em edição (round-trip no localStorage do sandbox).
+  salvarMedicaoAtual({ ambientes: [{ nome: "Sala" }], paredes: [{ comp: 4 }] });
+  const ma = lerMedicaoAtual();
+  out.push(ma.ambientes.length === 1 && ma.paredes.length === 1 && ma.ambientes[0].nome === "Sala");
+  salvarMedicaoAtual(medicaoVazia());
+  out.push(lerMedicaoAtual().ambientes.length === 0 && lerMedicaoAtual().paredes.length === 0);
+  return out;
+})()`, sandbox);
+t("S conversao saco/kg e reverso", rV[0] && rV[1]);
+t("S sem conversao declarada falha", rV[2]);
+t("S arredonda compra un/m2", rV[3]);
+t("S parede 4x2.8 - 2 portas = 7.84 / revest 15.68", rV[4]);
+t("S abertura invalida contada e ignorada", rV[5]);
+t("S ambiente 4x5 piso20 perim18", rV[6]);
+t("S medicao liquida 20.72 / bruta 22.4", rV[7]);
+t("S medicao faces 41.44 / piso 16 / porta 1", rV[8]);
+t("S duplicidade por id detectada", rV[9]);
+t("S cenarios 900/1000/1150 por fatores", rV[10]);
+t("S sem fatores nao inventa cenario", rV[11]);
+t("S medicao atual round-trip", rV[12]);
+t("S medicao vazia limpa", rV[13]);
+
+// ---- Teste T: motor único + extensões por medição real (Fase 2+) ----
+// Esperados À MÃO, usando PARAMS_ORC.
+const rT = vm.runInContext(`(function () {
+  const out = [];
+  const medInput = {
+    ambientes: [{ nome: "Sala", larg: 4, comp: 4, alt: 2.8, paredes: [] }],
+    paredes: [
+      { id: "p1", comp: 4, alt: 2.8, faces: 2, aberturas: [{ tipo: "porta", larg: 0.8, alt: 2.1, qtd: 1 }] },
+      { id: "p2", comp: 4, alt: 2.8, faces: 2, aberturas: [] },
+    ],
+  };
+  const precos = { piso: 45, bloco: 3.5, cimento: 40, tinta: 35, porta: 450, janela: 350,
+    concreto: 450, aco: 8.5, telha: 5, madeiramento: 65,
+    peletrico: 120, phidraulico: 180, modiaria: 180,
+    argamassa: 120, contrapiso: 250, revestimento: 55 };
+  const e = montarEntradaMotor(medInput, { area: 100, quartos: "3", banheiros: "2", sistema: "bloco",
+    perimetro: 40, telhado: 120, peletricos: "30", phidraulicos: "12", moDias: "120", moDiaria: 180,
+    transporte: 2000, outros: 1500 }, precos);
+  const r = calcularOrcamentoGuiado(e);
+  const by = {}; for (const it of r.itens) by[it.nome] = it;
+  out.push(r.areaParede === 20.72 && r.geoMedida === true);
+  // Argamassa: 20,72 × 0,03 = 0,6216 → 0,622 m³
+  out.push(by["Argamassa de assentamento"] && by["Argamassa de assentamento"].qtd === 0.622);
+  // Chapisco: ceil(20,72 × 0,10) = ceil(2,072) = 3 sacos
+  out.push(by["Chapisco (cimento)"] && by["Chapisco (cimento)"].qtd === 3);
+  // Faces extras: 41,44 − 20,72 = 20,72 m²
+  out.push(by["Reboco e pintura de faces extras"] && by["Reboco e pintura de faces extras"].qtd === 20.72);
+  // Contrapiso: 16 m² × 0,03 = 0,48 m³ ; cimento contrapiso: ceil(0,48×7)=4
+  out.push(by["Contrapiso (argamassa)"] && by["Contrapiso (argamassa)"].qtd === 0.48);
+  out.push(by["Cimento do contrapiso"] && by["Cimento do contrapiso"].qtd === 4);
+  // Subtotais das extensões conferem com preço informado.
+  out.push(by["Argamassa de assentamento"].total === 0.622 * 120);
+  out.push(by["Contrapiso (argamassa)"].total === 0.48 * 250);
+  out.push(by["Reboco e pintura de faces extras"].total === 20.72 * 55);
+  // Sem medição → NENHUM item de extensão (comportamento base intacto).
+  const semMed = calcularOrcamentoGuiado({ area: 100, quartos: "3", banheiros: "2", sistema: "bloco",
+    perimetro: 40, telhado: 120, precos: precos });
+  const temExt = semMed.itens.some((i) => i.nome === "Argamassa de assentamento" || i.nome === "Contrapiso (argamassa)");
+  out.push(temExt === false && semMed.itens.length === 17);
+  return out;
+})()`, sandbox);
+t("T areaParede medida 20.72", rT[0]);
+t("T argamassa 0.622 m3", rT[1]);
+t("T chapisco 3 sacos", rT[2]);
+t("T faces extras 20.72 m2", rT[3]);
+t("T contrapiso 0.48 m3", rT[4]);
+t("T cimento contrapiso 4 sacos", rT[5]);
+t("T subtotal argamassa = qtd x preco", rT[6]);
+t("T subtotal contrapiso = qtd x preco", rT[7]);
+t("T subtotal faces extras = qtd x preco", rT[8]);
+t("T sem medição: sem extensões, 17 itens base", rT[9]);
 
 console.log(`\nRESULTADO: ${pass} PASS, ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

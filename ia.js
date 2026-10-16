@@ -471,6 +471,43 @@ function ferramentaPerguntar() {
   if (chat) chat.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+// ---------- Ferramenta: explicar o orçamento (modo profissional, aditivo) ----------
+// Reutiliza iaConversar (Edge Function ia-financeira). SOMENTE leitura: manda os
+// números REAIS do último orçamento salvo. Não inventa valores e não altera nada.
+function contextoOrcamentoAtual() {
+  try {
+    const lista = (typeof lerOrcamentos === "function") ? lerOrcamentos() : [];
+    if (!lista.length) return null;
+    const o = lista[0];
+    const itens = (o.itens || []).map((it) =>
+      `${it.nome}: ${it.qtd} ${it.unidade} x ${it.preco == null ? "sem preço" : "R$ " + it.preco} = ${it.total == null ? "—" : "R$ " + it.total}`
+    ).join(" | ");
+    return `Orçamento ESTIMADO (custo direto, SEM BDI/impostos/margem): área ${o.area || "?"} m², ` +
+      `alvenaria ${o.alvenaria || "?"}, total ${o.total == null ? "—" : "R$ " + o.total}. Itens: ${itens}`;
+  } catch (e) { return null; }
+}
+async function iaOrcamentoPro() {
+  const box = document.getElementById("pro-ia");
+  if (!box) return;
+  const ctx = contextoOrcamentoAtual();
+  if (!ctx) { box.innerHTML = `<p class="texto-suave">Faça e salve um orçamento primeiro.</p>`; return; }
+  box.innerHTML = `<p class="texto-suave">Analisando com a IA...</p>`;
+  try {
+    const txt = await iaConversar(
+      "Comente este orçamento residencial de forma simples e diga o que falta confirmar. " +
+      "Use APENAS os números abaixo e NÃO invente valores, preços nem medidas. " +
+      "Deixe claro que é uma estimativa, não um projeto. Dados: " + ctx,
+      "obra"
+    );
+    box.innerHTML = `<div class="card"><p>${proteger(txt)}</p>` +
+      `<p class="texto-suave">Gerado pela IA a partir dos números do orçamento salvo. Confira sempre com um responsável técnico.</p></div>`;
+    if (typeof guardarHistoricoIA === "function") guardarHistoricoIA("Análise de orçamento", nomeEscopo(), box.innerHTML);
+  } catch (e) {
+    box.innerHTML = `<p class="texto-suave">Não foi possível falar com a IA: ${proteger(e.message || "erro")}</p>`;
+  }
+}
+if (typeof window !== "undefined") window.iaOrcamentoPro = iaOrcamentoPro;
+
 // ---------- Liga a tela ----------
 function atualizarStatusChaveIA() {
   const el = elIA("ia-chave-status");
