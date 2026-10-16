@@ -1,15 +1,12 @@
 /* =====================================================
-   orcamento.js — IA DA OBRA: Raio-X + quantitativo + custo
+   orcamento.js — Orçamento da obra (estimativa guiada)
    -----------------------------------------------------
-   Fluxo: PLANTA → IA analisa → RAIO-X → usuário confirma
-   → sistema construtivo → QUANTITATIVO (determinístico)
-   → CUSTO → salva no aparelho.
+   Fluxo: área da obra + PREÇOS cadastrados → QUANTITATIVO
+   (determinístico) → CUSTO → BDI → estimativa salva no
+   aparelho e sincronizada com o Supabase.
    - Cálculos 100% determinísticos a partir de PARÂMETROS
      declarados abaixo (sem número mágico escondido).
-   - IA só interpreta a imagem; nunca calcula sozinha.
-   - Preço ausente = "Preço não informado" (nunca inventa).
-   - Orçamentos salvos no aparelho (localStorage); tabela
-     no Supabase fica para a próxima fase (sem rota de DDL).
+   - Preço ausente = "sem preço" (nunca inventa).
    ===================================================== */
 
 // ---------- PARÂMETROS (editáveis, documentados) ----------
@@ -20,7 +17,7 @@ const PARAMS_ORC = {
   PERDA_PISO: { valor: 0.10, unidade: "fração", obs: "recortes e quebras" },
   PRECO_PISO_M2: { valor: null, unidade: "R$/m²", obs: "Ex: 45,00 — preencher por obra/região" },
   // Parede: m² de parede por m² de área (média de casas térreas simples)
-  PAREDE_POR_AREA: { valor: 2.8, unidade: "m²/m²", obs: "média; confira na planta" },
+  PAREDE_POR_AREA: { valor: 2.8, unidade: "m²/m²", obs: "média; ajuste por obra" },
   BLOCO_M2: { valor: 12.5, unidade: "un/m²", obs: "bloco 14x19x39 com junta" },
   TIJOLO_M2: { valor: 25, unidade: "un/m²", obs: "tijolo 6 furos deitado" },
   PERDA_BLOCO: { valor: 0.05, unidade: "fração", obs: "quebras" },
@@ -74,20 +71,6 @@ function chipConf(nivel) {
   if (nivel === "alta") return `<span class="parcela-status pago">Alta confiança</span>`;
   if (nivel === "revisar") return `<span class="parcela-status pendente">Confira</span>`;
   return `<span class="parcela-status vencido">Não identificado</span>`;
-}
-function montarRaioX(dadosIA, obraId) {
-  const comodos = (dadosIA && dadosIA.comodos) || [];
-  const soma = comodos.reduce((s, c) => s + (Number(c.area_m2) || 0), 0);
-  const area = (dadosIA && Number(dadosIA.area_total_m2)) || (soma > 0 ? Math.round(soma * 100) / 100 : null);
-  raioXAtual = {
-    area, quartos: null, banheiros: null, portas: null, janelas: null,
-    origem: { area: area ? "ia" : null },
-    obraId: obraId || null,
-  };
-  const box = elOrc("orcamento-area");
-  if (box) box.hidden = false;
-  desenharRaioX();
-  if (box) box.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 function desenharRaioX() {
   const box = elOrc("raiox-corpo");

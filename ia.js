@@ -1,13 +1,14 @@
 /* =====================================================
-   ia.js — IA DA OBRA (assistente do Mário)
+   ia.js — Assistentes do MARIO (Financeira e da Obra)
    -----------------------------------------------------
+   - Dois assistentes, escolhidos em "Assistente":
+     "financeira" (números e gastos) e "obra" (planejamento).
    - Usa SÓ dados reais do MARIO (obras, gastos, MO,
-     recebimentos, parcelas, plantas). Nunca inventa:
-     sem dado = "ainda não foi cadastrada".
-   - Cálculos determinísticos no aparelho; a IA (Groq)
-     só redige textos com o contexto entregue.
-   - Chave Groq: a mesma guardada no aparelho (pede 1x).
-   - Histórico simples no aparelho (últimas 20 análises).
+     recebimentos, parcelas, orçamentos, materiais).
+     Nunca inventa: sem dado = "ainda não foi cadastrada".
+   - Os totais são calculados no SERVIDOR (Edge Function
+     ia-financeira). Nenhuma chave de IA fica no aparelho.
+   - Histórico simples no aparelho (conversas e análises).
    ===================================================== */
 
 const IA_HIST_KEY = "ia_historico_v1";
@@ -77,13 +78,15 @@ function renderHistoricoIA() {
     box.appendChild(div);
   }
 }
-async function iaConversar(pergunta, contexto) {
+async function iaConversar(pergunta, modo) {
   // Limitar pergunta para economizar tokens
   const perguntaLim = (pergunta || "").slice(0, 500);
-  const contextoLim = (contexto || "").slice(0, 12000);
+  const assistente = modo === "obra" ? "obra" : "financeira";
 
-  // 1) IA Financeira no servidor (contas feitas lá, sem chave no aparelho)
+  // IA no servidor (contas feitas lá, sem chave no aparelho)
+  let ultimoErro = null;
   for (let tent = 1; tent <= 2; tent++) {
+    let resp;
     try {
       const sel = document.getElementById("ia-periodo");
       const periodo = sel && sel.value === "mes" ? mesAtual() : null;
@@ -91,7 +94,7 @@ async function iaConversar(pergunta, contexto) {
       const sess = (sb && sb.auth && typeof sb.auth.getSession === "function")
         ? await sb.auth.getSession().catch(() => null) : null;
       const token = (sess && sess.data && sess.data.session && sess.data.session.access_token) || null;
-      const resp = await fetch(
+      resp = await fetch(
         "https://wmcrbjlzsqveekwifded.supabase.co/functions/v1/ia-financeira",
         {
           method: "POST",
@@ -99,66 +102,89 @@ async function iaConversar(pergunta, contexto) {
             { "Content-Type": "application/json" },
             token ? { Authorization: "Bearer " + token } : {}
           ),
-          body: JSON.stringify({ pergunta: perguntaLim, obra_id: obraId, periodo }),
+          body: JSON.stringify({ pergunta: perguntaLim, obra_id: obraId, periodo, modo: assistente }),
         }
       );
-      if (resp.ok) {
-        const j = await resp.json();
-        if (j.resposta) {
-          window._ultimosCalculos = j.calculos || null;
-          return String(j.resposta).trim();
-        }
-      }
-      if (resp.status === 401 || resp.status === 403) {
-        throw new Error("Sessão inválida. Faça login novamente.");
-      }
-      if (resp.status === 429) {
-        throw new Error("Limite de uso da IA atingido. Aguarde um minuto e tente novamente.");
-      }
-      if (resp.status >= 500) {
-        // tentar fallback no próximo ciclo/rodada
-      }
-      if (tent < 2) await new Promise((r) => setTimeout(r, 3000));
     } catch (e) {
       console.error("ia-financeira:", e);
+      ultimoErro = new Error("Sem conexão com o serviço da IA.");
       if (tent < 2) await new Promise((r) => setTimeout(r, 3000));
+      continue;
     }
+    const j = await resp.json().catch(() => ({}));
+    if (resp.ok && j.resposta) {
+      window._ultimosCalculos = j.calculos || null;
+      return String(j.resposta).trim();
+    }
+    const msg = j && j.erro ? String(j.erro) : "";
+    if (resp.status === 401 || resp.status === 403) {
+      throw new Error(msg || "Sessão inválida. Faça login novamente.");
+    }
+    if (resp.status === 429) {
+      throw new Error(msg || "Limite de uso da IA atingido. Aguarde um minuto e tente novamente.");
+    }
+    if (resp.status === 400) throw new Error(msg || "Não entendi a pergunta.");
+    if (resp.status === 404) throw new Error(msg || "Obra não encontrada ou sem acesso.");
+    ultimoErro = new Error(msg || "Não consegui responder agora.");
+    if (tent < 2) await new Promise((r) => setTimeout(r, 3000));
   }
-  // Fallback server-side não disponível após remoção do módulo de plantas.
-  throw new Error("IA temporariamente indisponível.");
+  throw ultimoErro || new Error("IA temporariamente indisponível.");
 }
-function contextoEscopo() {
-  const lista = obrasNoEscopo();
-  const L = [`Escopo: ${nomeEscopo()} (${lista.length} obra(s)).`];
-  for (const o of lista) {
-    const t = calcularTotais(o);
-    L.push(`Obra "${o.nome}" (cliente ${o.cliente}, status ${o.status}): ` +
-      `contratado ${t.valorContratado}, recebido ${t.totalRecebido}, ` +
-      `gastos ${t.totalGasto}, mão de obra ${t.totalMO}, a receber ${t.aReceber}, lucro ${t.lucro}.`);
-    const pend = (o.parcelas || []).filter((p) => !(p.status === "pago" || p.status === "Recebida"));
-    if (pend.length) L.push(`  Parcelas em aberto: ${pend.length} (próximo vencimento ${(pend.map((p) => p.vencimento || "").filter(Boolean).sort()[0]) || "—"}).`);
-    if ((o.equipe || []).length) L.push(`  Equipe: ${(o.equipe || []).map((x) => `${x.nome} (${x.funcao})`).join(", ")}.`);
+// ---------- Respostas diretas (não gastam IA) ----------
+// Perguntas curtas e claras que o próprio sistema já sabe responder são
+// calculadas aqui, com os MESMOS números do Financeiro, sem chamar a IA.
+function normalizarTexto(t) {
+  return (t || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+// Pura (testável): retorna "gasto" | "recebido" | "resultado" | "aReceber" | null.
+function intencaoDireta(pergunta) {
+  const p = normalizarTexto(pergunta);
+  if (!p || p.length > 80) return null;
+  if (/(por que|porque|como|explica|explicar|sugira|sugere|dica|economiz|compar|planej|organiz|orcamento|material|etapa|prazo|cronograma|categoria|mao de obra|detalh)/.test(p)) return null;
+  if (/(saldo|resultado|lucro|margem|sobrou)/.test(p)) return "resultado";
+  if (/(a receber|falta receber|ainda.*receber|quanto.*receber)/.test(p)) return "aReceber";
+  if (/(quanto|qual|qto|total).*(gast|despes|saiu|paguei)/.test(p)) return "gasto";
+  if (/(quanto|qual|qto|total).*(receb|entrou|entrada)/.test(p)) return "recebido";
+  return null;
+}
+function assistenteSelecionado() {
+  const sel = elIA("ia-assistente");
+  return sel && sel.value === "financeira" ? "financeira" : "obra";
+}
+function responderLocal(pergunta) {
+  const intencao = intencaoDireta(pergunta);
+  if (!intencao) return null;
+  const escopo = obrasNoEscopo();
+  if (!escopo.length) return null;
+  const selPeriodo = elIA("ia-periodo");
+  const soMes = !!(selPeriodo && selPeriodo.value === "mes");
+  const umaObraSo = !!((elIA("ia-obra") || {}).value || "");
+  const fmt = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  let recebido = 0, gasto = 0, aReceber = 0;
+  if (soMes) {
+    // O total do mês é exato só para o conjunto todo (calcularMes soma todas as obras).
+    if (umaObraSo || intencao === "aReceber") return null;
+    const rm = calcularMes(mesAtual());
+    recebido = rm.entradas; gasto = rm.gastos;
+  } else {
+    for (const o of escopo) {
+      const t = calcularTotais(o);
+      recebido += t.totalRecebido;
+      gasto += t.totalGasto + t.totalMO;
+      aReceber += t.aReceber;
+    }
   }
-  const mesCtx = mesAtual();
-  const rmCtx = calcularMes(mesCtx);
-  L.push(`Mês atual (${mesCtx}): entradas ${rmCtx.entradas}, gastos ${rmCtx.gastos}, resultado ${rmCtx.resultado}.`);
-  try {
-    if (typeof lerOrcamentos === "function") {
-      const so = lerOrcamentos().slice(0, 3);
-      for (const o of so) {
-        L.push(`Orçamento salvo (${o.data || "sem data"}, ${o.area}m², ${o.alvenaria}): total ${o.total}. ` +
-          `Itens: ${(o.itens || []).map((it) => `${it.nome} ${it.qtd ?? "?"}${it.unidade || ""} x ${it.preco ?? "sem preço"}`).join("; ")}.`);
-      }
-      if (!so.length) L.push("Sem orçamentos salvos.");
-    }
-    if (typeof lerMateriais === "function") {
-      const lm = lerMateriais().filter((m) => m.ativo && m.preco > 0).slice(0, 20);
-      if (lm.length) L.push("Preços cadastrados (com data): " + lm.map((m) => `${m.nome} ${m.preco}/${m.unidade} em ${m.dataPreco || "?"}`).join("; ") + ".");
-      else L.push("Sem preços cadastrados no catálogo.");
-    }
-  } catch (e) {}
-  L.push(`Se algum valor acima for zero ou não houver lançamentos, diga de forma simples quais lançamentos faltam fazer (ex: "cadastre os gastos da obra").`);
-  return L.join("\n");
+  const rotulo = `${nomeEscopo()} · ${soMes ? mesAtual() : "total"}`;
+  const cabeca = `Cálculo direto do sistema (sem IA) — ${rotulo}: `;
+  if (intencao === "gasto") return cabeca + `gastos ${fmt(gasto)} (inclui mão de obra).`;
+  if (intencao === "recebido") return cabeca + `recebido ${fmt(recebido)}.`;
+  if (intencao === "resultado") return cabeca + `resultado ${fmt(recebido - gasto)} (entrou menos saiu; não é lucro da obra).`;
+  return cabeca + `a receber ${fmt(aReceber)} (contratado menos recebido).`;
 }
 function painelVoltar(html) {
   elIA("ia-painel").innerHTML =
@@ -331,7 +357,7 @@ function ferramentaMensagem() {
     try {
       const txt = await iaConversar(
         `Escreva uma mensagem curta de ${elIA("ia-msg-tipo").value} em tom ${elIA("ia-msg-tom").value} para o cliente, usando os dados. Sem rodeios.`,
-        contextoEscopo()
+        "obra"
       );
       elIA("ia-msg-texto").value = txt;
       contarUso("mensagem");
@@ -381,21 +407,34 @@ async function enviarPerguntaChat(texto) {
   if (window._iaOcupada) return; // sem envio duplo enquanto pensa
   const pergunta = (texto || (elIA("ia-pergunta") || {}).value || "").trim();
   const box = elIA("ia-chat");
-  if (!box || (!pergunta && !iaFotoArquivo)) return;
+  if (!box || !pergunta) return;
   window._iaOcupada = true;
-  // Sem obra cadastrada: responde na hora
-  if (!(obras || []).length) {
-    box.innerHTML += `<div class="ia-msg voce">${proteger(pergunta)}</div>` +
-      `<div class="ia-msg ia">Ainda não há obras cadastradas. Toque em + Nova obra para começar, depois me pergunte de novo.</div>`;
-    box.scrollTop = box.scrollHeight;
-    return;
-  }
-  box.innerHTML += `<div class="ia-msg voce">${proteger(pergunta)}</div><div class="ia-msg ia digitando" id="ia-digitando"><span></span><span></span><span></span></div>`;
-  box.scrollTop = box.scrollHeight;
-  const campo = elIA("ia-pergunta");
-  if (campo) campo.value = "";
   try {
-    const resp = await iaConversar(pergunta, contextoEscopo());
+    // Sem obra cadastrada: responde na hora
+    if (!(obras || []).length) {
+      box.innerHTML += `<div class="ia-msg voce">${proteger(pergunta)}</div>` +
+        `<div class="ia-msg ia">Ainda não há obras cadastradas. Toque em + Nova obra para começar, depois me pergunte de novo.</div>`;
+      box.scrollTop = box.scrollHeight;
+      return;
+    }
+    box.innerHTML += `<div class="ia-msg voce">${proteger(pergunta)}</div>`;
+    box.scrollTop = box.scrollHeight;
+    const campo = elIA("ia-pergunta");
+    if (campo) campo.value = "";
+
+    // 1) Não gasta IA quando o próprio sistema já sabe a resposta.
+    const direto = responderLocal(pergunta);
+    if (direto) {
+      box.innerHTML += `<div class="ia-msg ia">${proteger(direto)}</div>`;
+      box.scrollTop = box.scrollHeight;
+      registrarPerguntaIA(pergunta, direto);
+      return;
+    }
+
+    // 2) Pergunta livre: a IA responde no servidor com os dados reais.
+    box.innerHTML += `<div class="ia-msg ia digitando" id="ia-digitando"><span></span><span></span><span></span></div>`;
+    box.scrollTop = box.scrollHeight;
+    const resp = await iaConversar(pergunta, assistenteSelecionado());
     const d = document.getElementById("ia-digitando");
     if (d) { d.textContent = resp; d.classList.remove("digitando"); d.removeAttribute("id"); }
     const calc = window._ultimosCalculos;
@@ -406,22 +445,24 @@ async function enviarPerguntaChat(texto) {
         `Recebido: ${fmt(calc.recebido)} • Gastos: ${fmt(calc.gastos)} • Mão de obra: ${fmt(calc.maoDeObra)} • Resultado: ${fmt(calc.resultado)}</div>`;
     }
     box.scrollTop = box.scrollHeight;
-    contarUso("pergunta");
-    atualizarStatusChaveIA();
-    try {
-      const hc = lerChatIA();
-      hc.unshift({ p: pergunta.slice(0, 300), r: resp.slice(0, 2000), obra: nomeEscopo(), data: hojeISO() });
-      localStorage.setItem(IA_CHAT_KEY, JSON.stringify(hc.slice(0, 30)));
-    } catch (e) {}
-    renderChatHistorico();
-    guardarHistoricoIA("Pergunta: " + pergunta.slice(0, 60), nomeEscopo(),
-      `<div class="card"><p><strong>${proteger(pergunta)}</strong></p><p>${proteger(resp)}</p></div>`);
-    window._iaOcupada = false;
+    registrarPerguntaIA(pergunta, resp);
   } catch (e) {
     const d = document.getElementById("ia-digitando");
     if (d) { d.textContent = "Não consegui responder: " + (e.message || "erro"); d.classList.remove("digitando"); d.removeAttribute("id"); }
+  } finally {
     window._iaOcupada = false;
   }
+}
+// Guarda a conversa no aparelho e atualiza a lista. Usado pelos dois caminhos.
+function registrarPerguntaIA(pergunta, resp) {
+  contarUso("pergunta");
+  atualizarStatusChaveIA();
+  try {
+    const hc = lerChatIA();
+    hc.unshift({ p: pergunta.slice(0, 300), r: String(resp || "").slice(0, 2000), obra: nomeEscopo(), data: hojeISO() });
+    localStorage.setItem(IA_CHAT_KEY, JSON.stringify(hc.slice(0, 30)));
+  } catch (e) {}
+  renderChatHistorico();
 }
 function ferramentaPerguntar() {
   const c = elIA("ia-pergunta");
@@ -434,7 +475,8 @@ function ferramentaPerguntar() {
 function atualizarStatusChaveIA() {
   const el = elIA("ia-chave-status");
   if (!el) return;
-  el.textContent = "IA usa serviço seguro do servidor.";
+  const nome = assistenteSelecionado() === "financeira" ? "IA Financeira" : "IA da Obra";
+  el.textContent = `Assistente atual: ${nome} · dados do seu sistema (servidor seguro, sem chave no aparelho).`;
 }
 function atualizarObrasIA() {
   const sel = elIA("ia-obra");
@@ -472,6 +514,11 @@ function ligarIA() {
   if (sel && !sel.dataset.iaLigado) {
     sel.dataset.iaLigado = "1";
     sel.addEventListener("change", () => { elIA("ia-painel").innerHTML = ""; atualizarBannerAtencao(); });
+  }
+  const selAssistente = elIA("ia-assistente");
+  if (selAssistente && !selAssistente.dataset.iaLigado) {
+    selAssistente.dataset.iaLigado = "1";
+    selAssistente.addEventListener("change", () => atualizarStatusChaveIA());
   }
   ao("ia-atencao", () => { mostrarTela("ia"); setTimeout(ferramentaAlertas, 100); });
   renderChatHistorico();

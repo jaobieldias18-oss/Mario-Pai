@@ -370,8 +370,6 @@ function irPara(destino) {
   else if (destino === "composicoes") mostrarTela("composicoes");
   else if (destino === "orcamento") mostrarTela("orcamento");
   else if (destino === "materiais") mostrarTela("materiais");
-  else if (destino === "plantas") mostrarTela("plantas");
-  else if (destino === "plantas") mostrarTela("plantas");
   else if (destino === "obras") {
     mostrarTela("dashboard");
     setTimeout(() => document.getElementById("ancora-obras").scrollIntoView({ behavior: "smooth" }), 50);
@@ -420,7 +418,7 @@ function abrirFormObra(id) {
 
 // ---------- ASSISTENTE DE NOVA OBRA (uma pergunta por vez) ----------
 let passoAtual = 1;
-let rascunhoObra = null; // volta da aba Plantas sem perder o digitado
+let rascunhoObra = null; // guarda o que já foi digitado ao voltar um passo
 
 function campoPasso(rotulo, id, tipo, exemplo, valor) {
   return `<label class="campo"><span>${rotulo}</span>` +
@@ -431,7 +429,7 @@ function campoPasso(rotulo, id, tipo, exemplo, valor) {
 function desenharPasso() {
   const r = rascunhoObra || { nome: "", cliente: "", cidade: "", area: "", valor: "" };
   const corpo = document.getElementById("passo-corpo");
-  document.getElementById("passo-num").textContent = `Passo ${passoAtual} de 6`;
+  document.getElementById("passo-num").textContent = `Passo ${passoAtual} de 5`;
   const btn = (id, texto, primario) =>
     `<button class="btn ${primario ? "btn-primario btn-grande" : "btn-texto"}" id="${id}">${texto}</button>`;
   if (passoAtual === 1) {
@@ -468,15 +466,6 @@ function desenharPasso() {
       passoAtual = 5; desenharPasso();
     });
     document.getElementById("p-volta").addEventListener("click", () => { passoAtual = 3; desenharPasso(); });
-  } else if (passoAtual === 5) {
-    corpo.innerHTML = `<p><strong>Tem planta?</strong></p>` +
-      btn("p-planta", "Enviar planta", true) + btn("p-ok", "Continuar sem planta", true) + btn("p-volta", "Voltar", false);
-    document.getElementById("p-planta").addEventListener("click", () => {
-      mostrarToast("Leia a planta; depois volte aqui que continuamos.");
-      mostrarTela("plantas");
-    });
-    document.getElementById("p-ok").addEventListener("click", () => { passoAtual = 6; desenharPasso(); });
-    document.getElementById("p-volta").addEventListener("click", () => { passoAtual = 4; desenharPasso(); });
   } else {
     const areaTx = r.area ? `${Number(r.area).toFixed(0)} m²` : "—";
     corpo.innerHTML = `<p><strong>Confira as informações</strong></p>` +
@@ -500,7 +489,7 @@ function desenharPasso() {
       await salvarObraNoBanco(dados);
       if (!valor) mostrarToast("Obra criada! Informe o valor em Editar.");
     });
-    document.getElementById("p-volta").addEventListener("click", () => { passoAtual = 5; desenharPasso(); });
+    document.getElementById("p-volta").addEventListener("click", () => { passoAtual = 4; desenharPasso(); });
   }
   const primeiro = corpo.querySelector("input");
   if (primeiro) primeiro.focus();
@@ -508,7 +497,7 @@ function desenharPasso() {
 
 function iniciarAssistente() {
   if (!rascunhoObra) { rascunhoObra = { nome: "", cliente: "", cidade: "", area: "", valor: "" }; passoAtual = 1; }
-  else passoAtual = 6;
+  else passoAtual = 5;
   desenharPasso();
 }
 

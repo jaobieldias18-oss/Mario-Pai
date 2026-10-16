@@ -179,5 +179,39 @@ t("mensagem rede NAO diz sincronizado", rS[12]);
 t("mensagem permissao NAO diz sincronizado", rS[13]);
 t("mensagem sem-tabela NAO diz sincronizado", rS[14]);
 
+// ---- Teste K: IA — respostas diretas (não gastam IA) ----
+// Carrega ia.js isolado: só interessa a classificação pura da pergunta.
+const iSandbox = { console };
+iSandbox.window = iSandbox; iSandbox.globalThis = iSandbox;
+vm.createContext(iSandbox);
+vm.runInContext(fs.readFileSync(path.join(BASE, "ia.js"), "utf-8"), iSandbox);
+const rK = vm.runInContext(`(function () {
+  const out = [];
+  out.push(intencaoDireta("quanto gastamos este mês") === "gasto");
+  out.push(intencaoDireta("Quanto Gastei?") === "gasto");
+  out.push(intencaoDireta("quanto recebemos no total") === "recebido");
+  out.push(intencaoDireta("qual o saldo") === "resultado");
+  out.push(intencaoDireta("quanto tenho a receber") === "aReceber");
+  out.push(intencaoDireta("como posso economizar na obra?") === null);
+  out.push(intencaoDireta("compare os orçamentos e sugira o melhor") === null);
+  out.push(intencaoDireta("organize as etapas da obra") === null);
+  out.push(intencaoDireta("") === null);
+  out.push(intencaoDireta("gastei muito com o quê exatamente? por que?") === null);
+  out.push(intencaoDireta("x".repeat(120)) === null);
+  out.push(normalizarTexto("  Quanto  Gastei Neste Mês?  ") === "quanto gastei neste mes?");
+  return out;
+})()`, iSandbox);
+t("IA direta: gasto (2 formas)", rK[0] && rK[1]);
+t("IA direta: recebido", rK[2]);
+t("IA direta: saldo/resultado", rK[3]);
+t("IA direta: a receber", rK[4]);
+t("IA aberta: nao responde direto (economizar)", rK[5]);
+t("IA aberta: nao responde direto (comparar)", rK[6]);
+t("IA aberta: nao responde direto (organizar)", rK[7]);
+t("IA direta: vazio -> null", rK[8]);
+t("IA direta: pergunta aberta -> null", rK[9]);
+t("IA direta: pergunta longa -> null", rK[10]);
+t("IA direta: normaliza acento/espaco", rK[11]);
+
 console.log(`\nRESULTADO: ${pass} PASS, ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

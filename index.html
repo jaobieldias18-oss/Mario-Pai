@@ -536,6 +536,12 @@
             <option value="mes">Este mês</option>
           </select>
         </label>
+        <label class="campo"><span>Assistente</span>
+          <select id="ia-assistente">
+            <option value="obra" selected>IA da Obra (planejamento)</option>
+            <option value="financeira">IA Financeira (números e gastos)</option>
+          </select>
+        </label>
       </div>
       <div class="card ia-chat-card">
         <div class="ia-conversa" id="ia-chat">
@@ -824,12 +830,12 @@
   <script src="supabase.js?v=16"></script>
   <script src="auth.js?v=1"></script>
   <script src="outbox.js?v=16"></script>
-  <script src="script.js?v=16"></script>
+  <script src="script.js?v=17"></script>
 
-  <script src="orcamento.js?v=3"></script>
+  <script src="orcamento.js?v=4"></script>
   <script src="materiais.js?v=2"></script>
   <script src="composicoes.js?v=1"></script>
-  <script src="ia.js?v=17"></script>
+  <script src="ia.js?v=18"></script>
   <!-- PWA: registra o Service Worker (só funciona em http/https,
        abrindo como arquivo local o registro é ignorado sem erro) -->
   <script>

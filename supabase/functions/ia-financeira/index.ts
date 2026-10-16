@@ -1,40 +1,77 @@
 // ============================================================
 // MARIO · Edge Function: ia-financeira (Groq)
-// Responde perguntas financeiras com dados REAIS do Supabase.
+// Serve os DOIS assistentes do app, escolhidos por `modo`:
+//   modo: "financeira" (padrão) → analisa os números reais
+//   modo: "obra"               → ajuda no planejamento da obra
 // - Totais calculados AQUI no servidor (a IA não soma listas).
-// - Sem login no app: usa a chave pública e só lê o que o RLS
-//   permite. Nunca executa SQL vindo do usuário.
+// - Exige sessão (JWT). Tudo é lido FILTRADO pelo dono (owner_id).
+//   Sem login, nenhum dado é lido nem enviado à IA.
+// - Nunca executa SQL vindo do usuário.
 // Segredos (só via Secret do Supabase):
 //   GROQ_API_KEY      → obrigatória
-//   GROQ_FIN_MODEL    → opcional (padrão abaixo)
+//   GROQ_FIN_MODEL    → opcional (padrão: openai/gpt-oss-120b)
 // Deploy: supabase functions deploy ia-financeira
 // ============================================================
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const MODELO_PADRAO = "qwen/qwen3.8-27b";
 const MAX_PERGUNTA = 500;
 
-const PROMPT_SISTEMA = `Você é a assistente do Mário, chefe de obra. Responda SEMPRE de forma extremamente resumida: no máximo 2 frases curtas, só o essencial com os números.
-REGRAS DURAS:
+const REGRAS_COMUNS = `REGRAS DURAS:
 1. Nunca invente dimensões, preços, quantidades, custos ou dados históricos. Sem dado = diga "Essa informação ainda não foi cadastrada." e diga o que falta cadastrar.
-2. Utilize somente os dados fornecidos (plantas, características, materiais, preços com data, orçamentos, obras). Diferencie confirmado, estimativa e hipótese.
+2. Utilize somente os dados fornecidos (materiais, preços com data, orçamentos, obras, gastos, recebimentos). Diferencie confirmado, estimativa e hipótese.
 3. Use o histórico como referência sem copiar valores automaticamente; considere diferenças de projeto e época, e avise que preços podem ter mudado.
 4. Diferencie previsto (contratado/orçado) de realizado (recebido/gasto). Nunca chame previsão de lucro.
 5. Use os TOTAIS já calculados quando existirem; não resome listas.
 6. Explique quantitativos importantes e premissas. Moeda brasileira (R$ 1.250,50).
 7. Não confunda área construída com área de paredes, pisos ou cobertura. Não duplique materiais ou custos.
 8. Não substitua avaliação de profissionais habilitados em responsabilidade técnica.
-9. Se a pergunta não for sobre obras, construção ou finanças da obra, diga de forma simpática que você só ajuda com os assuntos da obra e sugira uma pergunta útil (ex: "quanto gastamos este mês?").`;
+9. Se faltar informação para responder, diga exatamente o que cadastrar (ex: "cadastre os gastos da obra") em vez de supor.`;
 
-function json(obj: unknown, status = 200): Response {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
+const PROMPT_FINANCEIRA = `Você é a IA Financeira do Mário, chefe de obra. Sua responsabilidade é analisar os NÚMEROS reais das obras.
+Responda SEMPRE de forma extremamente resumida: no máximo 2 frases curtas, só o essencial com os números.
+Foque em: quanto entrou, quanto saiu, custos, mão de obra, saldo/resultado, a receber, maiores categorias de despesa e comparação com o previsto.
+Nunca diga que um valor foi "conferido com dados reais" se essa consulta não estiver nos dados fornecidos abaixo.
+Não responda sobre leitura de plantas nem sobre imagens: esse serviço não existe no sistema.
+
+` + REGRAS_COMUNS;
+
+const PROMPT_OBRA = `Você é a IA da Obra do Mário, chefe de obra. Sua responsabilidade é ajudar na organização, no planejamento e no acompanhamento das obras.
+Responda SEMPRE de forma extremamente resumida e prática: no máximo 3 frases curtas, com passos simples.
+Ajude a: organizar etapas e tarefas, listas de tarefas e materiais, comparar orçamentos, identificar desperdícios, relatórios de andamento, pendências e fornecedores.
+Quando faltar informação para uma tarefa, faça no máximo UMA pergunta curta e objetiva (a mais importante) em vez de supor.
+Você pode informar valores quando eles estiverem nos dados fornecidos, mas nunca invente medidas, preços ou quantidades.
+Não responda sobre leitura de plantas nem sobre imagens: esse serviço não existe no sistema.
+
+` + REGRAS_COMUNS;
+
+function promptDoModo(modo: string): string {
+  return modo === "obra" ? PROMPT_OBRA : PROMPT_FINANCEIRA;
+}
+
+// Origens autorizadas a chamar esta função pelo navegador.
+// O app roda em produção no GitHub Pages e, em testes, localmente.
+// Se o endereço do site mudar, inclua a nova origem nesta lista.
+const ORIGENS_PERMITIDAS = [
+  "https://jaobieldias18-oss.github.io",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080",
+];
+
+// CORS restrito: só devolve "Access-Control-Allow-Origin" quando a origem
+// da requisição está na lista. Sem isso, o navegador bloqueia a resposta
+// (não liberamos domínio desconhecido).
+function corsHeaders(req: Request): Record<string, string> {
+  const origem = req.headers.get("Origin") || "";
+  const h: Record<string, string> = {
+    "Vary": "Origin",
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+  if (origem && ORIGENS_PERMITIDAS.includes(origem)) {
+    h["Access-Control-Allow-Origin"] = origem;
+  }
+  return h;
 }
 
 function num(v: unknown): number {
@@ -47,13 +84,14 @@ function brl(v: number): string {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, apikey, content-type",
-      },
-    });
+    return new Response("ok", { headers: corsHeaders(req) });
   }
+  const cors = corsHeaders(req);
+  const json = (obj: unknown, status = 200): Response =>
+    new Response(JSON.stringify(obj), {
+      status,
+      headers: { "Content-Type": "application/json", ...cors },
+    });
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
@@ -86,11 +124,9 @@ serve(async (req) => {
     const corpo = await req.json().catch(() => ({}));
     const pergunta = String(corpo.pergunta || "").slice(0, MAX_PERGUNTA).trim();
     if (!pergunta) return json({ erro: "Pergunta vazia." }, 400);
-    if (pergunta.length > MAX_PERGUNTA) {
-      return json({ erro: "Pergunta muito longa. Reduza e tente novamente." }, 400);
-    }
     const obraId = typeof corpo.obra_id === "string" && corpo.obra_id ? corpo.obra_id : null;
     const periodo = /^\d{4}-\d{2}$/.test(String(corpo.periodo || "")) ? String(corpo.periodo) : null;
+    const modo = corpo.modo === "obra" ? "obra" : "financeira";
 
     const sb = createClient(supabaseUrl, serviceKey || anonKey, {
       auth: { persistSession: false },
@@ -155,6 +191,52 @@ serve(async (req) => {
       resultado: lucro, periodo: periodo || "geral",
     };
 
+    // ---- Contexto extra do modo "obra" (limitado; se a tabela faltar, segue sem ela) ----
+    if (modo === "obra") {
+      try {
+        const { data: orcs } = await sb.from("orcamentos")
+          .select("id,area,total,data").eq("owner_id", uid)
+          .order("data", { ascending: false }).limit(3);
+        if (orcs && orcs.length) {
+          const oids = orcs.map((o) => o.id);
+          const { data: itens } = await sb.from("orcamento_itens")
+            .select("orcamento_id,nome,quantidade,unidade,preco").in("orcamento_id", oids)
+            .eq("owner_id", uid).limit(60);
+          for (const o of orcs) {
+            const its = (itens || []).filter((it) => it.orcamento_id === o.id);
+            ctx += `\nOrçamento (${o.data || "sem data"}, ${num(o.area)} m²): total ${brl(num(o.total))}`;
+            ctx += its.length
+              ? `. Itens: ${its.map((it) => `${it.nome} ${num(it.quantidade)}${it.unidade || ""} x ${brl(num(it.preco))}`).join("; ")}.`
+              : ". Sem itens detalhados.";
+          }
+        } else {
+          ctx += "\nSem orçamentos salvos.";
+        }
+      } catch { /* tabela ausente: segue sem orçamentos */ }
+      try {
+        const { data: mats } = await sb.from("materiais")
+          .select("nome,unidade,preco,data_preco").eq("owner_id", uid).eq("ativo", true)
+          .order("data_preco", { ascending: false }).limit(20);
+        if (mats && mats.length) {
+          ctx += `\nMateriais com preço: ${mats.map((m) => `${m.nome} ${brl(num(m.preco))}/${m.unidade || "un"} (${m.data_preco || "sem data"})`).join("; ")}.`;
+        }
+      } catch { /* tabela ausente */ }
+      try {
+        const { data: cros } = await sb.from("cronogramas")
+          .select("etapa,inicio,previsao_fim,status").in("obra_id", ids).eq("owner_id", uid).limit(60);
+        if (cros && cros.length) {
+          ctx += `\nEtapas (cronograma): ${cros.map((c) => `${c.etapa} (${c.status}${c.previsao_fim ? ", fim " + c.previsao_fim : ""})`).join("; ")}.`;
+        }
+      } catch { /* tabela ausente */ }
+      try {
+        const { data: forns } = await sb.from("fornecedores")
+          .select("nome,telefone,cidade").eq("owner_id", uid).limit(20);
+        if (forns && forns.length) {
+          ctx += `\nFornecedores: ${forns.map((f) => `${f.nome}${f.cidade ? " (" + f.cidade + ")" : ""}${f.telefone ? " " + f.telefone : ""}`).join("; ")}.`;
+        }
+      } catch { /* tabela ausente */ }
+    }
+
     // ---- Groq: só redige com o contexto entregue ----
     let groqResp: Response;
     try {
@@ -164,7 +246,7 @@ serve(async (req) => {
           body: JSON.stringify({
             model: modelo, temperature: 0.2, max_tokens: 300,
           messages: [
-            { role: "system", content: PROMPT_SISTEMA },
+            { role: "system", content: promptDoModo(modo) },
             { role: "user", content: "DADOS REAIS DO SISTEMA:\n" + ctx + "\n\nPERGUNTA: " + pergunta },
           ],
         }),
