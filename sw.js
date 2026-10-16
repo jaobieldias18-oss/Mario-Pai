@@ -10,7 +10,7 @@
       e atualiza em segundo plano (rápido + sempre novo).
    ===================================================== */
 
-const VERSAO_CACHE = "mario-v20";
+const VERSAO_CACHE = "mario-v21";
 
 // Arquivos do "esqueleto" do app (nada de dados financeiros aqui)
 const ESTATICOS = [
@@ -21,7 +21,7 @@ const ESTATICOS = [
   "supabase.js?v=17",
   "auth.js?v=1",
   "outbox.js?v=16",
-  "orcamento.js?v=5",
+  "orcamento.js?v=6",
   "materiais.js?v=2",
   "composicoes.js?v=1",
   "ia.js?v=18",

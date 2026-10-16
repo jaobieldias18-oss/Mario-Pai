@@ -354,7 +354,7 @@ function calcularOrcamentoGuiado(e) {
   const sist = e.sistema || "bloco";
   const P = e.precos || {};
   // Parede: geometria real se informada, senão fator estimado (sinalizado)
-  const gv = (v) => String(v == null ? "" : v).trim().replace(",", ".");
+  const gv = (v) => String(v == null ? "" : v).trim().replace(/,/g, ".");
   const gComp = Number(gv(e.parComp)), gAlt = Number(gv(e.parAlt));
   const gVaos = gv(e.parVaos).split(";").map((s) => s.trim()).filter(Boolean).map((s) => {
     const p = s.toLowerCase().split("x");
@@ -500,6 +500,42 @@ function estimarObra() {
   });
   box.scrollIntoView({ behavior: "smooth", block: "start" });
 }
+// ---------- Preenchimento automático para testes ----------
+// Casa fictícia de 100 m². NÃO é uma obra do banco: o seletor fica "sem vínculo".
+// Os valores são apenas colocados nos CAMPOS da tela; o cálculo só roda quando o
+// usuário tocar em "Calcular". Os preços de teste NÃO são salvos (use "Salvar preços"
+// se quiser torná-los permanentes).
+const DADOS_TESTE_OG = {
+  campos: {
+    "og-area": 100, "og-quartos": 3, "og-banheiros": 2, "og-sistema": "bloco",
+    "og-perimetro": 40, "og-telhado": 120,
+    "og-par-comp": 80, "og-par-alt": 2.8,
+    "og-par-vaos": "0,80x2,10;0,80x2,10;0,80x2,10;1,20x1,00;1,20x1,00;1,50x1,00",
+    "og-peletricos": 30, "og-phidraulicos": 12,
+    "og-mo-dias": 120, "og-mo-diaria": 180,
+    "og-transporte": 2000, "og-outros": 1500,
+  },
+  precos: {
+    piso: 45, bloco: 3.5, cimento: 40, tinta: 35, porta: 450, janela: 350,
+    concreto: 450, aco: 8.5, telha: 5, madeiramento: 65,
+    peletrico: 120, phidraulico: 180, modiaria: 180,
+  },
+};
+function preencherDadosTesteOG() {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  for (const id of Object.keys(DADOS_TESTE_OG.campos)) set(id, DADOS_TESTE_OG.campos[id]);
+  // Não vincula a nenhuma obra real do banco.
+  set("og-obra", "");
+  // Preenche os preços nos campos (sem salvar em localStorage).
+  document.querySelectorAll("[data-og-preco]").forEach((i) => {
+    const v = DADOS_TESTE_OG.precos[i.dataset.ogPreco];
+    if (v !== undefined) i.value = v;
+  });
+  mostrarToast("Dados de teste preenchidos. Toque em Calcular para ver o resultado.");
+  const calc = document.getElementById("og-calcular");
+  if (calc) calc.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 function ligarOrcamentoGuiado() {
   const b = document.getElementById("og-calcular");
   if (b && !b.dataset.ligado) {
@@ -523,6 +559,11 @@ function ligarOrcamentoGuiado() {
   if (sist && !sist.dataset.ligado) {
     sist.dataset.ligado = "1";
     sist.addEventListener("change", desenharPrecosOG);
+  }
+  const bt = document.getElementById("og-preencher-teste");
+  if (bt && !bt.dataset.ligado) {
+    bt.dataset.ligado = "1";
+    bt.addEventListener("click", preencherDadosTesteOG);
   }
   // Obras no seletor + lista de salvos; atualiza ao abrir a tela.
   const atualizar = () => {

@@ -304,5 +304,56 @@ t("M detecta schema cache (fallback)", rM[14]);
 t("M permissao nao é coluna", rM[15]);
 t("M duplicado nao é coluna", rM[16]);
 
+// ---- Teste N: dados de teste (casa 100 m²) + vãos com vírgula ----
+// Casa fictícia: 100 m², parede medida 80×2,80, vãos 8,94 m² → líquida 215,06 m².
+// Valores esperados calculados À MÃO a partir de PARAMS_ORC (nunca do código).
+const rN = vm.runInContext(`(function () {
+  const out = [];
+  const d = DADOS_TESTE_OG;
+  const e = {
+    area: d.campos["og-area"], quartos: String(d.campos["og-quartos"]),
+    banheiros: String(d.campos["og-banheiros"]), sistema: d.campos["og-sistema"],
+    perimetro: d.campos["og-perimetro"], telhado: d.campos["og-telhado"],
+    parComp: String(d.campos["og-par-comp"]), parAlt: String(d.campos["og-par-alt"]),
+    parVaos: d.campos["og-par-vaos"],
+    peletricos: String(d.campos["og-peletricos"]), phidraulicos: String(d.campos["og-phidraulicos"]),
+    moDias: String(d.campos["og-mo-dias"]), moDiaria: d.campos["og-mo-diaria"],
+    transporte: d.campos["og-transporte"], outros: d.campos["og-outros"],
+    precos: d.precos,
+  };
+  const r = calcularOrcamentoGuiado(e);
+  const byName = {};
+  for (const it of r.itens) byName[it.nome] = it;
+  out.push(r.areaParede === 215.06);
+  out.push(r.semPreco === 0);
+  out.push(byName["Bloco de concreto"].qtd === 2823);
+  out.push(byName["Cimento (reboco)"].qtd === 54);
+  out.push(byName["Tinta"].qtd === 71.7);
+  out.push(byName["Concreto fundação"].qtd === 6.4 && byName["Aço fundação"].qtd === 512);
+  out.push(byName["Concreto laje"].qtd === 12 && byName["Aço laje"].qtd === 1200);
+  out.push(byName["Mão de obra"].qtd === 120 && byName["Mão de obra"].total === 21600);
+  out.push(byName["Portas (estimativa: cômodos + 2)"].qtd === 7 && byName["Janelas (estimativa: cômodos + 1)"].qtd === 6);
+  out.push(r.total === 95099.5);
+  // A vírgula decimal nos vãos deve dar o MESMO resultado do ponto (bug corrigido).
+  const ePonto = Object.assign({}, e, { parVaos: "0.80x2.10;0.80x2.10;0.80x2.10;1.20x1.00;1.20x1.00;1.50x1.00" });
+  const rPonto = calcularOrcamentoGuiado(ePonto);
+  out.push(rPonto.areaParede === r.areaParede && rPonto.total === r.total);
+  // Todos os preços de teste estão preenchidos (nenhum material "sem preço").
+  out.push(Object.values(d.precos).every((v) => Number(v) > 0));
+  return out;
+})()`, sandbox);
+t("N area de parede 215.06", rN[0]);
+t("N sem preco = 0", rN[1]);
+t("N blocos = 2823", rN[2]);
+t("N cimento = 54", rN[3]);
+t("N tinta = 71.7", rN[4]);
+t("N fundacao 6.4 m3 / 512 kg", rN[5]);
+t("N laje 12 m3 / 1200 kg", rN[6]);
+t("N MO 120x180 = 21600", rN[7]);
+t("N portas 7 / janelas 6", rN[8]);
+t("N total = 95099.5", rN[9]);
+t("N virgula = ponto nos vaos", rN[10]);
+t("N precos de teste completos", rN[11]);
+
 console.log(`\nRESULTADO: ${pass} PASS, ${fail} FAIL`);
 process.exit(fail ? 1 : 0);
