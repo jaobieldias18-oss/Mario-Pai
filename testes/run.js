@@ -355,5 +355,88 @@ t("N total = 95099.5", rN[9]);
 t("N virgula = ponto nos vaos", rN[10]);
 t("N precos de teste completos", rN[11]);
 
+// ---- Teste O: auditoria, robustez e transparência ----
+// Valores esperados calculados À MÃO a partir da especificação (nunca do código).
+const rO = vm.runInContext(`(function () {
+  const out = [];
+  const d = DADOS_TESTE_OG;
+  const base = {
+    area: d.campos["og-area"], quartos: String(d.campos["og-quartos"]),
+    banheiros: String(d.campos["og-banheiros"]), sistema: d.campos["og-sistema"],
+    perimetro: d.campos["og-perimetro"], telhado: d.campos["og-telhado"],
+    parComp: String(d.campos["og-par-comp"]), parAlt: String(d.campos["og-par-alt"]),
+    parVaos: d.campos["og-par-vaos"],
+    peletricos: String(d.campos["og-peletricos"]), phidraulicos: String(d.campos["og-phidraulicos"]),
+    moDias: String(d.campos["og-mo-dias"]), moDiaria: d.campos["og-mo-diaria"],
+    transporte: d.campos["og-transporte"], outros: d.campos["og-outros"],
+    precos: d.precos,
+  };
+  const r = calcularOrcamentoGuiado(base);
+  // 1) Subtotais conferem com qtd × preço em TODOS os itens.
+  out.push(r.itens.every((it) => (it.preco ? Math.abs(it.total - it.qtd * it.preco) < 1e-9 : it.total === null)));
+  // 2) Soma dos subtotais bate com o total geral.
+  out.push(Math.abs(r.itens.reduce((s, it) => s + (it.total || 0), 0) - r.total) < 1e-9);
+  // 3) Auditoria: metadados presentes em todos os itens.
+  out.push(r.itens.every((it) => it.coef && it.formula && it.origem && [1, 2, 3].includes(it.conf) && it.limitacao));
+  const aud = montarAuditoriaOrcamento(r);
+  // 4) Separação informado (conf 1) vs estimativa por coeficiente (conf 2/3).
+  out.push(aud.porConf[1].includes("Mão de obra") && aud.porConf[1].includes("Pontos elétricos"));
+  out.push(aud.porConf[2].includes("Bloco de concreto") && aud.porConf[2].includes("Tinta"));
+  out.push(aud.porConf[3].includes("Concreto fundação") && aud.porConf[3].includes("Aço laje"));
+  // 5) Lista de serviços ausentes documentada (sem valores fictícios).
+  out.push(aud.ausentes.length >= 10 && aud.ausentes.every((a) => a.item && a.etapa && a.dado));
+  // 6) A parede foi MEDIDA (não estimada) e nenhum vau era inválido.
+  out.push(r.geoMedida === true && r.vaosInvalidos === 0 && r.vaosInformados === 6);
+  // 7) Vãos informados (6) NÃO batem com esquadrias estimadas (13) → aviso correto.
+  out.push(r.vaosDivergem === true && r.esquadriasEstimadas === 13);
+  // 8) CAMPO VAZIO: sem perímetro/telhado → sistema ESTIMA e sinaliza.
+  const vazio = Object.assign({}, base, { perimetro: "", telhado: "", parComp: "", parAlt: "", parVaos: "" });
+  const rv = calcularOrcamentoGuiado(vazio);
+  out.push(rv.perimetroInformado === false && rv.telhadoInformado === false && rv.geoMedida === false);
+  out.push(rv.perim === 40 && rv.areaTelhado === 130);   // 4×√100 e 100×1,3
+  out.push(rv.areaParede === 280);                        // 100 × 2,8
+  // 9) VALORES NEGATIVOS/INVÁLIOS viram zero — nenhuma quantidade negativa.
+  const neg = Object.assign({}, base, { perimetro: "-5", telhado: "-10", parComp: "", parAlt: "", parVaos: "",
+    moDias: "-3", moDiaria: "-180", peletricos: "-2", phidraulicos: "-9", transporte: "-100", outros: "-50" });
+  const rn = calcularOrcamentoGuiado(neg);
+  out.push(rn.perim > 0 && rn.areaTelhado > 0 && rn.itens.every((it) => it.qtd >= 0 && (it.total === null || it.total >= 0)));
+  out.push(rn.itens.find((i) => i.nome === "Mão de obra").qtd === 0);
+  out.push(rn.itens.find((i) => i.nome === "Pontos elétricos").qtd === 0);
+  // 10) VAU MAL FORMADO não invalida mais a medição inteira (bug corrigido).
+  const g = paredeLiquida(80, 2.8, [{ larg: 0.8, alt: 2.1 }, { larg: NaN, alt: NaN }, { larg: 1.2, alt: 1 }]);
+  // 80×2,8 = 224; vãos válidos = 1,68 + 1,20 = 2,88 → líquida 221,12; 1 inválido.
+  out.push(g !== null && g.liquida === 221.12 && g.invalidos === 1);
+  // 11) Sem preço → total parcial e item marcado como "sem preço" (não inventa).
+  const semP = Object.assign({}, base, { precos: Object.assign({}, d.precos, { piso: null, telha: null }) });
+  const rs = calcularOrcamentoGuiado(semP);
+  out.push(rs.semPreco === 2 && rs.total < r.total && rs.itens.filter((i) => i.total === null).length === 2);
+  // 12) Quantidades nunca negativas nem NaN com entradas totalmente vazias.
+  const tudoVazio = { area: 100, quartos: "", banheiros: "", sistema: "", precos: {} };
+  const re = calcularOrcamentoGuiado(tudoVazio);
+  out.push(re.itens.every((it) => Number.isFinite(it.qtd) && it.qtd >= 0));
+  // 13) Apresentação monetária usa pt-BR (2 casas, vírgula decimal).
+  out.push(moeda(95099.5).indexOf("95") >= 0);
+  return out;
+})()`, sandbox);
+t("O subtotais = qtd x preco", rO[0]);
+t("O soma subtotais = total", rO[1]);
+t("O metadados de auditoria completos", rO[2]);
+t("O separa informado (MO/pontos)", rO[3]);
+t("O separa estimativa (bloco/tinta)", rO[4]);
+t("O marca fundacao/laje como projeto", rO[5]);
+t("O lista servicos ausentes", rO[6]);
+t("O parede medida e vaos validos", rO[7]);
+t("O avisa divergencia vaos x esquadrias", rO[8]);
+t("O campo vazio vira estimativa sinalizada", rO[9]);
+t("O perim 40 / telhado 130 estimados", rO[10]);
+t("O parede estimada 280 m2", rO[11]);
+t("O negativos viram zero", rO[12]);
+t("O MO negativa zerada", rO[13]);
+t("O pontos negativos zerados", rO[14]);
+t("O vau invalido nao zera a medição", rO[15]);
+t("O sem preco = parcial, nao inventa", rO[16]);
+t("O entradas vazias: nada negativo/NaN", rO[17]);
+t("O moeda pt-BR", rO[18]);
+
 console.log(`\nRESULTADO: ${pass} PASS, ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

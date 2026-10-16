@@ -2,11 +2,13 @@
    orcamento.js — Orçamento da obra (estimativa guiada)
    -----------------------------------------------------
    Fluxo: área da obra + PREÇOS cadastrados → QUANTITATIVO
-   (determinístico) → CUSTO → BDI → estimativa salva no
-   aparelho e sincronizada com o Supabase.
+   (determinístico) → CUSTO DIRETO. NÃO aplica BDI/impostos/margem:
+   este fluxo guiado entrega uma ESTIMATIVA PRELIMINAR aproximada.
+   O valor pode ser salvo no aparelho e sincronizado com o Supabase.
    - Cálculos 100% determinísticos a partir de PARÂMETROS
      declarados abaixo (sem número mágico escondido).
    - Preço ausente = "sem preço" (nunca inventa).
+   - O relatório "Auditoria do orçamento" mostra a origem de cada número.
    ===================================================== */
 
 // ---------- PARÂMETROS (editáveis, documentados) ----------
@@ -18,8 +20,8 @@ const PARAMS_ORC = {
   PRECO_PISO_M2: { valor: null, unidade: "R$/m²", obs: "Ex: 45,00 — preencher por obra/região" },
   // Parede: m² de parede por m² de área (média de casas térreas simples)
   PAREDE_POR_AREA: { valor: 2.8, unidade: "m²/m²", obs: "média; ajuste por obra" },
-  BLOCO_M2: { valor: 12.5, unidade: "un/m²", obs: "bloco 14x19x39 com junta" },
-  TIJOLO_M2: { valor: 25, unidade: "un/m²", obs: "tijolo 6 furos deitado" },
+  BLOCO_M2: { valor: 12.5, unidade: "un/m²", obs: "bloco 14x19x39 com junta de 1 cm (1/0,20×0,40)" },
+  TIJOLO_M2: { valor: 25, unidade: "un/m²", obs: "tijolo 6 furos — NÃO confere com \"deitado\" (~33 un/m²); conferir peça e assentamento" },
   PERDA_BLOCO: { valor: 0.05, unidade: "fração", obs: "quebras" },
   PRECO_BLOCO_UN: { valor: null, unidade: "R$/un", obs: "Ex: 1,20" },
   PRECO_TIJOLO_UN: { valor: null, unidade: "R$/un", obs: "Ex: 0,90" },
@@ -42,9 +44,13 @@ const PARAMS_ORC = {
   // Laje maciça: concreto e aço por m²
   LAJE_CONC_M3_M2: { valor: 0.12, unidade: "m³/m²", obs: "laje ~12cm" },
   ACO_LAJE_KG_M2: { valor: 12, unidade: "kg/m²", obs: "armação média laje" },
-  // Cobertura: área do telhado sobre a área + telha romana
+  // Cobertura: área do telhado sobre a área + telha por m²
+  // OBS: 16 un/m² equivale a telha de peça pequena (coloniale/paulista, cobertura
+  // efetiva ~0,06 m²). NÃO é telha romana (cerâmica de peça grande, que cobre
+  // ~0,10–0,12 m² → 8–10 un/m²). O número NÃO foi alterado; apenas o rótulo
+  // estava trocado. Confirme o modelo da telha antes de usar o orçamento.
   TELHADO_FATOR: { valor: 1.3, unidade: "fração", obs: "telhado sobre a área" },
-  TELHA_M2: { valor: 16, unidade: "un/m²", obs: "telha romana" },
+  TELHA_M2: { valor: 16, unidade: "un/m²", obs: "peça pequena (~0,06 m²); NÃO é romana — conferir modelo" },
   PRECO_TELHA_UN: { valor: null, unidade: "R$/un", obs: "telha romana" },
   MADEIRAMENTO_M2: { valor: null, unidade: "R$/m²", obs: "madeiramento instalado" },
 };
@@ -365,12 +371,17 @@ function calcularOrcamentoGuiado(e) {
   const paredeOrigem = geo
     ? `medido: ${gComp}×${gAlt} − vãos = ${geo.liquida} m²`
     : `estimado: ${area} × ${PARAMS_ORC.PAREDE_POR_AREA.valor}`;
+  // Flags de transparência: o que veio do usuário e o que o sistema estimou.
+  const geoMedida = !!geo;
+  const vaosInvalidos = geo ? (geo.invalidos || 0) : 0;
   const qPiso = area * PARAMS_ORC.PISO_PERC_AREA.valor * (1 + PARAMS_ORC.PERDA_PISO.valor);
   const consUn = sist === "bloco" ? PARAMS_ORC.BLOCO_M2.valor : PARAMS_ORC.TIJOLO_M2.valor;
   const qAlv = Math.ceil(areaParede * consUn * (1 + PARAMS_ORC.PERDA_BLOCO.valor));
   const qCim = Math.ceil(areaParede * PARAMS_ORC.CIMENTO_M2_REBOCO.valor);
   const qTinta = Math.ceil((areaParede / PARAMS_ORC.TINTA_REND_M2_L.valor * PARAMS_ORC.TINTA_DEMAOS.valor) * 10) / 10;
   // Medidas editáveis (vazio = estimativa documentada abaixo)
+  const perimetroInformado = numeroOuZero(e.perimetro) > 0;
+  const telhadoInformado = numeroOuZero(e.telhado) > 0;
   const perim = numeroOuZero(e.perimetro) || Math.round(4 * Math.sqrt(area) * 10) / 10;
   const areaTelhado = numeroOuZero(e.telhado) || Math.round(area * PARAMS_ORC.TELHADO_FATOR.valor * 10) / 10;
   const nPElet = Math.max(0, parseInt(e.peletricos || "0", 10));
@@ -390,28 +401,159 @@ function calcularOrcamentoGuiado(e) {
   const qPortas = quartos + banheiros + 2;
   const qJanelas = quartos + banheiros + 1;
   const itens = [
-    { nome: "Concreto fundação", etapa: "Fundação", unidade: "m³", qtd: Math.round(concFund * 100) / 100, preco: P.concreto, detalhe: [`${perim} m × ${PARAMS_ORC.SAPATA_LARG_M.valor} × ${PARAMS_ORC.SAPATA_ALT_M.valor}`] },
-    { nome: "Aço fundação", etapa: "Fundação", unidade: "kg", qtd: acoFund, preco: P.aco, detalhe: [`${concFund.toFixed(2)} m³ × ${PARAMS_ORC.ACO_FUND_KG_M3.valor} kg/m³`] },
-    { nome: "Concreto laje", etapa: "Estrutura", unidade: "m³", qtd: Math.round(concLaje * 100) / 100, preco: P.concreto, detalhe: [`${area} m² × ${PARAMS_ORC.LAJE_CONC_M3_M2.valor}`] },
-    { nome: "Aço laje", etapa: "Estrutura", unidade: "kg", qtd: acoLaje, preco: P.aco, detalhe: [`${area} m² × ${PARAMS_ORC.ACO_LAJE_KG_M2.valor} kg/m²`] },
-    { nome: "Piso cerâmico", etapa: "Pisos", unidade: "m²", qtd: Math.round(qPiso * 10) / 10, preco: P.piso, detalhe: [`${area} m² × ${PARAMS_ORC.PISO_PERC_AREA.valor} × ${(1 + PARAMS_ORC.PERDA_PISO.valor).toFixed(2)}`] },
-    { nome: sist === "bloco" ? "Bloco de concreto" : "Tijolo cerâmico", etapa: "Alvenaria", unidade: "un", qtd: qAlv, preco: P.bloco, detalhe: [`${areaParede.toFixed(1)} m² × ${consUn} un/m²`] },
-    { nome: "Cimento (reboco)", etapa: "Reboco e revestimentos", unidade: "sacos", qtd: qCim, preco: P.cimento, detalhe: [`${areaParede.toFixed(1)} m² × ${PARAMS_ORC.CIMENTO_M2_REBOCO.valor}`] },
-    { nome: "Tinta", etapa: "Pintura", unidade: "L", qtd: qTinta, preco: P.tinta, detalhe: [`${areaParede.toFixed(1)} m² ÷ ${PARAMS_ORC.TINTA_REND_M2_L.valor} × ${PARAMS_ORC.TINTA_DEMAOS.valor}`] },
-    { nome: "Portas (estimativa: cômodos + 2)", etapa: "Esquadrias", unidade: "un", qtd: qPortas, preco: P.porta, detalhe: ["Estimativa pelos cômodos — confirmar no projeto"] },
-    { nome: "Janelas (estimativa: cômodos + 1)", etapa: "Esquadrias", unidade: "un", qtd: qJanelas, preco: P.janela, detalhe: ["Estimativa pelos cômodos — confirmar no projeto"] },
-    { nome: "Telhas", etapa: "Cobertura", unidade: "un", qtd: qTelha, preco: P.telha, detalhe: [`${areaTelhado} m² × ${PARAMS_ORC.TELHA_M2.valor} un/m²`] },
-    { nome: "Madeiramento", etapa: "Cobertura", unidade: "m²", qtd: areaTelhado, preco: P.madeiramento, detalhe: [`${areaTelhado} m² de telhado`] },
-    { nome: "Pontos elétricos", etapa: "Elétrica", unidade: "pt", qtd: nPElet, preco: P.peletrico, detalhe: [nPElet ? `${nPElet} pontos informados` : "Informe os pontos"] },
-    { nome: "Pontos hidráulicos", etapa: "Hidráulica", unidade: "pt", qtd: nPHidr, preco: P.phidraulico, detalhe: [nPHidr ? `${nPHidr} pontos informados` : "Informe os pontos"] },
-    { nome: "Mão de obra", etapa: "Mão de obra", unidade: "diárias", qtd: moDias, preco: moDiaria || null, detalhe: [moDias ? `${moDias} dias × ${moeda(moDiaria || 0)}` : "Informe dias e diária"] },
-    { nome: "Transporte", etapa: "Outros", unidade: "R$", qtd: transporte ? 1 : 0, preco: transporte || null, detalhe: ["Valor informado"] },
-    { nome: "Outros", etapa: "Outros", unidade: "R$", qtd: outros ? 1 : 0, preco: outros || null, detalhe: ["Valor informado"] },
+    { nome: "Concreto fundação", etapa: "Fundação", unidade: "m³", qtd: Math.round(concFund * 100) / 100, preco: P.concreto, detalhe: [`${perim} m × ${PARAMS_ORC.SAPATA_LARG_M.valor} × ${PARAMS_ORC.SAPATA_ALT_M.valor}`],
+      coef: `sapata ${PARAMS_ORC.SAPATA_LARG_M.valor}×${PARAMS_ORC.SAPATA_ALT_M.valor} m`,
+      formula: "perímetro × largura × altura da sapata",
+      origem: perimetroInformado ? "perímetro informado + seção padrão" : "perímetro estimado da área + seção padrão",
+      conf: 3, limitacao: "Sem projeto estrutural: não considera tipo de solo, escavação, baldrame, pilares ou vigas." },
+    { nome: "Aço fundação", etapa: "Fundação", unidade: "kg", qtd: acoFund, preco: P.aco, detalhe: [`${concFund.toFixed(2)} m³ × ${PARAMS_ORC.ACO_FUND_KG_M3.valor} kg/m³`],
+      coef: `${PARAMS_ORC.ACO_FUND_KG_M3.valor} kg/m³`,
+      formula: "volume de concreto × aço por m³",
+      origem: "coeficiente médio de armação (sem projeto)",
+      conf: 3, limitacao: "Armação genérica: não substitui memória de cálculo estrutural." },
+    { nome: "Concreto laje", etapa: "Estrutura", unidade: "m³", qtd: Math.round(concLaje * 100) / 100, preco: P.concreto, detalhe: [`${area} m² × ${PARAMS_ORC.LAJE_CONC_M3_M2.valor}`],
+      coef: `${PARAMS_ORC.LAJE_CONC_M3_M2.valor} m³/m² (~12 cm)`,
+      formula: "área construída × espessura por m²",
+      origem: "área informada + espessura padrão",
+      conf: 3, limitacao: "Assume laje maciça em toda a área: pode ser premoldada, ter sobrado ou não existir." },
+    { nome: "Aço laje", etapa: "Estrutura", unidade: "kg", qtd: acoLaje, preco: P.aco, detalhe: [`${area} m² × ${PARAMS_ORC.ACO_LAJE_KG_M2.valor} kg/m²`],
+      coef: `${PARAMS_ORC.ACO_LAJE_KG_M2.valor} kg/m²`,
+      formula: "área construída × aço por m²",
+      origem: "coeficiente médio de armação (sem projeto)",
+      conf: 3, limitacao: "Armação genérica: não substitui memória de cálculo estrutural." },
+    { nome: "Piso cerâmico", etapa: "Pisos", unidade: "m²", qtd: Math.round(qPiso * 10) / 10, preco: P.piso, detalhe: [`${area} m² × ${PARAMS_ORC.PISO_PERC_AREA.valor} × ${(1 + PARAMS_ORC.PERDA_PISO.valor).toFixed(2)}`],
+      coef: `${PARAMS_ORC.PISO_PERC_AREA.valor} da área + ${PARAMS_ORC.PERDA_PISO.valor * 100}% perda`,
+      formula: "área construída × fração piso × (1 + perda)",
+      origem: "área informada + fração e perda padrão",
+      conf: 2, limitacao: "Não desconta paredes nem separa áreas externas (varanda, calçada, quintal)." },
+    { nome: sist === "bloco" ? "Bloco de concreto" : "Tijolo cerâmico", etapa: "Alvenaria", unidade: "un", qtd: qAlv, preco: P.bloco, detalhe: [`${areaParede.toFixed(1)} m² × ${consUn} un/m²`],
+      coef: `${consUn} un/m² + ${PARAMS_ORC.PERDA_BLOCO.valor * 100}% perda`,
+      formula: geoMedida
+        ? "parede medida (comprimento × altura − vãos) × consumo/m² × (1 + perda)"
+        : "área × fator de parede × consumo/m² × (1 + perda)",
+      origem: geoMedida ? "medidas de parede e vãos informados" : "estimativa por fator de parede por área",
+      conf: 2, limitacao: geoMedida
+        ? "Não diferencia espessura nem paredes internas/externas; vergas e peitoris não descontados."
+        : "Parede NÃO medida: quantidade vem de fator médio por área — informe comprimento, altura e vãos para melhorar." },
+    { nome: "Cimento (reboco)", etapa: "Reboco e revestimentos", unidade: "sacos", qtd: qCim, preco: P.cimento, detalhe: [`${areaParede.toFixed(1)} m² × ${PARAMS_ORC.CIMENTO_M2_REBOCO.valor}`],
+      coef: `${PARAMS_ORC.CIMENTO_M2_REBOCO.valor} saco/m² de parede`,
+      formula: "área de parede × cimento por m² de reboco",
+      origem: geoMedida ? "parede medida + consumo padrão de reboco" : "parede estimada + consumo padrão de reboco",
+      conf: 2, limitacao: "SOMENTE reboco de parede: NÃO é o cimento da obra. Não inclui assentamento de alvenaria, chapisco, contrapiso, baldrame, pilar nem perda." },
+    { nome: "Tinta", etapa: "Pintura", unidade: "L", qtd: qTinta, preco: P.tinta, detalhe: [`${areaParede.toFixed(1)} m² ÷ ${PARAMS_ORC.TINTA_REND_M2_L.valor} × ${PARAMS_ORC.TINTA_DEMAOS.valor}`],
+      coef: `${PARAMS_ORC.TINTA_REND_M2_L.valor} m²/L por demão × ${PARAMS_ORC.TINTA_DEMAOS.valor} demãos`,
+      formula: "área de parede ÷ rendimento × demãos",
+      origem: geoMedida ? "parede medida + rendimento padrão" : "parede estimada + rendimento padrão",
+      conf: 2, limitacao: "Pinta UMA face das paredes: paredes internas têm duas faces. Não inclui teto nem demão de impermeabilização." },
+    { nome: "Portas (estimativa: cômodos + 2)", etapa: "Esquadrias", unidade: "un", qtd: qPortas, preco: P.porta, detalhe: ["Estimativa pelos cômodos — confirmar no projeto"],
+      coef: "quartos + banheiros + 2",
+      formula: "número de cômodos + 2",
+      origem: "estimativa automática pelos cômodos informados",
+      conf: 2, limitacao: "PROVISÓRIO: não usa o projeto. Não confere portas com os vãos informados nem com sala/cozinha." },
+    { nome: "Janelas (estimativa: cômodos + 1)", etapa: "Esquadrias", unidade: "un", qtd: qJanelas, preco: P.janela, detalhe: ["Estimativa pelos cômodos — confirmar no projeto"],
+      coef: "quartos + banheiros + 1",
+      formula: "número de cômodos + 1",
+      origem: "estimativa automática pelos cômodos informados",
+      conf: 2, limitacao: "PROVISÓRIO: não usa o projeto. Não confere janelas com os vãos informados." },
+    { nome: "Telhas", etapa: "Cobertura", unidade: "un", qtd: qTelha, preco: P.telha, detalhe: [`${areaTelhado} m² × ${PARAMS_ORC.TELHA_M2.valor} un/m²`],
+      coef: `${PARAMS_ORC.TELHA_M2.valor} un/m²`,
+      formula: "área de telhado × telhas por m²",
+      origem: telhadoInformado ? "área de telhado informada + consumo padrão" : "área de telhado ESTIMADA pela área construída + consumo padrão",
+      conf: 2, limitacao: `Consumo de ${PARAMS_ORC.TELHA_M2.valor} un/m² é de peça pequena, NÃO de telha romana (8–10 un/m²). Não inclui inclinação, cumeeira, calha ou rufo. Confirme o modelo da telha.` },
+    { nome: "Madeiramento", etapa: "Cobertura", unidade: "m²", qtd: areaTelhado, preco: P.madeiramento, detalhe: [`${areaTelhado} m² de telhado`],
+      coef: "1 m² de madeiramento por m² de telhado",
+      formula: "área de telhado × 1",
+      origem: telhadoInformado ? "área de telhado informada" : "área de telhado estimada",
+      conf: 2, limitacao: "Não detalha terças, cumeeira, ferragens nem impermeabilização." },
+    { nome: "Pontos elétricos", etapa: "Elétrica", unidade: "pt", qtd: nPElet, preco: P.peletrico, detalhe: [nPElet ? `${nPElet} pontos informados` : "Informe os pontos"],
+      coef: "1 ponto informado", formula: "soma dos pontos elétricos informados",
+      origem: nPElet ? "pontos informados pelo usuário" : "NÃO INFORMADO",
+      conf: nPElet ? 1 : 3, limitacao: "Só o ponto: não inclui fiação, quadro, disjuntores, aterramento nem mão de obra elétrica." },
+    { nome: "Pontos hidráulicos", etapa: "Hidráulica", unidade: "pt", qtd: nPHidr, preco: P.phidraulico, detalhe: [nPHidr ? `${nPHidr} pontos informados` : "Informe os pontos"],
+      coef: "1 ponto informado", formula: "soma dos pontos hidráulicos informados",
+      origem: nPHidr ? "pontos informados pelo usuário" : "NÃO INFORMADO",
+      conf: nPHidr ? 1 : 3, limitacao: "Só o ponto: não inclui tubos, conexões, louças, metais, aquecedor nem mão de obra hidráulica." },
+    { nome: "Mão de obra", etapa: "Mão de obra", unidade: "diárias", qtd: moDias, preco: moDiaria || null, detalhe: [moDias ? `${moDias} dias × ${moeda(moDiaria || 0)}` : "Informe dias e diária"],
+      coef: `${moDias} diárias × ${moeda(moDiaria)}`,
+      formula: "número de diárias × valor da diária",
+      origem: (moDias && moDiaria) ? "dias e diária informados pelo usuário" : "NÃO INFORMADO",
+      conf: (moDias && moDiaria) ? 1 : 3, limitacao: "ESCPO NÃO DEFINIDO: se as diárias já incluírem pintura, elétrica ou hidráulica, esses serviços estão cobrados DUAS VEZES." },
+    { nome: "Transporte", etapa: "Outros", unidade: "R$", qtd: transporte ? 1 : 0, preco: transporte || null, detalhe: ["Valor informado"],
+      coef: "valor fixo", formula: "valor informado pelo usuário",
+      origem: transporte ? "valor informado pelo usuário" : "NÃO INFORMADO",
+      conf: transporte ? 1 : 3, limitacao: "Não é calculado pelo sistema: confira se cobre todas as entregas de material." },
+    { nome: "Outros", etapa: "Outros", unidade: "R$", qtd: outros ? 1 : 0, preco: outros || null, detalhe: ["Valor informado"],
+      coef: "valor fixo", formula: "valor informado pelo usuário",
+      origem: outros ? "valor informado pelo usuário" : "NÃO INFORMADO",
+      conf: outros ? 1 : 3, limitacao: "Rubrica genérica: não substitui os serviços ausentes listados na auditoria." },
   ];
   for (const it of itens) it.total = it.preco ? it.qtd * it.preco : null;
   const total = itens.reduce((s, it) => s + (it.total || 0), 0);
   const semPreco = itens.filter((it) => it.total === null).length;
-  return { area, quartos, banheiros, sist, itens, total, semPreco, areaParede, paredeOrigem, perim, areaTelhado };
+  // Divergência entre vãos informados e esquadrias estimadas (aviso de transparência).
+  const esquadriasEstimadas = qPortas + qJanelas;
+  const vaosInformados = geoMedida ? gVaos.length - vaosInvalidos : 0;
+  const vaosDivergem = geoMedida && vaosInformados > 0 && esquadriasEstimadas !== vaosInformados;
+  return { area, quartos, banheiros, sist, itens, total, semPreco, areaParede, paredeOrigem, perim, areaTelhado,
+    geoMedida, vaosInvalidos, vaosInformados, esquadriasEstimadas, vaosDivergem,
+    perimetroInformado, telhadoInformado };
+}
+
+// ---------- Relatório de auditoria (puro / testável) ----------
+// Classificação de confiança por item. NÃO é garantia de segurança estrutural
+// nem de precisão do orçamento — só indica de onde o número veio.
+const ORC_CONF = {
+  1: "Calculado com dados informados",
+  2: "Estimativa por coeficiente",
+  3: "Requer projeto ou confirmação técnica",
+};
+// Serviços que o orçamento NÃO calcula. Lista documental: sem valores fictícios.
+const ORC_AUSENTES = [
+  { item: "Cimento de assentamento da alvenaria", etapa: "Alvenaria", dado: "consumo de argamassa por m² de parede e espessura da parede" },
+  { item: "Chapisco / emboço", etapa: "Reboco e revestimentos", dado: "área a chapiscar e espessura" },
+  { item: "Concretos secundários (baldrame, pilares, vigas, escada)", etapa: "Estrutura", dado: "projeto estrutural" },
+  { item: "Escavação, contenção e impermeabilização da fundação", etapa: "Fundação", dado: "tipo de solo e projeto" },
+  { item: "Contrapiso (regularização do piso)", etapa: "Pisos", dado: "área e espessura do contrapiso" },
+  { item: "Impermeabilização de laje, cozinha e área de serviço", etapa: "Impermeabilização", dado: "área a impermeabilizar" },
+  { item: "Forro (gesso, PVC, madeira)", etapa: "Forros", dado: "área de forro e tipo" },
+  { item: "Cumeeira, calhas, rufo e beiral", etapa: "Cobertura", dado: "perímetro e tipo de telhado" },
+  { item: "Fiação, quadro de distribuição e disjuntores", etapa: "Elétrica", dado: "projeto elétrico (nº de circuitos)" },
+  { item: "Tubos, conexões, louças e metais hidráulicos", etapa: "Hidráulica", dado: "projeto hidráulico" },
+  { item: "Ferragens, vidros e mosquiteiras das esquadrias", etapa: "Esquadrias", dado: "projeto de esquadrias" },
+  { item: "Revestimento de bancadas e áreas molhadas", etapa: "Revestimentos", dado: "área de bancadas e tipo de revestimento" },
+  { item: "Pintura de teto e demais superfícies", etapa: "Pintura", dado: "área de teto e de outras superfícies" },
+  { item: "Louças e metais (vasos, torneiras, chuveiros)", etapa: "Hidráulica", dado: "quantidade e padrão dos itens" },
+  { item: "Pintura de esquadrias, madeiras e metais", etapa: "Pintura", dado: "quantidade de esquadrias e madeiramento" },
+  { item: "Projeto técnico, ART e taxas de licença", etapa: "Administrativo", dado: "orçamento do profissional responsável" },
+  { item: "BDI, impostos, contingência e margem", etapa: "Comercial", dado: "percentuais de encargos desejados" },
+];
+function montarAuditoriaOrcamento(r) {
+  const linhas = r.itens.map((it) => ({
+    nome: it.nome, etapa: it.etapa, qtd: it.qtd, unidade: it.unidade,
+    coef: it.coef || "—", formula: it.formula || "—", preco: it.preco,
+    total: it.total, origem: it.origem || "—",
+    conf: it.conf || 2, confRotulo: ORC_CONF[it.conf || 2],
+    limitacao: it.limitacao || null,
+  }));
+  const porConf = { 1: [], 2: [], 3: [] };
+  for (const l of linhas) porConf[l.conf].push(l.nome);
+  return {
+    linhas, porConf,
+    ausentes: ORC_AUSENTES,
+    // Campos que o usuário informou e que o sistema ESTIMOU sozinho.
+    informados: {
+      area: r.area > 0, quartos: r.quartos > 0, banheiros: r.banheiros > 0,
+      paredesMedidas: r.geoMedida, perimetro: r.perimetroInformado,
+      telhado: r.telhadoInformado, pontosEletricos: r.itens.some((i) => i.nome === "Pontos elétricos" && i.qtd > 0),
+      pontosHidraulicos: r.itens.some((i) => i.nome === "Pontos hidráulicos" && i.qtd > 0),
+      maoDeObra: r.itens.some((i) => i.nome === "Mão de obra" && i.qtd > 0 && i.preco),
+    },
+    estimados: {
+      paredes: !r.geoMedida, perimetro: !r.perimetroInformado,
+      telhado: !r.telhadoInformado, portasJanelas: true,
+      fundacaoLaje: true,
+    },
+  };
 }
 
 // Lê os campos da tela (DOM) para o objeto de entrada do motor puro.
@@ -461,17 +603,21 @@ function estimarObra() {
   const area = Number(e.area) || 0;
   if (!(area > 0)) { mostrarToast("Informe a área da casa.", false); return; }
   const r = calcularOrcamentoGuiado(e);
-  const { quartos, banheiros, sist, itens, total, semPreco, areaParede, paredeOrigem } = r;
-  let html = `<div class="card"><p class="texto-suave"><strong>ESTIMATIVA PRELIMINAR</strong> — complete os dados para o detalhado.</p><h3 class="titulo-secao" style="margin-top:0">Vai precisar de cerca de ${moeda(total)}${semPreco ? " (parcial)" : ""}</h3>`;
-  html += `<p class="texto-suave">Casa de ${area} m² • ${quartos} quartos • ${banheiros} banheiros • ${sist === "bloco" ? "Bloco" : "Tijolo"} • <strong>${moeda(total / area)}/m²</strong></p>`;
+  const { quartos, banheiros, sist, itens, total, semPreco, paredeOrigem } = r;
+  const aud = montarAuditoriaOrcamento(r);
+  const parcial = semPreco > 0;
+  let html = `<div class="card"><p class="texto-suave"><strong>ESTIMATIVA PRELIMINAR</strong> — valor APROXIMADO para planejamento. Não use como orçamento de obra.</p><h3 class="titulo-secao" style="margin-top:0">Cerca de ${moeda(total)}${parcial ? " (parcial — falta preço de " + semPreco + " item(ns))" : ""}</h3>`;
+  html += `<p class="texto-suave">Custo DIRETO (sem BDI, impostos, margem nem contingência). ${area} m² • ${quartos} quartos • ${banheiros} banheiros • ${sist === "bloco" ? "Bloco" : "Tijolo"} • <strong>${moeda(total / area)}/m²</strong>${parcial ? " — este /m² é parcial" : ""}</p>`;
   html += `<p class="texto-suave">Parede: ${paredeOrigem}.</p>`;
   for (const it of itens) {
-    html += `<p><strong>${proteger(it.nome)}</strong>: ${it.qtd} ${proteger(it.unidade)} × ` +
+    const qtdTxt = it.unidade === "R$" ? "valor fixo" : `${it.qtd} ${proteger(it.unidade)}`;
+    html += `<p><strong>${proteger(it.nome)}</strong>: ${qtdTxt} × ` +
       `${it.preco ? moeda(it.preco) : "sem preço"} = <strong>${it.total === null ? "—" : moeda(it.total)}</strong></p>`;
   }
   if (semPreco) html += `<p class="texto-suave">Faltam ${semPreco} preço(s) — preencha no passo 1.</p>`;
   html += `<p class="texto-suave">Estimativa preliminar: portas e janelas chutadas pelos cômodos. Confirme no projeto.</p>`;
   html += `<button class="btn btn-primario btn-grande" id="og-salvar">Salvar orçamento</button></div>`;
+  html += desenharAuditoriaOrcamento(r, aud);
   const box = document.getElementById("og-resultado");
   if (!box) return;
   box.innerHTML = html;
@@ -499,6 +645,59 @@ function estimarObra() {
     try { if (typeof renderOrcamentosSalvos === "function") renderOrcamentosSalvos(); } catch (err) {}
   });
   box.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ---------- Painel "Auditoria do orçamento" (só apresentação) ----------
+// Mostra, item a item, de onde veio cada número. NÃO altera cálculo nenhum.
+function desenharAuditoriaOrcamento(r, aud) {
+  const chip = (conf) => {
+    const cls = conf === 1 ? "aud-ok" : conf === 2 ? "aud-medio" : "aud-alerta";
+    return `<span class="aud-chip ${cls}">${ORC_CONF[conf]}</span>`;
+  };
+  // Avisos de transparência derivados dos dados reais do cálculo.
+  const avisos = [];
+  if (!r.geoMedida) avisos.push("Paredes NÃO medidas: alvenaria, cimento e tinta usam um fator médio por área (2,8 m² de parede por m² de casa). Informe comprimento, altura e vãos para melhorar.");
+  if (r.vaosInvalidos) avisos.push(`${r.vaosInvalidos} vau(s) com formato inválido foram ignorados. Use o formato 0,80x2,10 separados por ponto e vírgula.`);
+  if (r.vaosDivergem) avisos.push(`Foram informados ${r.vaosInformados} vau(s), mas a regra de cômodos estima ${r.esquadriasEstimadas} portas+janelas. Confira no projeto — pode haver porta ou janela não prevista.`);
+  if (!r.perimetroInformado) avisos.push("Perímetro não informado: a fundação usa um perímetro estimado pela área.");
+  if (!r.telhadoInformado) avisos.push("Área de telhado não informada: telhas e madeiramento usam um valor estimado pela área construída.");
+  const mo = r.itens.find((i) => i.nome === "Mão de obra");
+  if (mo && mo.qtd > 0 && mo.preco) avisos.push("A Mão de obra não tem escopo definido: se as diárias já incluírem pintura, elétrica ou hidráulica, esses serviços aparecem cobrados DUAS VEZES.");
+  avisos.push("Este total NÃO é um orçamento fechado: revise com responsável técnico antes de contratar.");
+
+  let h = `<div class="card aud-card"><h3 class="titulo-secao" style="margin-top:0">Auditoria do orçamento</h3>`;
+  h += `<p class="texto-suave">Cada linha abaixo mostra como o número foi obtido. A classificação indica a ORIGEM do dado — não é garantia de segurança estrutural nem de precisão do orçamento.</p>`;
+  if (avisos.length) {
+    h += `<div class="aud-avisos"><strong>Pontos de atenção</strong><ul>`;
+    for (const a of avisos) h += `<li>${a}</li>`;
+    h += `</ul></div>`;
+  }
+  h += `<div class="aud-resumo">`;
+  h += `<div><strong>Informado por você</strong><ul>${Object.keys(aud.informados).filter((k) => aud.informados[k]).map((k) => `<li>${k}</li>`).join("") || "<li class='texto-suave'>nenhum</li>"}</ul></div>`;
+  h += `<div><strong>Estimado pelo sistema</strong><ul>${Object.keys(aud.estimados).filter((k) => aud.estimados[k]).map((k) => `<li>${k}</li>`).join("") || "<li class='texto-suave'>nenhum</li>"}</ul></div>`;
+  h += `</div>`;
+  h += `<p class="texto-suave"><strong>Itens por nível:</strong> informado: ${aud.porConf[1].length} • coeficiente: ${aud.porConf[2].length} • requer projeto: ${aud.porConf[3].length}</p>`;
+  h += `<table class="aud-tabela"><thead><tr><th>Material / serviço</th><th>Qtd.</th><th>Un.</th><th>Coeficiente</th><th>Fórmula</th><th>Preço unit.</th><th>Subtotal</th><th>Origem</th><th>Confiança</th><th>Limitações</th></tr></thead><tbody>`;
+  for (const l of aud.linhas) {
+    h += `<tr><td data-l="Material">${proteger(l.nome)}</td>` +
+      `<td data-l="Qtd.">${l.qtd}</td>` +
+      `<td data-l="Un.">${proteger(l.unidade)}</td>` +
+      `<td data-l="Coeficiente">${l.coef}</td>` +
+      `<td data-l="Fórmula">${l.formula}</td>` +
+      `<td data-l="Preço unit.">${l.preco ? moeda(l.preco) : "sem preço"}</td>` +
+      `<td data-l="Subtotal"><strong>${l.total === null ? "—" : moeda(l.total)}</strong></td>` +
+      `<td data-l="Origem">${l.origem}</td>` +
+      `<td data-l="Confiança">${chip(l.conf)}</td>` +
+      `<td data-l="Limitações" class="aud-limitacao">${l.limitacao || "—"}</td></tr>`;
+  }
+  h += `</tbody></table>`;
+  h += `<h4 class="aud-subtitulo">O que NÃO está neste orçamento</h4>`;
+  h += `<p class="texto-suave">Serviços e materiais ausentes — sem valor porque os dados necessários não foram informados:</p><ul class="aud-ausentes">`;
+  for (const a of aud.ausentes) h += `<li><strong>${a.item}</strong> <span class="texto-suave">(${a.etapa}) — falta: ${a.dado}</span></li>`;
+  h += `</ul>`;
+  h += `<p class="texto-suave">O total acima é <strong>custo direto aproximado</strong>. Não inclui os itens desta lista, nem BDI, impostos ou margem. Confirme com responsável técnico antes de usar na obra.</p>`;
+  h += `</div>`;
+  return h;
 }
 // ---------- Preenchimento automático para testes ----------
 // Casa fictícia de 100 m². NÃO é uma obra do banco: o seletor fica "sem vínculo".
@@ -691,20 +890,25 @@ function desenharSistema() {
 }
 
 // ---------- Geometria real de paredes (pura, testável) ----------
-// vaos: [{larg, alt}] em metros. Retorna {bruta, vaos, liquida} ou null se inválido.
+// vaos: [{larg, alt}] em metros. Retorna {bruta, vaos, liquida, invalidos} ou null
+// se as dimensões da parede forem inválidas ou se os vãos couberem na parede toda.
+// Vãos MAL FORMADOS não invalidam mais a medição inteira: são ignorados e
+// contabilizados em `invalidos` para o sistema avisar o usuário (antes, UM vau
+// com erro de digitação fazia o sistema descartar a parede medida e cair na
+// estimativa genérica sem aviso).
 function paredeLiquida(comp, alt, vaos) {
   const c = Number(comp), a = Number(alt);
   if (!(c > 0) || !(a > 0)) return null;
-  let v = 0;
+  let v = 0, invalidos = 0;
   for (const x of vaos || []) {
     const l = Number(x.larg), h = Number(x.alt);
-    if (!(l > 0) || !(h > 0)) return null;
+    if (!(l > 0) || !(h > 0)) { invalidos++; continue; }
     v += l * h;
   }
   const bruta = c * a;
   if (v >= bruta) return null;
   const r2 = (n) => Math.round(n * 100) / 100;
-  return { bruta: r2(bruta), vaos: r2(v), liquida: r2(bruta - v) };
+  return { bruta: r2(bruta), vaos: r2(v), liquida: r2(bruta - v), invalidos };
 }
 // Mensagem de salvamento conforme o RESULTADO REAL (sem mentir).
 // Aceita objeto {ok,status} OU boolean (compatibilidade com chamadas antigas).

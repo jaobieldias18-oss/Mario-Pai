@@ -971,3 +971,33 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
 .anel-valor.anel-bom { stroke: #111111; }
 .anel-valor.anel-medio { stroke: var(--cor-destaque); }
 .anel-valor.anel-ruim { stroke: var(--erro); }
+
+
+/* ===== Auditoria do orçamento (painel de transparência) =====
+   Mostra origem de cada número. Não altera cálculo. */
+.aud-card { border: 1px solid var(--borda); }
+.aud-avisos { border-left: 4px solid var(--alerta); background: var(--alerta-fundo, #fff7ed); padding: 10px 12px; margin: 12px 0; border-radius: 6px; font-size: 14px; }
+.aud-avisos ul { margin: 6px 0 0; padding-left: 18px; }
+.aud-avisos li { margin-bottom: 4px; }
+.aud-resumo { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+.aud-resumo ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--texto-sec); }
+.aud-subtitulo { font-size: 15px; margin: 18px 0 6px; }
+.aud-ausentes { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+.aud-ausentes li { margin-bottom: 4px; }
+.aud-tabela { width: 100%; border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+.aud-tabela th, .aud-tabela td { border: 1px solid var(--borda); padding: 7px 8px; text-align: left; vertical-align: top; }
+.aud-tabela th { background: var(--fundo); font-size: 12px; text-transform: uppercase; letter-spacing: .02em; color: var(--texto-sec); }
+.aud-limitacao { color: var(--texto-sec); max-width: 260px; }
+.aud-chip { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 700; line-height: 1.5; }
+.aud-chip.aud-ok { background: var(--sucesso-fundo, #e7f5ee); color: var(--sucesso); }
+.aud-chip.aud-medio { background: var(--alerta-fundo, #fff7ed); color: var(--cor-destaque-escuro); }
+.aud-chip.aud-alerta { background: var(--erro-fundo, #fdecec); color: var(--erro); }
+@media (max-width: 700px) {
+  .aud-resumo { grid-template-columns: 1fr; }
+  .aud-tabela thead { display: none; }
+  .aud-tabela, .aud-tabela tbody, .aud-tabela tr, .aud-tabela td { display: block; width: 100%; }
+  .aud-tabela tr { border: 1px solid var(--borda); margin-bottom: 8px; }
+  .aud-tabela td { border: none; border-bottom: 1px solid var(--borda); }
+  .aud-tabela td::before { content: attr(data-l) ": "; font-weight: 700; color: var(--texto-sec); }
+  .aud-limitacao { max-width: none; }
+}
