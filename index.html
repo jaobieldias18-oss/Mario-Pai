@@ -44,7 +44,7 @@
       <button class="nav-btn" data-ir="financeiro">Financeiro</button>
       <button class="nav-btn" data-ir="visao-geral">Visão Geral</button>
       <button class="nav-btn" data-ir="ia">IA da Obra</button>
-      <button class="nav-btn" data-ir="plantas">Plantas</button>
+
       <button class="nav-btn" data-ir="orcamento">Orçamento</button>
       <button class="nav-btn destaque" data-ir="nova-obra">+ Nova obra</button>
     </nav>
@@ -121,7 +121,7 @@
         </div>
       </div>
       <button class="btn btn-texto" data-ir="financeiro">Ver financeiro →</button>
-      <button class="btn btn-texto" data-ir="plantas">Ler planta da obra →</button>
+
 
       <!-- Totais gerais (dobrável) -->
       <details class="faixa-totais" aria-label="Resumo geral">
@@ -519,31 +519,7 @@
         <p class="texto-suave">MARIO · Controle financeiro de obras.<br />Seus dados ficam salvos e sincronizados.</p>
       </div>
     </section>
-    <!-- ===== TELA: PLANTAS (leitura de medidas) ===== -->
-    <section id="tela-plantas" class="tela">
-      <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
-      <h2 class="titulo-secao">Plantas</h2>
-      <p class="texto-suave">Fotografe a planta baixa e receba as medidas e áreas.</p>
-      <div class="card">
-        <div class="form">
-          <label class="campo"><span>Foto da planta</span>
-            <input type="file" id="planta-foto" accept="image/*" />
-          </label>
-          <img id="planta-previa" class="foto-mini" alt="Prévia da planta" hidden />
-          <label class="campo"><span>Obra (opcional)</span>
-            <select id="planta-obra"><option value="">Sem obra vinculada</option></select>
-          </label>
-          <button class="btn btn-primario btn-grande" id="btn-analisar">Ler planta</button>
-          <p class="texto-suave" id="planta-status"></p>
-        </div>
-      </div>
-      <div id="planta-resultado"></div>
-      <div id="orcamento-area" hidden></div>
-      <h3 class="titulo-secao">Meus orçamentos</h3>
-      <div id="lista-orcamentos" class="lista"></div>
-      <h3 class="titulo-secao">Leituras anteriores</h3>
-      <div id="lista-plantas" class="lista"></div>
-    </section>
+
     <!-- ===== TELA: IA DA OBRA (assistente) ===== -->
     <section id="tela-ia" class="tela">
       <button class="btn-voltar" data-ir="dashboard">← Voltar</button>
@@ -839,7 +815,7 @@
     <button class="nav-item" data-ir="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Início</span></button>
     <button class="nav-item" data-ir="financeiro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg><span>Financeiro</span></button>
     <button class="nav-item" data-ir="visao-geral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 20V10M12 20V4M6 20v-6"/></svg><span>Visão Geral</span></button>
-    <button class="nav-item" data-ir="plantas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg><span>Plantas</span></button>
+
     <button class="nav-item acao" data-ir="nova-obra"><span class="nav-mais">＋</span><span>Nova obra</span></button>
   </nav>
 
@@ -849,7 +825,7 @@
   <script src="auth.js?v=1"></script>
   <script src="outbox.js?v=16"></script>
   <script src="script.js?v=16"></script>
-  <script src="plantas.js?v=17"></script>
+
   <script src="orcamento.js?v=3"></script>
   <script src="materiais.js?v=2"></script>
   <script src="composicoes.js?v=1"></script>

@@ -320,7 +320,7 @@ function listarMesesComMovimento() {
 }
 
 // ---------- 6. NAVEGAÇÃO ----------
-const telas = ["dashboard", "nova-obra", "obra", "financeiro", "visao-geral", "opcoes", "plantas"];
+const telas = ["dashboard", "nova-obra", "obra", "financeiro", "visao-geral", "opcoes"];
 
 function mostrarTela(nome) {
   // Sem conta, tudo vira a entrada (auth.js controla a sessão)
@@ -340,7 +340,6 @@ function mostrarTela(nome) {
     composicoes: "tela-composicoes",
     orcamento: "tela-orcamento-ia",
     materiais: "tela-materiais",
-    plantas: "tela-plantas",
   };
   document.querySelectorAll(".tela").forEach((el) => el.classList.remove("ativa"));
   document.getElementById(mapa[nome]).classList.add("ativa");

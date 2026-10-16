@@ -124,37 +124,8 @@ async function iaConversar(pergunta, contexto) {
       if (tent < 2) await new Promise((r) => setTimeout(r, 3000));
     }
   }
-  // 2) Reserva: modo conversa da função de plantas (envia contexto e requer autenticação via token)
-  try {
-    const sess = (sb && sb.auth && typeof sb.auth.getSession === "function")
-      ? await sb.auth.getSession().catch(() => null) : null;
-    const token = (sess && sess.data && sess.data.session && sess.data.session.access_token) || null;
-    const resp = await fetch(
-      "https://wmcrbjlzsqveekwifded.supabase.co/functions/v1/analisar-planta",
-      {
-        method: "POST",
-        headers: Object.assign(
-          { "Content-Type": "application/json" },
-          token ? { Authorization: "Bearer " + token } : {}
-        ),
-        body: JSON.stringify({ modo: "chat", pergunta: perguntaLim, contexto: contextoLim }),
-      }
-    );
-    if (resp.ok) {
-      const j = await resp.json();
-      if (j.resposta) return String(j.resposta).trim();
-    }
-    if (resp.status === 401) {
-      throw new Error("Sessão inválida. Faça login novamente.");
-    }
-    if (resp.status === 429) {
-      throw new Error("Limite de uso da IA atingido. Aguarde um minuto e tente novamente.");
-    }
-    throw new Error("IA temporariamente indisponível.");
-  } catch (e) {
-    console.error("chat servidor:", e);
-    throw new Error((e && e.message) ? e.message : "IA temporariamente indisponível.");
-  }
+  // Fallback server-side não disponível após remoção do módulo de plantas.
+  throw new Error("IA temporariamente indisponível.");
 }
 function contextoEscopo() {
   const lista = obrasNoEscopo();
