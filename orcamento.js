@@ -129,7 +129,31 @@ function desenharRaioX() {
   });
 }
 
-// ---------- Orçamentos salvos (ver, duplicar, excluir) ----------
+// ---------- Orçamentos salvos (ver, duplicar, comparar, excluir) ----------
+function elOrcDetalhe() { return document.getElementById("orcamento-detalhe"); }
+function nomeObraOrc(obraId) {
+  try {
+    if (obraId && typeof pegarObra === "function") {
+      const o = pegarObra(obraId);
+      if (o && o.nome) return o.nome;
+    }
+  } catch (e) {}
+  return null;
+}
+// Preenche o seletor de obras da tela com as obras cadastradas.
+function atualizarObrasOrcamento() {
+  const sel = document.getElementById("og-obra");
+  if (!sel) return;
+  const atual = sel.value;
+  sel.innerHTML = `<option value="">Sem vínculo</option>`;
+  for (const o of obras || []) {
+    const op = document.createElement("option");
+    op.value = o.id;
+    op.textContent = o.nome;
+    sel.appendChild(op);
+  }
+  if (atual) sel.value = atual;
+}
 async function renderOrcamentosSalvos() {
   const lista = document.getElementById("lista-orcamentos");
   if (!lista) return;
@@ -157,12 +181,13 @@ async function renderOrcamentosSalvos() {
   for (const o of salvos) {
     const div = document.createElement("div");
     div.className = "item";
+    const obra = nomeObraOrc(o.obraId);
     div.innerHTML = `
       <div class="item-topo">
         <span class="item-icone" aria-hidden="true">O</span>
         <div class="item-conteudo">
           <strong>${o.area} m² (${o.alvenaria === "bloco" ? "Bloco" : "Tijolo"})</strong>
-          <span class="item-meta">${formatarData(o.data)} • Total ${moeda(o.total)}${o._supa ? "" : " • só no aparelho"}</span>
+          <span class="item-meta">${formatarData(o.data)} • Total ${moeda(o.total)}${obra ? " • " + proteger(obra) : ""}${o._supa ? "" : " • só no aparelho"}</span>
         </div>
       </div>
       <div class="item-acoes"><button data-a="ver">Ver</button><button data-a="dup">Duplicar</button><button data-a="cmp">Comparar</button><button data-a="excluir" class="excluir">Excluir</button></div>`;
@@ -180,28 +205,82 @@ async function renderOrcamentosSalvos() {
     lista.appendChild(div);
   }
 }
+// Mostra um orçamento salvo (com etapa, memória de cálculo e encargos).
 function verOrcamentoSalvo(id) {
   const o = lerOrcamentos().find((x) => x.id === id);
   if (!o) return;
-  const box = elOrc("orcamento-area");
-  box.hidden = false;
+  const box = elOrcDetalhe();
+  if (!box) return;
+  const obra = nomeObraOrc(o.obraId);
   let html = `<div class="card"><h3 class="titulo-secao" style="margin-top:0">Orçamento ${o.area} m² — ${formatarData(o.data)}</h3>`;
+  if (obra) html += `<p class="texto-suave">Obra: <strong>${proteger(obra)}</strong></p>`;
+  html += `<p class="texto-suave">${o.alvenaria === "bloco" ? "Bloco de concreto" : "Tijolo cerâmico"}`;
+  if (o.parametros && o.parametros.versao) html += ` • parâmetros v${o.parametros.versao}`;
+  html += `</p>`;
+  // Agrupa por etapa, preservando a ordem salva.
+  const etapas = [];
   for (const it of o.itens || []) {
-    html += `<p><strong>${proteger(it.nome)}</strong>: ${it.qtd ?? "—"} ${proteger(it.unidade || "")} × ` +
-      `${it.preco ? moeda(it.preco) : "sem preço"} = <strong>${it.total === null || it.total === undefined ? "—" : moeda(it.total)}</strong></p>`;
+    const et = it.etapa || "Itens";
+    let g = etapas.find((x) => x.nome === et);
+    if (!g) { g = { nome: et, itens: [] }; etapas.push(g); }
+    g.itens.push(it);
   }
-  html += `<h3 class="titulo-secao">Total: ${moeda(o.total)}</h3></div>`;
+  for (const g of etapas) {
+    const sub = g.itens.reduce((s, it) => s + (it.total || 0), 0);
+    html += `<h3 class="titulo-secao">${proteger(g.nome)} — ${moeda(sub)}</h3>`;
+    for (const it of g.itens) {
+      html += `<p><strong>${proteger(it.nome)}</strong>: ${it.qtd ?? "—"} ${proteger(it.unidade || "")} × ` +
+        `${it.preco ? moeda(it.preco) : "sem preço"} = <strong>${it.total === null || it.total === undefined ? "—" : moeda(it.total)}</strong></p>`;
+      if (it.detalhe && it.detalhe.length) {
+        html += it.detalhe.map((d) => `<p class="texto-suave">${proteger(String(d))}</p>`).join("");
+      }
+    }
+  }
+  const bdi = o.bdi;
+  if (bdi && (bdi.imp || bdi.trib || bdi.lucro)) {
+    html += `<p class="texto-suave">Encargos: imprevistos ${(Number(bdi.imp || 0) * 100).toFixed(1)}%, ` +
+      `impostos ${(Number(bdi.trib || 0) * 100).toFixed(1)}%, margem ${(Number(bdi.lucro || 0) * 100).toFixed(1)}% ` +
+      `→ venda ${moeda(bdi.venda)}</p>`;
+  }
+  html += `<h3 class="titulo-secao">Total: ${moeda(o.total)}</h3>`;
+  html += `<button class="btn btn-texto" id="orc-det-fechar">Fechar</button></div>`;
   box.innerHTML = html;
+  const f = document.getElementById("orc-det-fechar");
+  if (f) f.addEventListener("click", () => { box.innerHTML = ""; });
   box.scrollIntoView({ behavior: "smooth", block: "start" });
 }
+// Recarrega um orçamento salvo nos campos da tela (para ajustar e recalcular).
 function duplicarOrcamento(id) {
   const o = lerOrcamentos().find((x) => x.id === id);
   if (!o) return;
-  raioXAtual = { area: o.area, quartos: null, banheiros: null, portas: null, janelas: null, origem: { area: "editado" }, obraId: o.obraId || null };
-  const box = elOrc("orcamento-area");
-  if (box) box.hidden = false;
-  desenharSistema();
-  mostrarToast("Ajuste e calcule de novo.");
+  const set = (elId, v) => { const el = document.getElementById(elId); if (el) el.value = v; };
+  const p = (o.parametros && o.parametros.entradas) || {};
+  set("og-area", o.area || "");
+  set("og-quartos", p.quartos ?? "");
+  set("og-banheiros", p.banheiros ?? "");
+  set("og-sistema", o.alvenaria || "bloco");
+  set("og-perimetro", p.perimetro || "");
+  set("og-telhado", p.telhado || "");
+  set("og-par-comp", p.parComp || "");
+  set("og-par-alt", p.parAlt || "");
+  set("og-par-vaos", p.parVaos || "");
+  set("og-peletricos", p.peletricos || "");
+  set("og-phidraulicos", p.phidraulicos || "");
+  set("og-mo-dias", p.moDias || "");
+  set("og-mo-diaria", p.moDiaria || "");
+  set("og-transporte", p.transporte || "");
+  set("og-outros", p.outros || "");
+  // Repõe os preços-base usados (quando foram salvos).
+  const precos = (o.parametros && o.parametros.precos) || {};
+  document.querySelectorAll("[data-og-preco]").forEach((i) => {
+    const v = precos[i.dataset.ogPreco];
+    if (v !== undefined && v !== null) i.value = v;
+  });
+  const sel = document.getElementById("og-obra");
+  if (sel && o.obraId) sel.value = o.obraId;
+  mostrarToast("Dados carregados. Toque em Calcular para atualizar.");
+  const calc = document.getElementById("og-calcular");
+  if (calc) calc.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 // ---------- ORÇAMENTO GUIADO (preços + medidas = estimativa) ----------
@@ -262,21 +341,22 @@ function desenharPrecosOG() {
       `<input type="number" data-og-preco="${chave}" value="${v ?? ""}" min="0" step="0.01" inputmode="decimal" placeholder="—" /></label>`;
   }
 }
-function estimarObra() {
-  const area = numeroOuZero((document.getElementById("og-area") || {}).value);
-  if (!(area > 0)) { mostrarToast("Informe a área da casa.", false); return; }
-  const quartos = Math.max(0, parseInt((document.getElementById("og-quartos") || {}).value || "0", 10));
-  const banheiros = Math.max(0, parseInt((document.getElementById("og-banheiros") || {}).value || "0", 10));
-  const sist = (document.getElementById("og-sistema") || {}).value || "bloco";
-  const P = {};
-  document.querySelectorAll("[data-og-preco]").forEach((i) => {
-    const v = numeroOuZero(i.value);
-    P[i.dataset.ogPreco] = v > 0 ? v : null;
-  });
+// ---------- Motor determinístico do orçamento guiado (PURO / testável) ----------
+// Recebe um objeto `e` com as medidas e preços e devolve os quantitativos.
+// Nenhuma IA aqui: só a fórmula, com os coeficientes de PARAMS_ORC.
+// `e` = { area, quartos, banheiros, sistema, perimetro, telhado,
+//         parComp, parAlt, parVaos, peletricos, phidraulicos,
+//         moDias, moDiaria, transporte, outros, precos:{piso,bloco,...} }
+function calcularOrcamentoGuiado(e) {
+  const area = Number(e.area) || 0;
+  const quartos = Math.max(0, parseInt(e.quartos || "0", 10));
+  const banheiros = Math.max(0, parseInt(e.banheiros || "0", 10));
+  const sist = e.sistema || "bloco";
+  const P = e.precos || {};
   // Parede: geometria real se informada, senão fator estimado (sinalizado)
-  const gv = (id) => String((document.getElementById(id) || {}).value || "").trim().replace(",", ".");
-  const gComp = Number(gv("og-par-comp")), gAlt = Number(gv("og-par-alt"));
-  const gVaos = gv("og-par-vaos").split(";").map((s) => s.trim()).filter(Boolean).map((s) => {
+  const gv = (v) => String(v == null ? "" : v).trim().replace(",", ".");
+  const gComp = Number(gv(e.parComp)), gAlt = Number(gv(e.parAlt));
+  const gVaos = gv(e.parVaos).split(";").map((s) => s.trim()).filter(Boolean).map((s) => {
     const p = s.toLowerCase().split("x");
     return { larg: Number(p[0]), alt: Number(p[1]) };
   });
@@ -291,14 +371,14 @@ function estimarObra() {
   const qCim = Math.ceil(areaParede * PARAMS_ORC.CIMENTO_M2_REBOCO.valor);
   const qTinta = Math.ceil((areaParede / PARAMS_ORC.TINTA_REND_M2_L.valor * PARAMS_ORC.TINTA_DEMAOS.valor) * 10) / 10;
   // Medidas editáveis (vazio = estimativa documentada abaixo)
-  const perim = numeroOuZero((document.getElementById("og-perimetro") || {}).value) || Math.round(4 * Math.sqrt(area) * 10) / 10;
-  const areaTelhado = numeroOuZero((document.getElementById("og-telhado") || {}).value) || Math.round(area * PARAMS_ORC.TELHADO_FATOR.valor * 10) / 10;
-  const nPElet = Math.max(0, parseInt((document.getElementById("og-peletricos") || {}).value || "0", 10));
-  const nPHidr = Math.max(0, parseInt((document.getElementById("og-phidraulicos") || {}).value || "0", 10));
-  const moDias = Math.max(0, parseInt((document.getElementById("og-mo-dias") || {}).value || "0", 10));
-  const moDiaria = numeroOuZero((document.getElementById("og-mo-diaria") || {}).value);
-  const transporte = numeroOuZero((document.getElementById("og-transporte") || {}).value);
-  const outros = numeroOuZero((document.getElementById("og-outros") || {}).value);
+  const perim = numeroOuZero(e.perimetro) || Math.round(4 * Math.sqrt(area) * 10) / 10;
+  const areaTelhado = numeroOuZero(e.telhado) || Math.round(area * PARAMS_ORC.TELHADO_FATOR.valor * 10) / 10;
+  const nPElet = Math.max(0, parseInt(e.peletricos || "0", 10));
+  const nPHidr = Math.max(0, parseInt(e.phidraulicos || "0", 10));
+  const moDias = Math.max(0, parseInt(e.moDias || "0", 10));
+  const moDiaria = numeroOuZero(e.moDiaria);
+  const transporte = numeroOuZero(e.transporte);
+  const outros = numeroOuZero(e.outros);
   // Fundação (sapata corrida): concreto + aço
   const concFund = perim * PARAMS_ORC.SAPATA_LARG_M.valor * PARAMS_ORC.SAPATA_ALT_M.valor;
   const acoFund = Math.ceil(concFund * PARAMS_ORC.ACO_FUND_KG_M3.valor);
@@ -331,6 +411,57 @@ function estimarObra() {
   for (const it of itens) it.total = it.preco ? it.qtd * it.preco : null;
   const total = itens.reduce((s, it) => s + (it.total || 0), 0);
   const semPreco = itens.filter((it) => it.total === null).length;
+  return { area, quartos, banheiros, sist, itens, total, semPreco, areaParede, paredeOrigem, perim, areaTelhado };
+}
+
+// Lê os campos da tela (DOM) para o objeto de entrada do motor puro.
+function lerEntradaOrcamentoGuiado() {
+  const val = (id) => String((document.getElementById(id) || {}).value || "");
+  const precos = {};
+  document.querySelectorAll("[data-og-preco]").forEach((i) => {
+    const v = numeroOuZero(i.value);
+    precos[i.dataset.ogPreco] = v > 0 ? v : null;
+  });
+  return {
+    area: numeroOuZero(val("og-area")),
+    quartos: val("og-quartos"), banheiros: val("og-banheiros"),
+    sistema: val("og-sistema") || "bloco",
+    perimetro: numeroOuZero(val("og-perimetro")), telhado: numeroOuZero(val("og-telhado")),
+    parComp: val("og-par-comp"), parAlt: val("og-par-alt"), parVaos: val("og-par-vaos"),
+    peletricos: val("og-peletricos"), phidraulicos: val("og-phidraulicos"),
+    moDias: val("og-mo-dias"), moDiaria: numeroOuZero(val("og-mo-diaria")),
+    transporte: numeroOuZero(val("og-transporte")), outros: numeroOuZero(val("og-outros")),
+    precos,
+  };
+}
+
+// Retrato dos parâmetros/medidas/preços usados (para persistir e auditar depois).
+function snapshotParametrosOrcamento(e) {
+  const coef = {};
+  for (const k of Object.keys(PARAMS_ORC)) coef[k] = PARAMS_ORC[k].valor;
+  return {
+    versao: 1,
+    coeficientes: coef,
+    entradas: {
+      quartos: Math.max(0, parseInt(e.quartos || "0", 10)),
+      banheiros: Math.max(0, parseInt(e.banheiros || "0", 10)),
+      sistema: e.sistema || "bloco",
+      perimetro: numeroOuZero(e.perimetro), telhado: numeroOuZero(e.telhado),
+      parComp: e.parComp || null, parAlt: e.parAlt || null, parVaos: e.parVaos || null,
+      peletricos: e.peletricos || null, phidraulicos: e.phidraulicos || null,
+      moDias: e.moDias || null, moDiaria: e.moDiaria || null,
+      transporte: e.transporte || null, outros: e.outros || null,
+    },
+    precos: e.precos || {},
+  };
+}
+
+function estimarObra() {
+  const e = lerEntradaOrcamentoGuiado();
+  const area = Number(e.area) || 0;
+  if (!(area > 0)) { mostrarToast("Informe a área da casa.", false); return; }
+  const r = calcularOrcamentoGuiado(e);
+  const { quartos, banheiros, sist, itens, total, semPreco, areaParede, paredeOrigem } = r;
   let html = `<div class="card"><p class="texto-suave"><strong>ESTIMATIVA PRELIMINAR</strong> — complete os dados para o detalhado.</p><h3 class="titulo-secao" style="margin-top:0">Vai precisar de cerca de ${moeda(total)}${semPreco ? " (parcial)" : ""}</h3>`;
   html += `<p class="texto-suave">Casa de ${area} m² • ${quartos} quartos • ${banheiros} banheiros • ${sist === "bloco" ? "Bloco" : "Tijolo"} • <strong>${moeda(total / area)}/m²</strong></p>`;
   html += `<p class="texto-suave">Parede: ${paredeOrigem}.</p>`;
@@ -346,20 +477,26 @@ function estimarObra() {
   box.innerHTML = html;
   document.getElementById("og-salvar").addEventListener("click", () => {
     const lista = lerOrcamentos();
+    const obraSel = (document.getElementById("og-obra") || {}).value || null;
     lista.unshift({
-      id: Date.now().toString(36), data: hojeISO(), obraId: null,
+      id: Date.now().toString(36), data: hojeISO(), obraId: obraSel,
       area, alvenaria: sist, total,
-      itens: itens.map((it) => ({ nome: it.nome, etapa: it.etapa, qtd: it.qtd, unidade: it.unidade, preco: it.preco, total: it.total })),
+      parametros: snapshotParametrosOrcamento(e),
+      itens: itens.map((it, i) => ({
+        nome: it.nome, etapa: it.etapa, qtd: it.qtd, unidade: it.unidade,
+        preco: it.preco, total: it.total, detalhe: it.detalhe, posicao: i,
+      })),
     });
     salvarOrcamentos(lista.slice(0, 30));
     try {
       if (typeof SyncOrc !== "undefined") {
-        SyncOrc.empurrarOrcamento(lista[0]).then((r) => {
-          if (r && r.ok) salvarOrcamentos(lerOrcamentos());
-          mostrarToast(msgSync(r), !!(r && r.ok));
+        SyncOrc.empurrarOrcamento(lista[0]).then((res) => {
+          if (res && res.ok) salvarOrcamentos(lerOrcamentos());
+          mostrarToast(msgSync(res), !!(res && res.ok));
         }).catch(() => mostrarToast(msgSync({ ok: false, status: "rede" }), false));
       } else mostrarToast(msgSync(false), false);
-    } catch (e) { mostrarToast(msgSync(false), false); }
+    } catch (err) { mostrarToast(msgSync(false), false); }
+    try { if (typeof renderOrcamentosSalvos === "function") renderOrcamentosSalvos(); } catch (err) {}
   });
   box.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -387,6 +524,23 @@ function ligarOrcamentoGuiado() {
     sist.dataset.ligado = "1";
     sist.addEventListener("change", desenharPrecosOG);
   }
+  // Obras no seletor + lista de salvos; atualiza ao abrir a tela.
+  const atualizar = () => {
+    try { atualizarObrasOrcamento(); } catch (e) {}
+    try { renderOrcamentosSalvos(); } catch (e) {}
+  };
+  atualizar();
+  document.querySelectorAll('[data-ir="orcamento"]').forEach((b) => {
+    if (!b.dataset.orcLigado) {
+      b.dataset.orcLigado = "1";
+      b.addEventListener("click", () => setTimeout(atualizar, 150));
+    }
+  });
+  const qo = document.getElementById("qa-orc-ia");
+  if (qo && !qo.dataset.orcLigado) {
+    qo.dataset.orcLigado = "1";
+    qo.addEventListener("click", () => setTimeout(atualizar, 150));
+  }
   desenharPrecosOG();
 }
 
@@ -406,17 +560,18 @@ function marcarComparar(id, div) {
 }
 function desenharComparacao(idA, idB) {
   const linhas = compararOrcamentos(idA, idB);
-  const box = elOrc("orcamento-area");
+  const box = elOrcDetalhe();
   if (!box || !linhas) return;
-  box.hidden = false;
   let html = `<div class="card"><h3 class="titulo-secao" style="margin-top:0">Versão A × Versão B</h3>`;
   for (const l of linhas) {
     const dif = (l.totalA == null || l.totalB == null)
       ? " (falta dado)" : ` (diferença ${moeda(l.totalB - l.totalA)})`;
     html += `<p><strong>${proteger(l.nome)}</strong>: A ${l.totalA == null ? "—" : moeda(l.totalA)} × B ${l.totalB == null ? "—" : moeda(l.totalB)}${dif}</p>`;
   }
-  html += `</div>`;
+  html += `<button class="btn btn-texto" id="orc-det-fechar">Fechar</button></div>`;
   box.innerHTML = html;
+  const f = document.getElementById("orc-det-fechar");
+  if (f) f.addEventListener("click", () => { box.innerHTML = ""; });
   box.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 function compararOrcamentos(idA, idB) {

@@ -384,6 +384,15 @@ function classificarErroSync(e) {
   return SyncStatus.GRAVACAO;
 }
 
+// Detecta erro de COLUNA/RELAÇÃO inexistente (migração ainda não aplicada).
+// Permite o "modo degradado": grava só o que o banco já tem, sem quebrar.
+function temColunaAusente(e) {
+  const code = e && e.code;
+  const msg = String((e && (e.message || e.msg)) || e || "");
+  return code === "42703" || code === "42P01" ||
+    /could not find the .*column|column .* does not exist|relation .* does not exist|schema cache/i.test(msg);
+}
+
 // Diferença de conjuntos COM multiplicidade: preserva itens repetidos.
 // Devolve o que falta inserir e o que sobrou (por id) para remover.
 function diffSync(existentes, desejados, chave) {
@@ -413,6 +422,75 @@ async function substituirFilhosSeguro(tabela, colunaFk, fkValor, desejados, chav
     const { error } = await sb.from(tabela).delete().in("id", ids);
     if (error) throw error;
   }
+}
+
+// ---------- Conversão banco <-> app (orçamentos) ----------
+// Funções puras (testáveis). O app usa `qtd`; o banco usa `quantidade`.
+// A memória de cálculo vai na coluna `detalhe` como JSON (lista de texto).
+// Tudo degrada bem quando a migração estendida ainda não foi aplicada.
+function parseDetalheOrc(v) {
+  if (v == null || v === "") return [];
+  if (Array.isArray(v)) return v.map((x) => String(x));
+  try {
+    const a = JSON.parse(v);
+    if (Array.isArray(a)) return a.map((x) => String(x));
+  } catch (e) {}
+  return [String(v)];
+}
+function linhaParaOrcamentoItem(x) {
+  return {
+    nome: x.nome,
+    etapa: x.etapa || null,
+    qtd: x.quantidade == null ? null : Number(x.quantidade),
+    unidade: x.unidade || null,
+    preco: x.preco == null ? null : Number(x.preco),
+    total: x.total == null ? null : Number(x.total),
+    detalhe: parseDetalheOrc(x.detalhe),
+    posicao: x.posicao == null ? null : Number(x.posicao),
+  };
+}
+function linhaParaOrcamento(r, itens) {
+  const lista = (itens || []).slice().sort((a, b) =>
+    (a.posicao == null ? 1e9 : a.posicao) - (b.posicao == null ? 1e9 : b.posicao));
+  return {
+    id: r.local_id || r.id, _supa: r.id, data: r.data,
+    obraId: r.obra_id || null, area: Number(r.area) || 0,
+    alvenaria: r.alvenaria || "bloco", total: Number(r.total) || 0,
+    parametros: r.parametros || null, bdi: r.bdi || null,
+    itens: lista.map(linhaParaOrcamentoItem),
+  };
+}
+function orcamentoParaLinha(o) {
+  return {
+    owner_id: uidDono(),
+    local_id: o.id, obra_id: o.obraId || null, area: o.area || 0,
+    alvenaria: o.alvenaria || "bloco", total: o.total || 0, data: o.data || null,
+    parametros: o.parametros || null, bdi: o.bdi || null,
+  };
+}
+// Mesma linha sem as colunas da migração estendida (fallback seguro).
+function orcamentoParaLinhaLegada(l) {
+  return {
+    owner_id: l.owner_id, local_id: l.local_id, obra_id: l.obra_id,
+    area: l.area, alvenaria: l.alvenaria, total: l.total, data: l.data,
+  };
+}
+function itemOrcamentoParaLinha(orcamentoId, it, pos) {
+  const det = (it.detalhe && it.detalhe.length) ? JSON.stringify(it.detalhe) : null;
+  return {
+    owner_id: uidDono(),
+    orcamento_id: orcamentoId, nome: it.nome,
+    quantidade: it.qtd == null ? null : it.qtd, unidade: it.unidade || null,
+    preco: it.preco == null ? null : it.preco,
+    total: it.total == null ? null : it.total,
+    etapa: it.etapa || null, posicao: pos == null ? null : pos, detalhe: det,
+  };
+}
+function itemOrcamentoParaLinhaLegada(x) {
+  return {
+    owner_id: x.owner_id, orcamento_id: x.orcamento_id, nome: x.nome,
+    quantidade: x.quantidade, unidade: x.unidade, preco: x.preco, total: x.total,
+  };
 }
 
 const SyncOrc = {
@@ -502,13 +580,9 @@ const SyncOrc = {
         let itens = [];
         try {
           const { data: li } = await sb.from("orcamento_itens").select("*").eq("orcamento_id", r.id);
-          itens = (li || []).map((x) => ({ nome: x.nome, qtd: x.quantidade == null ? null : Number(x.quantidade), unidade: x.unidade, preco: x.preco == null ? null : Number(x.preco), total: x.total == null ? null : Number(x.total) }));
+          itens = li || [];
         } catch (e) {}
-        out.push({
-          id: r.local_id || r.id, _supa: r.id, data: r.data,
-          obraId: r.obra_id || null, area: Number(r.area) || 0,
-          alvenaria: r.alvenaria || "bloco", total: Number(r.total) || 0, itens,
-        });
+        out.push(linhaParaOrcamento(r, itens));
       }
       return { ok: true, status: SyncStatus.OK, dados: out };
     } catch (e) { return { ok: false, status: classificarErroSync(e), dados: [] }; }
@@ -521,31 +595,41 @@ const SyncOrc = {
         if (error) throw error;
         if (data && data[0]) o._supa = data[0].id;
       }
-      const linha = {
-        owner_id: uidDono(),
-        local_id: o.id, obra_id: o.obraId || null, area: o.area || 0,
-        alvenaria: o.alvenaria || "bloco", total: o.total || 0, data: o.data || null,
-      };
+      const completa = orcamentoParaLinha(o);
+      const legada = orcamentoParaLinhaLegada(completa);
       let rid = o._supa || null;
       if (rid) {
-        const { error } = await sb.from("orcamentos").update(linha).eq("id", rid);
-        if (error) throw error;
+        // Já existe: atualiza. Se faltar coluna nova, grava o essencial.
+        let { error } = await sb.from("orcamentos").update(completa).eq("id", rid);
+        if (error && temColunaAusente(error)) {
+          const r2 = await sb.from("orcamentos").update(legada).eq("id", rid);
+          if (r2.error) throw r2.error;
+        } else if (error) throw error;
       } else {
-        const { data, error } = await sb.from("orcamentos").insert(linha).select().single();
-        if (error) throw error;
-        rid = data.id; o._supa = rid;
+        // Novo: insere. Se faltar coluna nova, cai para o formato antigo.
+        let { data, error } = await sb.from("orcamentos").insert(completa).select().single();
+        if (error && temColunaAusente(error)) {
+          const r2 = await sb.from("orcamentos").insert(legada).select().single();
+          if (r2.error) throw r2.error;
+          rid = r2.data.id;
+        } else {
+          if (error) throw error;
+          rid = data.id;
+        }
+        o._supa = rid;
       }
-      // Itens: insere só o que falta e remove só as sobras antigas
+      // Itens: insere só o que falta e remove só as sobras antigas.
+      // Tenta gravar etapa/posição/memória de cálculo; se as colunas
+      // ainda não existirem, cai para o formato antigo sem quebrar.
       const num = (v) => (v == null ? "" : Number(v).toFixed(3));
       const chave = (x) => [x.nome, num(x.quantidade), x.unidade || "", num(x.preco), num(x.total)].join("|");
-      const itens = (o.itens || []).map((it) => ({
-        owner_id: uidDono(),
-        orcamento_id: rid, nome: it.nome,
-        quantidade: it.qtd == null ? null : it.qtd, unidade: it.unidade || null,
-        preco: it.preco == null ? null : it.preco,
-        total: it.total == null ? null : it.total, detalhe: null,
-      }));
-      await substituirFilhosSeguro("orcamento_itens", "orcamento_id", rid, itens, chave);
+      const completos = (o.itens || []).map((it, i) => itemOrcamentoParaLinha(rid, it, i));
+      try {
+        await substituirFilhosSeguro("orcamento_itens", "orcamento_id", rid, completos, chave);
+      } catch (e) {
+        if (!temColunaAusente(e)) throw e;
+        await substituirFilhosSeguro("orcamento_itens", "orcamento_id", rid, completos.map(itemOrcamentoParaLinhaLegada), chave);
+      }
       return { ok: true, status: SyncStatus.OK };
     } catch (e) { return { ok: false, status: classificarErroSync(e), erro: e }; }
   },

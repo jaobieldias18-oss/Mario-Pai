@@ -213,5 +213,96 @@ t("IA direta: pergunta aberta -> null", rK[9]);
 t("IA direta: pergunta longa -> null", rK[10]);
 t("IA direta: normaliza acento/espaco", rK[11]);
 
+// ---- Teste L: motor do orçamento guiado (puro e determinístico) ----
+// Mesmos coeficientes de PARAMS_ORC. Valores esperados calculados à mão.
+const rL = vm.runInContext(`(function () {
+  const e = { area: 100, quartos: "3", banheiros: "2", sistema: "bloco",
+    peletricos: "20", phidraulicos: "12", moDias: "60", moDiaria: 150,
+    transporte: 0, outros: 0, precos: { piso: 40 } };
+  const r = calcularOrcamentoGuiado(e);
+  const byName = {};
+  for (const it of r.itens) byName[it.nome] = it;
+  const out = [];
+  out.push(r.total === 12740);
+  out.push(r.semPreco === 15);
+  out.push(r.areaParede === 280);
+  out.push(byName["Bloco de concreto"].qtd === 3675);
+  out.push(byName["Piso cerâmico"].qtd === 93.5 && byName["Piso cerâmico"].total === 3740);
+  out.push(byName["Tinta"].qtd === 93.4);
+  out.push(byName["Mão de obra"].total === 9000);
+  out.push(byName["Pontos elétricos"].qtd === 20 && byName["Pontos hidráulicos"].qtd === 12);
+  out.push(byName["Telhas"].qtd === 2080 && byName["Madeiramento"].qtd === 130);
+  out.push(JSON.stringify(calcularOrcamentoGuiado(e)) === JSON.stringify(r));
+  const g = calcularOrcamentoGuiado(Object.assign({}, e, { parComp: "40", parAlt: "2.8", parVaos: "0.8x2.1;1.2x1" }));
+  out.push(g.areaParede === 109.12);
+  out.push(g.itens.find((x) => x.etapa === "Alvenaria").qtd === 1433);
+  return out;
+})()`, sandbox);
+t("L total guiado = 12740", rL[0]);
+t("L sem preço = 15", rL[1]);
+t("L área de parede = 280", rL[2]);
+t("L blocos = 3675", rL[3]);
+t("L piso 93.5 = R$3740", rL[4]);
+t("L tinta 93.4 L", rL[5]);
+t("L MO 60x150 = 9000", rL[6]);
+t("L pontos 20/12", rL[7]);
+t("L telhas 2080 / madeiramento 130", rL[8]);
+t("L determinístico (mesma entrada)", rL[9]);
+t("L parede medida 109.12", rL[10]);
+t("L blocos por medida = 1433", rL[11]);
+
+// ---- Teste M: persistência do orçamento (banco <-> app) ----
+// Garante que params/itens/etapa/detalhe sobrevivem ao ir e voltar,
+// e que o app degrada bem quando a migração estendida falta.
+const rM = vm.runInContext(`(function () {
+  const out = [];
+  const e = { area: 100, quartos: "3", banheiros: "2", sistema: "bloco",
+    peletricos: "20", phidraulicos: "12", moDias: "60", moDiaria: 150, precos: { piso: 40 } };
+  const o = {
+    id: "abc", data: "2026-10-16", obraId: null, area: 100, alvenaria: "bloco", total: 12740,
+    parametros: snapshotParametrosOrcamento(e),
+    itens: [{ nome: "Piso cerâmico", etapa: "Pisos", qtd: 93.5, unidade: "m²", preco: 40, total: 3740, detalhe: ["a", "b"], posicao: 0 }],
+  };
+  const linha = orcamentoParaLinha(o);
+  out.push(linha.local_id === "abc" && linha.area === 100 && linha.alvenaria === "bloco");
+  out.push(linha.parametros && linha.parametros.coeficientes.PISO_PERC_AREA === 0.85);
+  out.push(linha.parametros.entradas.moDias === "60");
+  const legada = orcamentoParaLinhaLegada(linha);
+  out.push(!("parametros" in legada) && legada.total === 12740);
+  const il = itemOrcamentoParaLinha("rid", o.itens[0], 0);
+  out.push(il.etapa === "Pisos" && il.posicao === 0);
+  out.push(il.detalhe === JSON.stringify(["a", "b"]));
+  const back = linhaParaOrcamento(linha, [il]);
+  out.push(back.id === "abc" && back.parametros.coeficientes.PAREDE_POR_AREA === 2.8);
+  out.push(back.itens.length === 1 && back.itens[0].qtd === 93.5 && back.itens[0].etapa === "Pisos");
+  out.push(Array.isArray(back.itens[0].detalhe) && back.itens[0].detalhe[0] === "a" && back.itens[0].detalhe[1] === "b");
+  out.push(parseDetalheOrc(null).length === 0);
+  out.push(parseDetalheOrc(JSON.stringify(["x", "y"])).length === 2);
+  out.push(parseDetalheOrc("texto simples")[0] === "texto simples");
+  out.push(parseDetalheOrc(["a"])[0] === "a");
+  out.push(temColunaAusente({ code: "42703" }) === true);
+  out.push(temColunaAusente({ message: "Could not find the 'parametros' column of 'orcamentos' in the schema cache" }) === true);
+  out.push(temColunaAusente({ code: "42501", message: "permission denied" }) === false);
+  out.push(temColunaAusente({ code: "23505" }) === false);
+  return out;
+})()`, sandbox);
+t("M linha mapeada", rM[0]);
+t("M params no topo (PISO 0.85)", rM[1]);
+t("M entrada moDias preservada", rM[2]);
+t("M versão legada sem params", rM[3]);
+t("M item etapa+posicao", rM[4]);
+t("M detalhe vira JSON", rM[5]);
+t("M round-trip id+params", rM[6]);
+t("M round-trip item", rM[7]);
+t("M round-trip detalhe", rM[8]);
+t("M detalhe nulo -> vazio", rM[9]);
+t("M detalhe JSON -> lista", rM[10]);
+t("M detalhe texto -> lista", rM[11]);
+t("M detalhe array -> lista", rM[12]);
+t("M detecta coluna ausente 42703", rM[13]);
+t("M detecta schema cache (fallback)", rM[14]);
+t("M permissao nao é coluna", rM[15]);
+t("M duplicado nao é coluna", rM[16]);
+
 console.log(`\nRESULTADO: ${pass} PASS, ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

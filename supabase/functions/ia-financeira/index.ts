@@ -193,24 +193,45 @@ serve(async (req) => {
 
     // ---- Contexto extra do modo "obra" (limitado; se a tabela faltar, segue sem ela) ----
     if (modo === "obra") {
+      // Orçamentos salvos: usa select("*") para funcionar ANTES e DEPOIS da
+      // migração estendida (colunas etapa/posicao/detalhe/parametros/bdi).
+      // Se uma obra foi escolhida, prioriza o orçamento DESSA obra.
       try {
-        const { data: orcs } = await sb.from("orcamentos")
-          .select("id,area,total,data").eq("owner_id", uid)
-          .order("data", { ascending: false }).limit(3);
+        let qOrc = sb.from("orcamentos").select("*").eq("owner_id", uid);
+        if (obraId) qOrc = qOrc.eq("obra_id", obraId);
+        const { data: orcs } = await qOrc.order("data", { ascending: false }).limit(3);
         if (orcs && orcs.length) {
           const oids = orcs.map((o) => o.id);
           const { data: itens } = await sb.from("orcamento_itens")
-            .select("orcamento_id,nome,quantidade,unidade,preco").in("orcamento_id", oids)
-            .eq("owner_id", uid).limit(60);
+            .select("*").in("orcamento_id", oids)
+            .eq("owner_id", uid).limit(80);
           for (const o of orcs) {
-            const its = (itens || []).filter((it) => it.orcamento_id === o.id);
-            ctx += `\nOrçamento (${o.data || "sem data"}, ${num(o.area)} m²): total ${brl(num(o.total))}`;
-            ctx += its.length
-              ? `. Itens: ${its.map((it) => `${it.nome} ${num(it.quantidade)}${it.unidade || ""} x ${brl(num(it.preco))}`).join("; ")}.`
-              : ". Sem itens detalhados.";
+            const its = (itens || [])
+              .filter((it) => it.orcamento_id === o.id)
+              .sort((a, b) => ((a.posicao ?? 1e9) - (b.posicao ?? 1e9)));
+            ctx += `\nOrçamento (${o.data || "sem data"}, ${num(o.area)} m², ${o.alvenaria || "bloco"}): custo direto ${brl(num(o.total))}`;
+            const bdi = o.bdi;
+            if (bdi && (num(bdi.venda) || num(bdi.imp) || num(bdi.trib) || num(bdi.lucro))) {
+              ctx += `; com encargos/BDI ${brl(num(bdi.venda))}`;
+            }
+            if (its.length) {
+              ctx += `. Itens: ${its.map((it) => {
+                const et = it.etapa ? `(${it.etapa}) ` : "";
+                let det = "";
+                if (it.detalhe) {
+                  try {
+                    const arr = JSON.parse(String(it.detalhe));
+                    det = Array.isArray(arr) ? ` [${arr.join(" | ")}]` : "";
+                  } catch { det = ""; }
+                }
+                return `${et}${it.nome} ${num(it.quantidade)}${it.unidade || ""} x ${brl(num(it.preco))}${det.slice(0, 90)}`;
+              }).join("; ")}.`;
+            } else {
+              ctx += ". Sem itens detalhados.";
+            }
           }
         } else {
-          ctx += "\nSem orçamentos salvos.";
+          ctx += obraId ? "\nSem orçamentos salvos para esta obra." : "\nSem orçamentos salvos.";
         }
       } catch { /* tabela ausente: segue sem orçamentos */ }
       try {

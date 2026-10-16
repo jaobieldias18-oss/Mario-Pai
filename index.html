@@ -606,6 +606,8 @@
       <div class="card">
         <h3 class="titulo-secao" style="margin-top:0">Dados da casa</h3>
         <div class="form">
+          <label class="campo"><span>Obra (opcional)</span>
+            <select id="og-obra"><option value="">Sem vínculo</option></select></label>
           <label class="campo"><span>Área (m²) *</span>
             <input type="number" id="og-area" min="0" step="0.01" inputmode="decimal" placeholder="Ex: 100" /></label>
           <div class="linha-2">
@@ -658,6 +660,12 @@
         </div>
       </div>
       <div id="og-resultado"></div>
+      <div class="card" id="orcamentos-salvos-card">
+        <h3 class="titulo-secao" style="margin-top:0">Orçamentos salvos</h3>
+        <p class="texto-suave">Veja, duplique ou compare os orçamentos já feitos.</p>
+        <div id="lista-orcamentos" class="lista"></div>
+      </div>
+      <div id="orcamento-detalhe"></div>
     </section>
     <!-- ===== TELA: COMPOSIÇÕES ===== -->
     <section id="tela-composicoes" class="tela">
@@ -827,12 +835,12 @@
 
   <!-- Supabase (CDN) + camada de banco + app. Sem frameworks. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase.js?v=16"></script>
+  <script src="supabase.js?v=17"></script>
   <script src="auth.js?v=1"></script>
   <script src="outbox.js?v=16"></script>
   <script src="script.js?v=17"></script>
 
-  <script src="orcamento.js?v=4"></script>
+  <script src="orcamento.js?v=5"></script>
   <script src="materiais.js?v=2"></script>
   <script src="composicoes.js?v=1"></script>
   <script src="ia.js?v=18"></script>
