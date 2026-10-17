@@ -21,8 +21,56 @@ const ORC_PRO = {
   OBRAS_REAIS_KEY: "mario_obras_reais_v1",
   MEDICOES_KEY: "mario_medicoes_v1",
   FUNDACAO_KEY: "mario_fundacao_v1",
+  // Escopo ativo: cada orçamento tem seu próprio id; medição/fundação
+  // "em edição" pertencem ao escopo ativo (evita misturar orçamentos).
+  ATIVO_KEY: "mario_orc_pro_ativo",
+  MIGRADO_KEY: "mario_orc_pro_migrado",
   VERSAO: 1,
 };
+
+// ---------- Escopo ativo (isolamento dos dados técnicos por orçamento) ----------
+function novoEscopoId() {
+  return "esc-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+// Lê o id do escopo ativo. Na primeira vez, cria um escopo e MIGRA os dados
+// antigos (chaves globais legadas) para ele, sem perda.
+function escopoAtivo() {
+  let id = null;
+  try { id = localStorage.getItem(ORC_PRO.ATIVO_KEY) || null; } catch (e) {}
+  if (id) return id;
+  id = novoEscopoId();
+  try {
+    localStorage.setItem(ORC_PRO.ATIVO_KEY, id);
+    const migrado = localStorage.getItem(ORC_PRO.MIGRADO_KEY) === "1";
+    if (!migrado) {
+      // Migração única: leva dados legados (globais) para o primeiro escopo.
+      const pares = [[ORC_PRO.FUNDACAO_KEY, chaveEscopo(ORC_PRO.FUNDACAO_KEY, id)],
+        [ORC_PRO.MEDICOES_KEY + "_atual", chaveEscopo(ORC_PRO.MEDICOES_KEY + "_atual", id)]];
+      for (const [antigo, novo] of pares) {
+        const v = localStorage.getItem(antigo);
+        if (v != null && localStorage.getItem(novo) == null) localStorage.setItem(novo, v);
+      }
+      localStorage.setItem(ORC_PRO.MIGRADO_KEY, "1");
+    }
+  } catch (e) {}
+  return id;
+}
+// Define o escopo ativo (ao abrir/duplicar um orçamento salvo).
+function definirEscopo(id) {
+  if (!id) return escopoAtivo();
+  try { localStorage.setItem(ORC_PRO.ATIVO_KEY, String(id)); } catch (e) {}
+  return String(id);
+}
+// Começa um escopo NOVO (orçamento novo): não reutiliza dados do anterior.
+function iniciarNovoEscopo(id) {
+  const novo = id || novoEscopoId();
+  try { localStorage.setItem(ORC_PRO.ATIVO_KEY, novo); } catch (e) {}
+  return novo;
+}
+function chaveEscopo(base, escopo) {
+  const e = escopo || escopoAtivo();
+  return base + ": " + e;
+}
 
 // Data de referência das hipóteses iniciais (não é data de verificação
 // de fabricante — serve para rastrear QUANDO a hipótese foi registrada).
@@ -124,7 +172,7 @@ function lerCatalogo() {
   try {
     const l = JSON.parse(localStorage.getItem(ORC_PRO.CATALOGO_KEY) || "null");
     if (Array.isArray(l) && l.length) return l;
-  } catch (e) {}
+  } catch (e) { console.warn("Catálogo salvo ilegível; recomecei da semente:", e); }
   const s = catalogoSemente();
   try { localStorage.setItem(ORC_PRO.CATALOGO_KEY, JSON.stringify(s)); } catch (e) {}
   return s;
@@ -155,7 +203,7 @@ const ORC_TIPO_PRECO = {
   estimativa: "Estimativa (não confirmada)",
 };
 function lerCotacoes() {
-  try { return JSON.parse(localStorage.getItem(ORC_PRO.COTACOES_KEY)) || []; } catch (e) { return []; }
+  try { return JSON.parse(localStorage.getItem(ORC_PRO.COTACOES_KEY)) || []; } catch (e) { console.warn("Cotações salvas ilegíveis; comecei vazio:", e); return []; }
 }
 function salvarCotacoes(l) {
   try { localStorage.setItem(ORC_PRO.COTACOES_KEY, JSON.stringify(l.slice(0, 500))); } catch (e) {}
@@ -211,7 +259,7 @@ function compararFornecedores(codigo) {
   return Object.values(porForn).sort((a, b) => a.preco - b.preco);
 }
 function lerFornecedores() {
-  try { return JSON.parse(localStorage.getItem(ORC_PRO.FORNECEDORES_KEY)) || []; } catch (e) { return []; }
+  try { return JSON.parse(localStorage.getItem(ORC_PRO.FORNECEDORES_KEY)) || []; } catch (e) { console.warn("Fornecedores salvos ilegíveis; comecei vazio:", e); return []; }
 }
 function salvarFornecedores(l) {
   try { localStorage.setItem(ORC_PRO.FORNECEDORES_KEY, JSON.stringify(l.slice(0, 200))); } catch (e) {}
@@ -235,7 +283,7 @@ function salvarFornecedor(f) {
 // Registro: { id, obraId, codigo/nome, etapa, qtdPrevista, qtdComprada,
 //             qtdUsada, custoPrevisto, custoRealizado, data, justificativa }
 function lerObrasReais() {
-  try { return JSON.parse(localStorage.getItem(ORC_PRO.OBRAS_REAIS_KEY)) || []; } catch (e) { return []; }
+  try { return JSON.parse(localStorage.getItem(ORC_PRO.OBRAS_REAIS_KEY)) || []; } catch (e) { console.warn("Obras reais salvas ilegíveis; comecei vazio:", e); return []; }
 }
 function salvarObrasReais(l) {
   try { localStorage.setItem(ORC_PRO.OBRAS_REAIS_KEY, JSON.stringify(l.slice(0, 500))); } catch (e) {}
@@ -459,35 +507,35 @@ function auditoriaEstendida(r, extras) {
 
 // ---------- Persistência local das medições ----------
 function lerMedicoes() {
-  try { return JSON.parse(localStorage.getItem(ORC_PRO.MEDICOES_KEY)) || []; } catch (e) { return []; }
+  try { return JSON.parse(localStorage.getItem(ORC_PRO.MEDICOES_KEY)) || []; } catch (e) { console.warn("Medições salvas ilegíveis; comecei vazio:", e); return []; }
 }
 function salvarMedicoes(l) {
   try { localStorage.setItem(ORC_PRO.MEDICOES_KEY, JSON.stringify(l.slice(0, 100))); } catch (e) {}
 }
 // Medição "em edição" na tela: { ambientes:[], paredes:[] }. Sem dado → vazio.
 function medicaoVazia() { return { ambientes: [], paredes: [] }; }
-function lerMedicaoAtual() {
+function lerMedicaoAtual(escopo) {
   try {
-    const m = JSON.parse(localStorage.getItem(ORC_PRO.MEDICOES_KEY + "_atual") || "null");
+    const m = JSON.parse(localStorage.getItem(chaveEscopo(ORC_PRO.MEDICOES_KEY + "_atual", escopo)) || "null");
     if (m && typeof m === "object") {
       return { ambientes: Array.isArray(m.ambientes) ? m.ambientes : [],
         paredes: Array.isArray(m.paredes) ? m.paredes : [] };
     }
-  } catch (e) {}
+  } catch (e) { console.warn("Medição em edição ilegível; comecei vazia:", e); }
   return medicaoVazia();
 }
-function salvarMedicaoAtual(m) {
+function salvarMedicaoAtual(m, escopo) {
   const limpa = { ambientes: (m && m.ambientes) || [], paredes: (m && m.paredes) || [] };
-  try { localStorage.setItem(ORC_PRO.MEDICOES_KEY + "_atual", JSON.stringify(limpa)); } catch (e) {}
+  try { localStorage.setItem(chaveEscopo(ORC_PRO.MEDICOES_KEY + "_atual", escopo), JSON.stringify(limpa)); } catch (e) {}
   return limpa;
 }
 
 // ---------- Fundação por elemento (persistida no aparelho - Seção 2) ----------
 // Formato: { sapatas:[], baldrames:[], pilares:[], vigas:[], laje:{area,espessura}, acoKgM3 }
 function fundacaoVazia() { return { sapatas: [], baldrames: [], pilares: [], vigas: [], laje: null, acoKgM3: null }; }
-function lerFundacao() {
+function lerFundacao(escopo) {
   try {
-    const f = JSON.parse(localStorage.getItem(ORC_PRO.FUNDACAO_KEY) || "null");
+    const f = JSON.parse(localStorage.getItem(chaveEscopo(ORC_PRO.FUNDACAO_KEY, escopo)) || "null");
     if (f && typeof f === "object") {
       const v = fundacaoVazia();
       for (const k of ["sapatas", "baldrames", "pilares", "vigas"]) if (Array.isArray(f[k])) v[k] = f[k];
@@ -499,10 +547,10 @@ function lerFundacao() {
       v.acoKgM3 = Number(f.acoKgM3) > 0 ? Number(f.acoKgM3) : null;
       return v;
     }
-  } catch (e) {}
+  } catch (e) { console.warn("Fundação salva ilegível; comecei vazia:", e); }
   return fundacaoVazia();
 }
-function salvarFundacao(f) {
+function salvarFundacao(f, escopo) {
   const limpa = fundacaoVazia();
   if (f) for (const k of ["sapatas", "baldrames", "pilares", "vigas"]) if (Array.isArray(f[k])) limpa[k] = f[k];
   if (f && f.laje && typeof f.laje === "object") {
@@ -511,7 +559,7 @@ function salvarFundacao(f) {
     if (area > 0 && esp > 0) limpa.laje = { area: area, espessura: esp };
   }
   if (f && Number(f.acoKgM3) > 0) limpa.acoKgM3 = Number(f.acoKgM3);
-  try { localStorage.setItem(ORC_PRO.FUNDACAO_KEY, JSON.stringify(limpa)); } catch (e) {}
+  try { localStorage.setItem(chaveEscopo(ORC_PRO.FUNDACAO_KEY, escopo), JSON.stringify(limpa)); } catch (e) {}
   return limpa;
 }
 
@@ -528,5 +576,6 @@ if (typeof window !== "undefined") {
     montarEntradaMotor, auditoriaEstendida, lerMedicoes, salvarMedicoes,
     medicaoVazia, lerMedicaoAtual, salvarMedicaoAtual,
     fundacaoVazia, lerFundacao, salvarFundacao,
+    escopoAtivo, definirEscopo, iniciarNovoEscopo, chaveEscopo,
   };
 }

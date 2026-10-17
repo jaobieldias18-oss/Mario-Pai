@@ -1007,6 +1007,7 @@ details[open] > .plano-sumario::before { transform: rotate(90deg); }
 .pro-card { border: 1px solid var(--borda); }
 .pro-sub { font-size: 15px; margin: 18px 0 6px; border-top: 1px solid var(--borda); padding-top: 12px; }
 .pro-modos { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0; }
+.pro-escopo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0; }
 .pro-radio { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .pro-tabela { display: grid; grid-template-columns: 70px 90px 90px 70px 1fr 90px; gap: 6px; margin: 8px 0; }
 .pro-th { font-size: 12px; text-transform: uppercase; letter-spacing: .02em; color: var(--texto-sec); }

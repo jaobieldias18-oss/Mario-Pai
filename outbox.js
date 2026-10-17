@@ -196,7 +196,7 @@ async function descarregarOutbox() {
   salvarFila(pendentes);
   descarregando = false;
   if (enviados > 0) {
-    try { obras = await DB.carregarTudo(); } catch (e) {}
+    try { obras = await DB.carregarTudo(); } catch (e) { console.warn("Não recarreguei os dados após sincronizar:", e); }
     renderTudo();
     mostrarToast(pendentes.length ? `${enviados} enviados, ${pendentes.length} ainda pendentes.` : "Tudo sincronizado!");
   }

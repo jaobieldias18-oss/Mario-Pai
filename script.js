@@ -120,6 +120,20 @@ function numeroOuZero(valor) {
   return isNaN(n) || n < 0 ? 0 : n;
 }
 
+// Lê um campo de valor/quantidade com validação EXPLÍCITA (não transforma
+// negativo em zero em silêncio). Devolve { ok, valor, motivo }.
+function lerValorMonetario(id, rotulo) {
+  const el = document.getElementById(id);
+  const texto = String(el && el.value != null ? el.value : "").trim();
+  const nome = rotulo || "valor";
+  if (texto === "") return { ok: false, valor: 0, motivo: `Informe o ${nome}.` };
+  const n = parseFloat(texto.replace(",", "."));
+  if (!Number.isFinite(n)) return { ok: false, valor: 0, motivo: `O ${nome} informado não é um número válido.` };
+  if (n < 0) return { ok: false, valor: 0, motivo: `O ${nome} não pode ser negativo.` };
+  if (n === 0) return { ok: false, valor: 0, motivo: `O ${nome} deve ser maior que zero.` };
+  return { ok: true, valor: n, motivo: "" };
+}
+
 let tempoToast = null;
 function mostrarToast(mensagem, sucesso = true) {
   const el = document.getElementById("toast");
@@ -506,10 +520,12 @@ function salvarObra(event) {
 
   const nome = document.getElementById("obra-nome").value.trim();
   const cliente = document.getElementById("obra-cliente").value.trim();
-  const valor = numeroOuZero(document.getElementById("obra-valor").value);
+  const valObra = lerValorMonetario("obra-valor", "valor da obra");
+  if (!valObra.ok) { mostrarToast(valObra.motivo, false); return; }
+  const valor = valObra.valor;
 
-  if (!nome || !cliente || valor <= 0) {
-    mostrarToast("Preencha nome, cliente e valor válido.", false);
+  if (!nome || !cliente) {
+    mostrarToast("Preencha nome e cliente.", false);
     return;
   }
 
@@ -677,11 +693,13 @@ async function salvarRecebimento(event) {
   const obra = pegarObra(obraAbertaId);
   if (!obra || obraSomenteLeitura(obra)) return;
 
-  const valor = numeroOuZero(document.getElementById("rec-valor").value);
+  const val = lerValorMonetario("rec-valor", "valor");
+  if (!val.ok) { mostrarToast(val.motivo, false); return; }
+  const valor = val.valor;
   const data = document.getElementById("rec-data").value;
   const descricao = document.getElementById("rec-desc").value.trim();
-  if (!valor || !data || !descricao) {
-    mostrarToast("Preencha valor, data e descrição.", false);
+  if (!data || !descricao) {
+    mostrarToast("Preencha data e descrição.", false);
     return;
   }
 
@@ -730,6 +748,11 @@ async function salvarRecebimento(event) {
   editandoRecId = null;
   fecharModal();
   renderTudo();
+  // Aviso honesto: recebido passou do valor contratado (não esconde a diferença).
+  const totRec = calcularTotais(obra);
+  if (totRec.valorContratado > 0 && totRec.totalRecebido > totRec.valorContratado) {
+    mostrarToast(`Atenção: o recebido passou do contratado em ${formatarMoeda(totRec.totalRecebido - totRec.valorContratado)}.`, false);
+  }
 }
 
 async function excluirRecebimento(id) {
@@ -768,11 +791,13 @@ async function salvarGasto(event) {
   const obra = pegarObra(obraAbertaId);
   if (!obra || obraSomenteLeitura(obra)) return;
 
-  const valor = numeroOuZero(document.getElementById("gasto-valor").value);
+  const val = lerValorMonetario("gasto-valor", "valor");
+  if (!val.ok) { mostrarToast(val.motivo, false); return; }
+  const valor = val.valor;
   const data = document.getElementById("gasto-data").value;
   const descricao = document.getElementById("gasto-desc").value.trim();
-  if (!valor || !data || !descricao) {
-    mostrarToast("Preencha descrição, valor e data.", false);
+  if (!data || !descricao) {
+    mostrarToast("Preencha descrição e data.", false);
     return;
   }
 
@@ -873,11 +898,18 @@ async function salvarTrabalhador(event) {
 
   const nome = document.getElementById("eq-nome").value.trim();
   const funcao = document.getElementById("eq-funcao").value.trim();
-  const diaria = numeroOuZero(document.getElementById("eq-diaria").value);
-  const dias = numeroOuZero(document.getElementById("eq-dias").value);
+  const valDiaria = lerValorMonetario("eq-diaria", "valor da diária");
+  if (!valDiaria.ok) { mostrarToast(valDiaria.motivo, false); return; }
+  const diaria = valDiaria.valor;
+  const diasEl = document.getElementById("eq-dias");
+  const dias = parseFloat(String(diasEl && diasEl.value != null ? diasEl.value : "").trim());
+  if (!Number.isFinite(dias) || dias <= 0) {
+    mostrarToast("Informe os dias trabalhados (número maior que zero).", false);
+    return;
+  }
   const data = document.getElementById("eq-data").value || hojeISO();
-  if (!nome || !funcao || !diaria || !dias) {
-    mostrarToast("Preencha nome, função, diária e dias.", false);
+  if (!nome || !funcao) {
+    mostrarToast("Preencha nome e função.", false);
     return;
   }
   const total = diaria * dias;
@@ -962,11 +994,13 @@ async function salvarParcela(event) {
   if (!obra || obraSomenteLeitura(obra)) return;
 
   const descricao = document.getElementById("par-desc").value.trim();
-  const valor = numeroOuZero(document.getElementById("par-valor").value);
+  const valParc = lerValorMonetario("par-valor", "valor");
+  if (!valParc.ok) { mostrarToast(valParc.motivo, false); return; }
+  const valor = valParc.valor;
   const vencimento = document.getElementById("par-venc").value || "";
   const observacao = document.getElementById("par-obs").value.trim();
-  if (!descricao || !valor) {
-    mostrarToast("Preencha descrição e valor.", false);
+  if (!descricao) {
+    mostrarToast("Preencha a descrição.", false);
     return;
   }
 
@@ -1209,7 +1243,7 @@ function exportarCSVGeral() {
     const t = calcularTotais(o);
     lO.push([o.nome, o.cliente, o.status, N(t.valorContratado), N(t.totalRecebido), N(t.totalGasto), N(t.totalMO), N(t.lucro)]);
   }
-  secoes.push({ titulo: "OBRAS", larguras: [30, 28, 16, 16, 16, 14, 16, 16], cabec: ["Obra", "Cliente", "Status", "Contratado", "Recebido", "Gasto", "Mao de obra", "Lucro"], linhas: lO });
+  secoes.push({ titulo: "OBRAS", larguras: [30, 28, 16, 16, 16, 14, 16, 16], cabec: ["Obra", "Cliente", "Status", "Contratado", "Recebido", "Gasto", "Mao de obra", "Resultado caixa"], linhas: lO });
   const lR = [];
   for (const o of obras) for (const r of o.recebimentos || [])
     lR.push([o.nome, r.descricao, r.data, N(r.valor)]);
@@ -1247,7 +1281,7 @@ function imprimirRelatorio() {
     <h2>MARIO — Relatório</h2>
     <p>Emitido em ${formatarData(hojeISO())}</p>
     <h3>Obras</h3>
-    <table><tr><th>Obra</th><th>Contratado</th><th>Recebido</th><th>Custos</th><th>Lucro</th></tr>${linhas}</table>
+    <table><tr><th>Obra</th><th>Contratado</th><th>Recebido</th><th>Custos</th><th>Resultado em caixa</th></tr>${linhas}</table>
     <h3>Financeiro — ${nomeMes(chave)} (resultado ${formatarMoeda(rm.resultado)})</h3>
     <table><tr><th>Tipo</th><th>Descrição</th><th>Data</th><th>Valor</th></tr>${mov}</table>`;
   box.hidden = false;
@@ -1270,7 +1304,7 @@ function exportarXLSObra() {
         ["Obra", o.nome], ["Cliente", o.cliente], ["Status", o.status || ""],
         ["Contratado", N(t.valorContratado)], ["Recebido", N(t.totalRecebido)],
         ["Gasto", N(t.totalGasto)], ["Mão de obra", N(t.totalMO)],
-        ["Lucro", N(t.lucro)], ["A receber", N(t.aReceber)],
+        ["Resultado em caixa", N(t.lucro)], ["A receber", N(t.aReceber)],
       ] },
     { titulo: "RECEBIMENTOS", larguras: [40, 14, 16],
       cabec: ["Descrição", "Data", "Valor"],
@@ -1300,7 +1334,7 @@ function imprimirRelatorioObra() {
     <h2>MARIO — ${proteger(o.nome)}</h2>
     <p>Cliente: ${proteger(o.cliente)} · Emitido em ${formatarData(hojeISO())}</p>
     <h3>Resumo</h3>
-    <table><tr><th>Contratado</th><th>Recebido</th><th>Custos</th><th>Lucro</th><th>A receber</th></tr>
+    <table><tr><th>Contratado</th><th>Recebido</th><th>Custos</th><th>Resultado em caixa</th><th>A receber</th></tr>
     <tr><td>${formatarMoeda(t.valorContratado)}</td><td>${formatarMoeda(t.totalRecebido)}</td>
     <td>${formatarMoeda(t.totalGasto + t.totalMO)}</td><td>${formatarMoeda(t.lucro)}</td><td>${formatarMoeda(t.aReceber)}</td></tr></table>
     <h3>Recebimentos</h3>
@@ -1519,7 +1553,7 @@ function renderDashboard() {
       <div class="obra-numeros">
         <div><small>Contratado</small><b>${formatarMoeda(t.valorContratado)}</b></div>
         <div><small>Gastos</small><b class="texto-vermelho">${formatarMoeda(t.totalGasto)}</b></div>
-        <div><small>${encerrada ? "Lucro final" : "Lucro atual"}</small><b class="texto-azul">${formatarMoeda(t.lucro)}</b></div>
+        <div><small>${encerrada ? "Resultado em caixa (final)" : "Resultado em caixa"}</small><b class="texto-azul">${formatarMoeda(t.lucro)}</b></div>
       </div>
       <p class="obra-status-linha"><span class="status-dot ${dotClasse}"></span>${proteger(obra.status || "Em andamento")}${encerrada && obra.dataEncerramento ? ` · ${formatarData(obra.dataEncerramento)}` : ""}</p>
       <p class="obra-status-linha">Margem: <strong>${mCard.texto}</strong>${mCard.rotulo ? ` · ${mCard.rotulo}` : ""}</p>
@@ -1622,8 +1656,8 @@ function renderEncerramento(obra) {
       <div class="rf-linha"><span>Total gasto</span><strong>${formatarMoeda(t.totalGasto)}</strong></div>
       <div class="rf-linha"><span>Mão de obra</span><strong>${formatarMoeda(t.totalMO)}</strong></div>
       <div class="rf-linha"><span>Custos totais</span><strong>${formatarMoeda(t.totalCusto)}</strong></div>
-      <div class="rf-linha"><span>Lucro final</span><strong class="texto-verde">${formatarMoeda(t.lucro)}</strong></div>
-      <div class="rf-linha"><span>Margem de lucro</span><strong>${mBanner.icone ? mBanner.icone + " " : ""}${mBanner.texto} · ${mBanner.rotulo}</strong></div>
+      <div class="rf-linha"><span>Resultado em caixa</span><strong class="texto-verde">${formatarMoeda(t.lucro)}</strong></div>
+      <div class="rf-linha"><span>Resultado sobre o recebido</span><strong>${mBanner.icone ? mBanner.icone + " " : ""}${mBanner.texto} · ${mBanner.rotulo}</strong></div>
       <div class="rf-linha"><span>Data de encerramento</span><strong>${formatarData(obra.dataEncerramento)}</strong></div>`;
   }
 
@@ -1858,10 +1892,12 @@ async function confirmarBaixaParcela(event) {
     fecharModal();
     return;
   }
-  const valor = numeroOuZero(document.getElementById("baixa-valor").value);
+  const valBaixa = lerValorMonetario("baixa-valor", "valor");
+  if (!valBaixa.ok) { mostrarToast(valBaixa.motivo, false); return; }
+  const valor = valBaixa.valor;
   const dataPag = document.getElementById("baixa-data").value;
-  if (!(valor > 0) || !dataValida(dataPag)) {
-    mostrarToast("Informe valor e data do pagamento.", false);
+  if (!dataValida(dataPag)) {
+    mostrarToast("Informe a data do pagamento.", false);
     return;
   }
   const rotulo = rotuloParcela(p);
@@ -2439,7 +2475,24 @@ function aoClicar(id, fn) {
 
 function aoEnviar(id, fn) {
   const el = elementoSeguro(id);
-  if (el) el.addEventListener("submit", fn);
+  if (!el) return;
+  // Guarda contra clique/toque duplo: enquanto o handler está rodando
+  // (ex.: aguardando o Supabase), novas submissões do mesmo form são ignoradas.
+  el.addEventListener("submit", async (ev) => {
+    if (el.dataset.enviando === "1") { ev.preventDefault(); return; }
+    el.dataset.enviando = "1";
+    const btn = el.querySelector('button[type="submit"]');
+    if (btn) btn.disabled = true;
+    try {
+      await fn(ev);
+    } catch (e) {
+      console.error("Erro ao enviar formulário " + id, e);
+      if (typeof mostrarToast === "function") mostrarToast("Não foi possível salvar. Tente de novo.", false);
+    } finally {
+      el.dataset.enviando = "";
+      if (btn) btn.disabled = false;
+    }
+  });
 }
 
 function aoMudar(id, evento, fn) {

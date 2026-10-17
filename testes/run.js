@@ -828,5 +828,65 @@ t("W laje válida + aço 0 vira null", rW[2]);
 t("W laje sem espessura não é guardada", rW[3]);
 t("W salvar vazio não mistura orçamentos", rW[4]);
 
+// ---- Teste X: isolamento dos dados técnicos por orçamento (Seção 4) ----
+const rX = vm.runInContext(`(function () {
+  const out = [];
+  // Dois orçamentos (escopos) não compartilham fundação.
+  iniciarNovoEscopo("orc-a");
+  salvarFundacao({ sapatas: [{ comp: 1, larg: 0.4, alt: 0.4, qtd: 1 }], acoKgM3: 80 });
+  iniciarNovoEscopo("orc-b");
+  salvarFundacao({ laje: { area: 10, espessura: 0.1 } });
+  const b = lerFundacao();
+  out.push(b.sapatas.length === 0 && !!b.laje && b.laje.area === 10);
+  // Voltar ao orçamento "a" recupera os dados dele, intactos.
+  definirEscopo("orc-a");
+  const aAgain = lerFundacao();
+  out.push(aAgain.sapatas.length === 1 && aAgain.acoKgM3 === 80 && aAgain.laje === null);
+  // Medição também é isolada por escopo.
+  definirEscopo("orc-a");
+  salvarMedicaoAtual({ paredes: [{ comp: 5, alt: 2.8, faces: 2, aberturas: [] }], ambientes: [] });
+  definirEscopo("orc-b");
+  const mb = lerMedicaoAtual();
+  out.push(!mb || (mb.paredes || []).length === 0);
+  definirEscopo("orc-a");
+  const ma = lerMedicaoAtual();
+  out.push(!!ma && (ma.paredes || []).length === 1);
+  return out;
+})()`, sandbox);
+t("X fundação isolada entre orçamentos", rX[0]);
+t("X orçamento anterior preservado", rX[1]);
+t("X medição não vaza para outro orçamento", rX[2]);
+t("X medição do orçamento original intacta", rX[3]);
+
+// ---- Teste Y: mapeamento app<->nuvem do modo profissional (Seção 2) ----
+const rY = vm.runInContext(`(function () {
+  const out = [];
+  // Catálogo: ida e volta preserva campos-chave (incl. rendimento e perda).
+  const c = { id: "ALV-01", codigo: "ALV-01", nome: "Bloco", categoria: "Alvenaria",
+    unidadeCompra: "un", unidadeConsumo: "un", conversoes: [], dimensoes: "",
+    rendimento: { valor: 12.5, unidade: "un/m2", obs: "" }, perda: 0.05,
+    composicao: null, fonte: "teste", dataRef: "2026-01-01", conf: 2, limitacao: "", ativo: true, obs: "" };
+  const lc = orcCatParaLinha(c);
+  const bc = linhaParaOrcCat(lc);
+  out.push(lc.local_id === "ALV-01" && lc.rendimento_valor === 12.5);
+  out.push(bc.id === "ALV-01" && bc.nome === "Bloco" && bc.rendimento.valor === 12.5 && bc.perda === 0.05);
+  // Cotação: obra inexistente (sem uuid) não vira FK inválida.
+  const cot = orcCotParaLinha({ id: "cot-1", codigo: "CIM-01", fornecedor: "Dep X", preco: 35, unidade: "saco", tipo: "confirmado", data: "2026-01-02", localidade: "SP", obraId: "obra-local-sem-uuid" });
+  out.push(cot.preco === 35 && cot.obra_id === null);
+  out.push(uuidOuNulo("123e4567-e89b-12d3-a456-426614174000") !== null && uuidOuNulo("abc") === null);
+  // Merge: local vence em colisão; nuvem só acrescenta o que falta.
+  const mescl = orcMesclarPorId([{ id: "a", v: 1 }], [{ id: "a", v: 9 }, { id: "b", v: 2 }]);
+  out.push(mescl.length === 2 && mescl.find((x) => x.id === "a").v === 1);
+  // Obra real: ida e volta preserva números.
+  const real = linhaParaOrcReal(orcRealParaLinha({ id: "r1", obraId: null, nome: "Bloco", codigo: "ALV-01", etapa: "Parede", qtdPrevista: 100, qtdComprada: 120, qtdUsada: 110, custoPrevisto: 500, custoRealizado: 540, justificativa: "", data: "2026-01-03" }));
+  out.push(real.qtdPrevista === 100 && real.custoRealizado === 540);
+  return out;
+})()`, sandbox);
+t("Y catálogo ida/volta preserva dados", rY[0] && rY[1]);
+t("Y cotação inválida não vira FK", rY[2]);
+t("Y uuid validado", rY[3]);
+t("Y merge local-vencedor sem duplicar", rY[4]);
+t("Y obra real ida/volta preserva", rY[5]);
+
 console.log(`\nRESULTADO: ${pass} PASS, ${fail} FAIL`);
 process.exit(fail ? 1 : 0);

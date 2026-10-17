@@ -528,7 +528,7 @@ const SyncOrc = {
           const { data: h } = await sb.from("materiais_precos")
             .select("preco,data,fonte").eq("material_id", r.id).order("data", { ascending: true });
           m.historico = (h || []).map((x) => ({ preco: Number(x.preco), data: x.data, fonte: x.fonte || "" }));
-        } catch (e) {}
+        } catch (e) { console.warn("Histórico de preço indisponível para o material", r.local_id || r.id, e); }
         out.push(m);
       }
       return { ok: true, status: SyncStatus.OK, dados: out };
@@ -642,5 +642,204 @@ const SyncOrc = {
       }
       return { ok: true, status: SyncStatus.OK };
     } catch (e) { return { ok: false, status: classificarErroSync(e), erro: e }; }
+  },
+};
+
+// =====================================================
+// Sincronização do MODO PROFISSIONAL (tabelas orc_*)
+// -----------------------------------------------------
+// Offline-first: o localStorage continua sendo a fonte; a nuvem é cópia
+// de segurança e permite abrir em outro aparelho. NUNCA afirma "sincronizado"
+// sem confirmação do Supabase. Degrada sem quebrar se a migração não foi
+// aplicada (status "sem-tabela").
+// =====================================================
+
+// Só envia obra_id quando é um UUID válido (evita erro de FK/vazamento de id).
+function uuidOuNulo(v) {
+  return (typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) ? v : null;
+}
+function numOuNulo(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+// --- Conversões puras app <-> banco (testáveis; não tocam no Supabase) ---
+function orcCatParaLinha(c) {
+  const r = c.rendimento || {};
+  return {
+    owner_id: uidDono(), local_id: String(c.id),
+    codigo: c.codigo, nome: c.nome, categoria: c.categoria || null,
+    unidade_compra: c.unidadeCompra || null, unidade_consumo: c.unidadeConsumo || null,
+    conversoes: Array.isArray(c.conversoes) ? c.conversoes : [],
+    dimensoes: c.dimensoes || null,
+    rendimento_valor: numOuNulo(r.valor), rendimento_unidade: r.unidade || null, rendimento_obs: r.obs || null,
+    perda: numOuNulo(c.perda), composicao: c.composicao || null, fonte: c.fonte || null,
+    data_ref: c.dataRef || null, conf: Number.isFinite(Number(c.conf)) ? Number(c.conf) : null,
+    limitacao: c.limitacao || null, ativo: c.ativo !== false, obs: c.obs || null,
+  };
+}
+function linhaParaOrcCat(r) {
+  return {
+    id: r.local_id || r.id, ativo: r.ativo !== false, obs: r.obs || "",
+    codigo: r.codigo, nome: r.nome, categoria: r.categoria || "",
+    unidadeCompra: r.unidade_compra || "", unidadeConsumo: r.unidade_consumo || "",
+    conversoes: Array.isArray(r.conversoes) ? r.conversoes : [],
+    dimensoes: r.dimensoes || "",
+    rendimento: { valor: r.rendimento_valor == null ? null : Number(r.rendimento_valor),
+      unidade: r.rendimento_unidade || "", obs: r.rendimento_obs || "" },
+    perda: r.perda == null ? null : Number(r.perda), composicao: r.composicao || null,
+    fonte: r.fonte || "", dataRef: r.data_ref || null,
+    conf: r.conf == null ? null : Number(r.conf), limitacao: r.limitacao || "",
+  };
+}
+function orcCotParaLinha(c) {
+  return {
+    owner_id: uidDono(), local_id: String(c.id), codigo: String(c.codigo || ""),
+    fornecedor: c.fornecedor || null, preco: Number(c.preco) || 0, unidade: c.unidade || null,
+    tipo: c.tipo || "estimativa", data: c.data || null, localidade: c.localidade || null,
+    obra_id: uuidOuNulo(c.obraId), obs: c.obs || null,
+  };
+}
+function linhaParaOrcCot(r) {
+  return {
+    id: r.local_id || r.id, codigo: r.codigo, fornecedor: r.fornecedor || "",
+    preco: r.preco == null ? 0 : Number(r.preco), unidade: r.unidade || "",
+    tipo: r.tipo || "estimativa", data: r.data || null, localidade: r.localidade || "",
+    obraId: r.obra_id || null, obs: r.obs || "",
+  };
+}
+function orcFornParaLinha(f) {
+  return {
+    owner_id: uidDono(), local_id: String(f.id), nome: f.nome,
+    telefone: f.telefone || null, cidade: f.cidade || null,
+    categoria: f.categoria || null, obs: f.obs || null,
+  };
+}
+function linhaParaOrcForn(r) {
+  return {
+    id: r.local_id || r.id, nome: r.nome, telefone: r.telefone || "",
+    cidade: r.cidade || "", categoria: r.categoria || "", obs: r.obs || "",
+  };
+}
+function orcRealParaLinha(o) {
+  return {
+    owner_id: uidDono(), local_id: String(o.id), obra_id: uuidOuNulo(o.obraId),
+    nome: o.nome || null, codigo: o.codigo || null, etapa: o.etapa || null,
+    qtd_prevista: numOuNulo(o.qtdPrevista), qtd_comprada: numOuNulo(o.qtdComprada),
+    qtd_usada: numOuNulo(o.qtdUsada), custo_previsto: numOuNulo(o.custoPrevisto),
+    custo_realizado: numOuNulo(o.custoRealizado), justificativa: o.justificativa || null,
+    data: o.data || null,
+  };
+}
+function linhaParaOrcReal(r) {
+  return {
+    id: r.local_id || r.id, obraId: r.obra_id || null, nome: r.nome || "",
+    codigo: r.codigo || "", etapa: r.etapa || "",
+    qtdPrevista: r.qtd_prevista == null ? null : Number(r.qtd_prevista),
+    qtdComprada: r.qtd_comprada == null ? null : Number(r.qtd_comprada),
+    qtdUsada: r.qtd_usada == null ? null : Number(r.qtd_usada),
+    custoPrevisto: r.custo_previsto == null ? null : Number(r.custo_previsto),
+    custoRealizado: r.custo_realizado == null ? null : Number(r.custo_realizado),
+    justificativa: r.justificativa || "", data: r.data || null,
+  };
+}
+function orcMedParaLinha(m) {
+  return {
+    owner_id: uidDono(), local_id: String(m.id), obra_id: uuidOuNulo(m.obraId),
+    ambientes: Array.isArray(m.ambientes) ? m.ambientes : [],
+    paredes: Array.isArray(m.paredes) ? m.paredes : [],
+    liquida: numOuNulo(m.liquida), piso_total: numOuNulo(m.pisoTotal),
+  };
+}
+function linhaParaOrcMed(r) {
+  return {
+    id: r.local_id || r.id, obraId: r.obra_id || null,
+    ambientes: Array.isArray(r.ambientes) ? r.ambientes : [],
+    paredes: Array.isArray(r.paredes) ? r.paredes : [],
+    liquida: r.liquida == null ? null : Number(r.liquida),
+    pisoTotal: r.piso_total == null ? null : Number(r.piso_total),
+  };
+}
+// Mescla local + nuvem por id: o LOCAL vence em colisão (nada é duplicado).
+function orcMesclarPorId(local, nuvem) {
+  const porId = new Map();
+  for (const x of (local || [])) if (x && x.id != null) porId.set(String(x.id), x);
+  for (const x of (nuvem || [])) if (x && x.id != null && !porId.has(String(x.id))) porId.set(String(x.id), x);
+  return Array.from(porId.values());
+}
+
+// Envia uma tabela: upsert por (owner_id, local_id) e remove as que sobraram.
+async function orcPushTabela(tabela, linhas) {
+  const { data, error } = await sb.from(tabela).select("id,local_id");
+  if (error) throw error;
+  const existentes = data || [];
+  if (linhas.length) {
+    const { error: e2 } = await sb.from(tabela).upsert(linhas, { onConflict: "owner_id,local_id" });
+    if (e2) throw e2;
+  }
+  const desejados = new Set(linhas.map((l) => l.local_id));
+  const remover = existentes.filter((x) => !desejados.has(x.local_id)).map((x) => x.id);
+  if (remover.length) {
+    const { error: e3 } = await sb.from(tabela).delete().in("id", remover);
+    if (e3) throw e3;
+  }
+  return { enviados: linhas.length, removidos: remover.length };
+}
+
+const OrcProSync = {
+  // Marca a última sincronização bem-sucedida (mostrada na tela; honesta).
+  marcarOk(quando) {
+    try { localStorage.setItem("mario_orc_pro_sync", quando || new Date().toISOString()); } catch (e) {}
+  },
+  ultima() {
+    try { return localStorage.getItem("mario_orc_pro_sync") || null; } catch (e) { return null; }
+  },
+  // Mensagem honesta (nunca diz "sincronizado" sem confirmação).
+  mensagem(r, o) {
+    const s = o || "Dados do modo profissional";
+    const ok = typeof r === "object" && r ? r.ok : !!r;
+    const st = (typeof r === "object" && r && r.status) || SyncStatus.REDE;
+    if (ok) return s + " sincronizados com a nuvem!";
+    if (st === SyncStatus.SEM_CONEXAO) return s + " salvos neste aparelho. Conecte à internet para enviar.";
+    if (st === SyncStatus.SEM_TABELA) return s + " salvos neste aparelho. Nuvem ainda não configurada.";
+    if (st === SyncStatus.PERMISSAO) return s + " salvos neste aparelho. Sem permissão na nuvem (confira o login).";
+    if (st === SyncStatus.REDE) return s + " salvos neste aparelho. Aguardando sincronização.";
+    return s + " salvos neste aparelho. Falha ao enviar para a nuvem.";
+  },
+  // dados = { catalogo, cotacoes, fornecedores, obrasReais, medicoes }
+  async empurrarTudo(dados) {
+    try {
+      if (!sb) return { ok: false, status: SyncStatus.SEM_CONEXAO };
+      const d = dados || {};
+      const jobs = [
+        ["orc_catalogo_tecnico", (d.catalogo || []).map(orcCatParaLinha)],
+        ["orc_cotacoes", (d.cotacoes || []).map(orcCotParaLinha)],
+        ["orc_fornecedores", (d.fornecedores || []).map(orcFornParaLinha)],
+        ["orc_obras_reais", (d.obrasReais || []).map(orcRealParaLinha)],
+        ["orc_medicoes", (d.medicoes || []).map(orcMedParaLinha)],
+      ];
+      let enviados = 0, removidos = 0;
+      for (const [tab, linhas] of jobs) {
+        const r = await orcPushTabela(tab, linhas);
+        enviados += r.enviados; removidos += r.removidos;
+      }
+      OrcProSync.marcarOk();
+      return { ok: true, status: SyncStatus.OK, enviados, removidos };
+    } catch (e) { return { ok: false, status: classificarErroSync(e), erro: e }; }
+  },
+  async puxarTudo() {
+    try {
+      if (!sb) return { ok: false, status: SyncStatus.SEM_CONEXAO, dados: {} };
+      const pega = async (t) => { const { data, error } = await sb.from(t).select("*"); if (error) throw error; return data || []; };
+      const [cat, cot, forn, real, med] = await Promise.all([
+        pega("orc_catalogo_tecnico"), pega("orc_cotacoes"), pega("orc_fornecedores"),
+        pega("orc_obras_reais"), pega("orc_medicoes"),
+      ]);
+      return { ok: true, status: SyncStatus.OK, dados: {
+        catalogo: cat.map(linhaParaOrcCat), cotacoes: cot.map(linhaParaOrcCot),
+        fornecedores: forn.map(linhaParaOrcForn), obrasReais: real.map(linhaParaOrcReal),
+        medicoes: med.map(linhaParaOrcMed),
+      } };
+    } catch (e) { return { ok: false, status: classificarErroSync(e), dados: {} }; }
   },
 };

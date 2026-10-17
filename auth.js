@@ -30,7 +30,7 @@ async function AuthPronto() {
   try {
     const { data } = await sb.auth.getSession();
     sessaoUsuario = (data && data.session && data.session.user) || null;
-  } catch (e) { sessaoUsuario = null; }
+  } catch (e) { console.warn("Não consegui ler a sessão salva:", e); sessaoUsuario = null; }
   sb.auth.onAuthStateChange((evt) => {
     if (evt === "SIGNED_OUT") { sessaoUsuario = null; location.reload(); }
   });
@@ -62,7 +62,7 @@ async function carregarPerfilAuth() {
   perfilMario = { nome: MARIO_NOME, email: sessaoUsuario.email || "" };
   try {
     await sb.from("profiles").upsert({ id: sessaoUsuario.id, nome: MARIO_NOME, email: sessaoUsuario.email || "" });
-  } catch (e) {}
+  } catch (e) { console.warn("Não atualizei o perfil na nuvem:", e); }
   const n = elAuth("aj-nome");
   if (n) n.textContent = perfilMario.nome;
 }

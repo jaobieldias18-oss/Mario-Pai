@@ -118,7 +118,7 @@ const ORC_SAVE_KEY = "mario_orcamentos_v1";
 
 function elOrc(id) { return document.getElementById(id); }
 function lerOrcamentos() {
-  try { return JSON.parse(localStorage.getItem(ORC_SAVE_KEY)) || []; } catch (e) { return []; }
+  try { return JSON.parse(localStorage.getItem(ORC_SAVE_KEY)) || []; } catch (e) { console.warn("Orçamentos salvos ilegíveis; comecei vazio:", e); return []; }
 }
 function salvarOrcamentos(l) {
   try { localStorage.setItem(ORC_SAVE_KEY, JSON.stringify(l)); } catch (e) {}
@@ -304,9 +304,9 @@ function verOrcamentoSalvo(id) {
   }
   const bdi = o.bdi;
   if (bdi && (bdi.imp || bdi.trib || bdi.lucro)) {
-    html += `<p class="texto-suave">Encargos: imprevistos ${(Number(bdi.imp || 0) * 100).toFixed(1)}%, ` +
+    html += `<p class="texto-suave">Encargos (método simplificado: acréscimo linear sobre o custo direto): imprevistos ${(Number(bdi.imp || 0) * 100).toFixed(1)}%, ` +
       `impostos ${(Number(bdi.trib || 0) * 100).toFixed(1)}%, margem ${(Number(bdi.lucro || 0) * 100).toFixed(1)}% ` +
-      `→ venda ${moeda(bdi.venda)}</p>`;
+      `→ preço de venda estimado ${moeda(bdi.venda)}</p>`;
   }
   html += `<h3 class="titulo-secao">Total: ${moeda(o.total)}</h3>`;
   html += `<button class="btn btn-texto" id="orc-det-fechar">Fechar</button></div>`;
@@ -352,6 +352,9 @@ function duplicarOrcamento(id) {
   document.querySelectorAll(".og-mo-escopo").forEach((c) => { c.checked = escopo.indexOf(c.value) >= 0; });
   // Fundação e medição ficam no aparelho; repõe para ESTE orçamento (evita misturar obras).
   try {
+    if (o.parametros && typeof OrcPro !== "undefined" && typeof OrcPro.definirEscopo === "function") {
+      OrcPro.definirEscopo("orc-" + o.id); // escopo próprio do orçamento salvo
+    }
     if (o.parametros && o.parametros.fundacao && typeof OrcPro !== "undefined" && typeof OrcPro.salvarFundacao === "function") {
       OrcPro.salvarFundacao(o.parametros.fundacao);
       const aco = o.parametros.fundacao.acoKgM3;
@@ -361,7 +364,7 @@ function duplicarOrcamento(id) {
       OrcPro.salvarMedicaoAtual(o.parametros.medicao);
     }
     if (typeof OrcProUI !== "undefined" && typeof OrcProUI.render === "function") OrcProUI.render();
-  } catch (err) {}
+  } catch (err) { console.warn("Não repus fundação/medição ao abrir o orçamento:", err); }
   const sel = document.getElementById("og-obra");
   if (sel && o.obraId) sel.value = o.obraId;
   mostrarToast("Dados carregados. Toque em Calcular para atualizar.");
@@ -389,7 +392,7 @@ const OG_ITENS = [
   ["revestimento", "Revest. faces extra (R$/m²)", null],
 ];
 function ogPrecos() {
-  try { return JSON.parse(localStorage.getItem("mario_orc_precos_v1")) || {}; } catch (e) { return {}; }
+  try { return JSON.parse(localStorage.getItem("mario_orc_precos_v1")) || {}; } catch (e) { console.warn("Preços do orçamento ilegíveis; comecei vazio:", e); return {}; }
 }
 function ogSalvarPrecos(p) {
   try { localStorage.setItem("mario_orc_precos_v1", JSON.stringify(p)); } catch (e) {}
@@ -809,7 +812,10 @@ function montarPendenciasClassificadas(r) {
   if (!(r.quartos > 0)) add("opcional", "Quartos", "afeta portas e esquadrias", "Informe no Raio-X");
   if (!(r.banheiros > 0)) add("opcional", "Banheiros", "afeta louças e hidráulica", "Informe no Raio-X");
   for (const it of (r.itens || [])) {
-    if (it.total === null) add("importante", "Preço ausente: " + it.nome, "sem preço o total fica parcial", "Cadastre em Materiais ou digite o preço");
+    // Só cobra preço de item que TEM quantidade a precificar. Linhas opcionais
+    // vazias (Transporte, Outros, pontos elétricos/hidráulicos = 0) não geram
+    // pendência falsa de "Preço ausente".
+    if (it.total === null && Number(it.qtd) > 0) add("importante", "Preço ausente: " + it.nome, "sem preço o total fica parcial", "Cadastre em Materiais ou digite o preço");
   }
   return pend;
 }
@@ -1009,6 +1015,14 @@ function estimarObra() {
   }
   if (semPreco) html += `<p class="texto-suave">Faltam ${semPreco} preço(s) — preencha no passo 1.</p>`;
   html += `<p class="texto-suave">Estimativa preliminar: portas e janelas chutadas pelos cômodos. Confirme no projeto.</p>`;
+  // Faixa/composição: separa o que é informado do que é hipótese (§6.5 e §6.11).
+  const rc = resumoCustosOrcamento(r, {});
+  html += `<div class="card dica"><p><strong>Faixa da estimativa</strong></p>` +
+    `<p class="texto-suave">Parte <strong>informativa</strong> (quantidade vinda de você): ${moeda(rc.diretoInformado)}. ` +
+    `Parte por <strong>coeficiente/hipótese</strong> (pode variar): ${moeda(rc.diretoEstimado)}${parcial ? ` • ${semPreco} item(ns) sem preço ainda NÃO somados` : ""}.</p>` +
+    `<p class="texto-suave">A parte por hipótese muda conforme: paredes realmente medidas, perímetro e telhado reais, modelo da telha, dimensionamento da fundação (projeto) e escopo da mão de obra.</p>` +
+    (parcial ? `<p class="texto-suave"><strong>O total acima é um PISO</strong>: os itens sem preço só podem aumentar o valor, nunca diminuir.</p>` : "") +
+    `</div>`;
   html += `<button class="btn btn-primario btn-grande" id="og-salvar">Salvar orçamento</button></div>`;
   html += desenharAuditoriaOrcamento(r, aud);
   const box = document.getElementById("og-resultado");
@@ -1573,9 +1587,11 @@ function calcularOrcamento() {
     html += `<h3 class="titulo-secao">Pendências (${pendencias.length})</h3>` +
       pendencias.map((p) => `<p class="texto-suave">• <strong>${proteger(p.oque)}</strong> — ${proteger(p.porque)}. Resolver: ${proteger(p.resolver)}.</p>`).join("");
   }
-  // BDI, impostos e contingência: separados, nunca embutidos (0 = não aplica)
-  html += `<h3 class="titulo-secao">Encargos sobre o custo</h3>
+  // Encargos sobre o custo: percentuais SIMPLES somados sobre o custo direto.
+  // NÃO é o cálculo formal de BDI (que tem fórmula e composição próprias).
+  html += `<h3 class="titulo-secao">Encargos sobre o custo (método simplificado)</h3>
   <div class="form">
+    <p class="texto-suave">Método simplificado: cada percentual abaixo é um <strong>acréscimo linear</strong> sobre o custo direto (custo + imprevistos + impostos + margem). <strong>Não é o cálculo formal de BDI</strong> (que usa fórmula e composição próprias) nem substitui a planilha do responsável técnico.</p>
     <div class="linha-2">
       <label class="campo"><span>Imprevistos (%)</span><input type="number" id="orc-bdi-imp" value="5" min="0" step="0.1" inputmode="decimal" /></label>
       <label class="campo"><span>Impostos (%)</span><input type="number" id="orc-bdi-trib" value="0" min="0" step="0.1" inputmode="decimal" /></label>
@@ -1589,7 +1605,7 @@ function calcularOrcamento() {
     const pl = numeroOuZero((document.getElementById("orc-bdi-lucro") || {}).value) / 100;
     const vImp = total * pi, vTrib = total * pt, vLucro = total * pl;
     const el = document.getElementById("orc-bdi-total");
-    if (el) el.innerHTML = `Custo direto: ${moeda(total)}<br>Imprevistos: ${moeda(vImp)}<br>Impostos: ${moeda(vTrib)}<br>Margem: ${moeda(vLucro)}<br><strong>Preço de venda: ${moeda(total + vImp + vTrib + vLucro)}</strong>`;
+    if (el) el.innerHTML = `Custo direto: ${moeda(total)}<br>Imprevistos: ${moeda(vImp)}<br>Impostos: ${moeda(vTrib)}<br>Margem: ${moeda(vLucro)}<br><strong>Preço de venda (estimado, método simplificado): ${moeda(total + vImp + vTrib + vLucro)}</strong>`;
     return { pi, pt, pl, vImp, vTrib, vLucro, venda: total + vImp + vTrib + vLucro };
   };
   // Previsto x realizado da obra vinculada

@@ -81,6 +81,10 @@
     h += radio("C", "Detalhado", modo);
     h += '</div>';
     h += '<p class="texto-suave" id="pro-modo-aviso"></p>';
+    h += '<div class="pro-escopo">';
+    h += '<button class="btn btn-texto" data-pro="novo-orcamento">+ Novo orçamento (limpar dados técnicos)</button>';
+    h += '<span class="texto-suave">A medição e a fundação pertencem a UM orçamento. Use este botão ao começar outro.</span>';
+    h += '</div>';
 
     // --- Medição por parede/ambiente ---
     h += '<div id="pro-medicao-area"' + (modo === "A" ? " hidden" : "") + '>';
@@ -151,6 +155,13 @@
     h += '<button class="btn btn-primario" data-pro="add-real">Registrar obra real</button>';
     h += '<div id="pro-real-lista"></div>';
 
+    // --- Nuvem (sincronização) ---
+    h += '<h4 class="pro-sub">Nuvem (backup e abrir em outro aparelho)</h4>';
+    h += '<p class="texto-suave">Preços por fornecedor, cotações, fornecedores e obras reais começam salvos NESTE aparelho (funciona sem internet). O botão copia/baixa esses dados da nuvem quando você estiver logado.</p>';
+    h += '<button class="btn btn-primario" data-pro="sincronizar">Sincronizar com a nuvem</button> ';
+    h += '<button class="btn btn-texto" data-pro="sincronizar-baixar">Só baixar da nuvem</button>';
+    h += '<div class="texto-suave" id="pro-sync-status"></div>';
+
     h += '<h4 class="pro-sub">Auditoria ampliada</h4>';
     h += '<button class="btn btn-texto" data-pro="auditoria-pro">Ver auditoria com fonte de preço</button>';
     h += '<div id="pro-auditoria"></div>';
@@ -166,6 +177,7 @@
     desenharCotacoes();
     desenharObrasReais();
     try { preencherFundacaoInputs(); } catch (e) {}
+    try { mostrarSyncStatus(); } catch (e) {}
   }
 
   function radio(v, label, atual) {
@@ -347,6 +359,62 @@
     tost("Elemento adicionado.");
   }
 
+  // ---------- Novo orçamento (isola dados técnicos) ----------
+  function novoOrcamentoTecnico() {
+    if (typeof OrcPro.iniciarNovoEscopo === "function") OrcPro.iniciarNovoEscopo();
+    OrcPro.salvarMedicaoAtual(OrcPro.medicaoVazia());
+    OrcPro.salvarFundacao(null);
+    render();
+    tost("Novo orçamento: medição e fundação zeradas.");
+  }
+
+  // ---------- Sincronização com a nuvem (offline-first) ----------
+  function dadosLocaisPro() {
+    return {
+      catalogo: OrcPro.lerCatalogo(),
+      cotacoes: OrcPro.lerCotacoes(),
+      fornecedores: OrcPro.lerFornecedores(),
+      obrasReais: OrcPro.lerObrasReais(),
+      medicoes: OrcPro.lerMedicoes(),
+    };
+  }
+  function mostrarSyncStatus() {
+    var el = document.getElementById("pro-sync-status");
+    if (!el) return;
+    var quando = (typeof OrcProSync !== "undefined" && OrcProSync.ultima) ? OrcProSync.ultima() : null;
+    el.textContent = quando
+      ? "Última sincronização: " + new Date(quando).toLocaleString()
+      : "Ainda não sincronizado. Os dados estão salvos neste aparelho.";
+  }
+  async function sincronizarPro(somenteBaixar) {
+    if (typeof OrcProSync === "undefined") { tost("Nuvem indisponível nesta versão.", false); return; }
+    var btn = document.querySelector('[data-pro="sincronizar"]');
+    var btn2 = document.querySelector('[data-pro="sincronizar-baixar"]');
+    if (btn) btn.disabled = true;
+    if (btn2) btn2.disabled = true;
+    try {
+      if (!somenteBaixar) {
+        var env = await OrcProSync.empurrarTudo(dadosLocaisPro());
+        if (!env.ok) { tost(OrcProSync.mensagem(env), false); return; }
+      }
+      var pux = await OrcProSync.puxarTudo();
+      if (!pux.ok) { tost(OrcProSync.mensagem(pux), false); return; }
+      var d = pux.dados || {};
+      OrcPro.salvarCatalogo(orcMesclarPorId(OrcPro.lerCatalogo(), d.catalogo));
+      OrcPro.salvarCotacoes(orcMesclarPorId(OrcPro.lerCotacoes(), d.cotacoes));
+      OrcPro.salvarFornecedores(orcMesclarPorId(OrcPro.lerFornecedores(), d.fornecedores));
+      OrcPro.salvarObrasReais(orcMesclarPorId(OrcPro.lerObrasReais(), d.obrasReais));
+      OrcPro.salvarMedicoes(orcMesclarPorId(OrcPro.lerMedicoes(), d.medicoes));
+      render();
+      tost("Dados do modo profissional sincronizados com a nuvem!");
+    } catch (e) {
+      tost("Falha ao sincronizar. Tente novamente.", false);
+    } finally {
+      if (btn) btn.disabled = false;
+      if (btn2) btn2.disabled = false;
+    }
+  }
+
   // ---------- Cenários ----------
   function rodarCenarios() {
     var box = document.getElementById("pro-cenarios");
@@ -430,6 +498,9 @@
     else if (acao === "add-real") { addObraReal(); }
     else if (acao === "auditoria-pro") { auditarPro(); }
     else if (acao === "add-fund") { addFundacao(); }
+    else if (acao === "novo-orcamento") { novoOrcamentoTecnico(); }
+    else if (acao === "sincronizar") { sincronizarPro(false); }
+    else if (acao === "sincronizar-baixar") { sincronizarPro(true); }
     else if (acao === "del-fund") {
       lerFundacaoInputs();
       var ff = OrcPro.lerFundacao();
@@ -509,5 +580,5 @@
   }
   // Reprocessa ao trocar para a tela de orçamento (se a SPA expõe isso).
   window.addEventListener("hashchange", function () { setTimeout(iniciar, 60); });
-  window.OrcProUI = { render: render, iniciar: iniciar, parseVaosTexto: parseVaosTexto, coletarMedicao: coletarMedicao, fundacaoParaMotor: fundacaoParaMotor };
+  window.OrcProUI = { render: render, iniciar: iniciar, parseVaosTexto: parseVaosTexto, coletarMedicao: coletarMedicao, fundacaoParaMotor: fundacaoParaMotor, sincronizarPro: sincronizarPro, dadosLocaisPro: dadosLocaisPro };
 })();
