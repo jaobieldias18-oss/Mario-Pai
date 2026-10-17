@@ -510,6 +510,7 @@ const SyncOrc = {
   async puxarMateriais() {
     try {
       if (!sb) return { ok: false, status: SyncStatus.SEM_CONEXAO, dados: [] };
+      if (!uidDono()) return { ok: false, status: SyncStatus.PERMISSAO, dados: [] };
       const { data, error } = await sb.from("materiais").select("*");
       if (error) throw error;
       const out = [];
@@ -573,6 +574,7 @@ const SyncOrc = {
   async puxarOrcamentos() {
     try {
       if (!sb) return { ok: false, status: SyncStatus.SEM_CONEXAO, dados: [] };
+      if (!uidDono()) return { ok: false, status: SyncStatus.PERMISSAO, dados: [] };
       const { data, error } = await sb.from("orcamentos").select("*").order("created_at", { ascending: false }).limit(30);
       if (error) throw error;
       const out = [];

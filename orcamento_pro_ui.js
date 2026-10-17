@@ -24,6 +24,7 @@
 
   function esc(s) { return (typeof proteger === "function") ? proteger(s) : String(s == null ? "" : s); }
   function nz(v) { return (typeof numeroOuZero === "function") ? numeroOuZero(v) : (Number(v) || 0); }
+  function numOuNulo(v) { if (v === "" || v == null) return null; var n = Number(String(v).replace(",", ".")); return isNaN(n) ? null : n; }
   function tost(msg, ok) { if (typeof mostrarToast === "function") mostrarToast(msg, ok !== false); }
 
   // ---------- Parser de vãos: "0,80x2,10" ou "0,80x2,10x2" (qtd) separados por ; ----------
@@ -212,7 +213,7 @@
     }).join(";");
   }
   function resumoMedicao(med) {
-    if (!med || !med.temMedidaReal && med.paredes === 0 && !med.pisoTotal) return '<span class="texto-suave">Sem medidas ainda.</span>';
+    if (!med || (!med.temMedidaReal && (med.paredes - (med.paredesInvalidas || 0)) === 0 && !med.pisoTotal)) return '<span class="texto-suave">Sem medidas ainda.</span>';
     return '<strong>Área líquida de parede:</strong> ' + med.liquida + ' m² • ' +
       'bruta ' + med.bruta + ' m² • vãos ' + med.aberturas + ' m² • faces p/ revestir ' + med.revestimentoFaces + ' m² • ' +
       'piso ' + med.pisoTotal + ' m²' +
@@ -244,6 +245,30 @@
   function val(el, campo) {
     var i = el.querySelector('[data-campo="' + campo + '"]');
     return i ? i.value : "";
+  }
+  // Coleta TODAS as linhas, inclusive incompletas (dimensão vazia = null).
+  // Usado para editar a lista (adicionar/remover) sem descartar linhas ainda
+  // não preenchidas. O cálculo continua ignorando linhas incompletas.
+  function coletarParedesBrutas() {
+    var arr = [], els = document.querySelectorAll("#pro-paredes [data-parede]");
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      arr.push({ id: "p" + (i + 1), comp: numOuNulo(val(el, "comp")), alt: numOuNulo(val(el, "alt")),
+        faces: Number(val(el, "faces")) === 2 ? 2 : 1, aberturas: parseVaosTexto(val(el, "vaos")) });
+    }
+    return arr;
+  }
+  function coletarAmbientesBrutos() {
+    var arr = [], els = document.querySelectorAll("#pro-ambientes [data-ambiente]");
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      arr.push({ nome: val(el, "nome") || ("Ambiente " + (i + 1)), larg: numOuNulo(val(el, "larg")),
+        comp: numOuNulo(val(el, "comp")), alt: numOuNulo(val(el, "alt")), paredes: [] });
+    }
+    return arr;
+  }
+  function coletarMedicaoBruta() {
+    return { paredes: coletarParedesBrutas(), ambientes: coletarAmbientesBrutos() };
   }
 
   // ---------- Catálogo / cotações ----------
@@ -486,11 +511,11 @@
     var t = ev.target.closest ? ev.target.closest("[data-pro]") : null;
     if (!t) return;
     var acao = t.getAttribute("data-pro");
-    if (acao === "add-parede") { var m = coletarMedicao(); m.paredes.push({ id: "p" + (m.paredes.length + 1), comp: null, alt: null, faces: 2, aberturas: [] }); salvarMedicao(m); render(); }
-    else if (acao === "add-ambiente") { var m2 = coletarMedicao(); m2.ambientes.push({ nome: "Ambiente " + (m2.ambientes.length + 1), larg: null, comp: null, alt: null, paredes: [] }); salvarMedicao(m2); render(); }
-    else if (acao === "del-parede") { var m3 = coletarMedicao(); m3.paredes.splice(Number(t.getAttribute("data-i")), 1); salvarMedicao(m3); render(); }
-    else if (acao === "del-ambiente") { var m4 = coletarMedicao(); m4.ambientes.splice(Number(t.getAttribute("data-i")), 1); salvarMedicao(m4); render(); }
-    else if (acao === "salvar-medicao") { var m5 = coletarMedicao(); salvarMedicao(m5); render(); tost("Medição salva. Agora toque em Calcular."); }
+    if (acao === "add-parede") { var m = coletarMedicaoBruta(); m.paredes.push({ id: "p" + (m.paredes.length + 1), comp: null, alt: null, faces: 2, aberturas: [] }); salvarMedicao(m); render(); }
+    else if (acao === "add-ambiente") { var m2 = coletarMedicaoBruta(); m2.ambientes.push({ nome: "Ambiente " + (m2.ambientes.length + 1), larg: null, comp: null, alt: null, paredes: [] }); salvarMedicao(m2); render(); }
+    else if (acao === "del-parede") { var m3 = coletarMedicaoBruta(); m3.paredes.splice(Number(t.getAttribute("data-i")), 1); salvarMedicao(m3); render(); }
+    else if (acao === "del-ambiente") { var m4 = coletarMedicaoBruta(); m4.ambientes.splice(Number(t.getAttribute("data-i")), 1); salvarMedicao(m4); render(); }
+    else if (acao === "salvar-medicao") { var m5 = coletarMedicaoBruta(); salvarMedicao(m5); render(); tost("Medição salva. Agora toque em Calcular."); }
     else if (acao === "limpar-medicao") { salvarMedicao(OrcPro.medicaoVazia()); render(); tost("Medição limpa."); }
     else if (acao === "cenarios") { rodarCenarios(); }
     else if (acao === "add-cot") { addCotacao(); }
